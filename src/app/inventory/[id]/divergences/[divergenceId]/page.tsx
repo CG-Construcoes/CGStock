@@ -2,9 +2,7 @@ import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {  CheckCircle2, AlertTriangle, XCircle, ArrowRight } from "lucide-react"
-import Link from "next/link"
 import DivergenceForm from "./divergence-form"
 import { BackButton } from "@/components/ui/back-button"
 
@@ -24,10 +22,6 @@ export default async function DivergenceDetailsPage({ params }: { params: Promis
   })
 
   if (!div || div.inventoryId !== id) notFound()
-
-  // Buscar usuário Gestor para simular quem está aprovando
-  const userGestor = await db.user.findFirst({ where: { roles: { some: { name: 'GESTOR' } } } })
-  const mockUserId = userGestor?.id || ""
 
   const diffColor = div.difference > 0 ? 'text-emerald-600' : 'text-red-600'
   const diffSignal = div.difference > 0 ? '+' : ''
@@ -166,7 +160,6 @@ export default async function DivergenceDetailsPage({ params }: { params: Promis
           <DivergenceForm 
             divergenceId={div.id}
             inventoryId={div.inventoryId}
-            userId={mockUserId}
             status={div.status}
           />
         </div>

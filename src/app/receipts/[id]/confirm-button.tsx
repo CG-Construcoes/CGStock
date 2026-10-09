@@ -21,8 +21,8 @@ export function ConfirmReceiptButton({ receiptId }: { receiptId: string }) {
       const formData = new FormData()
       formData.append("receiptId", receiptId)
       await confirmReceiptAction(formData)
-    } catch (err: any) {
-      setError(err.message || "Ocorreu um erro ao confirmar o recebimento.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocorreu um erro ao confirmar o recebimento.")
       setLoading(false)
     }
   }

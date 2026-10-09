@@ -1,10 +1,13 @@
-import { localDb } from "./localdb"
+import { localDb, type SyncQueueTask } from "./localdb"
 
-export async function queueOfflineOperation(operation: string, payload: any) {
+export async function queueOfflineOperation(
+  operation: SyncQueueTask['operation'],
+  payload: SyncQueueTask['payload']
+) {
   if (!localDb) throw new Error("IndexedDB not available")
-  
+
   await localDb.syncQueue.add({
-    operation: operation as any,
+    operation,
     entityId: crypto.randomUUID(),
     payload,
     status: 'PENDING',

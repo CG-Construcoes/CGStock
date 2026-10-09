@@ -1,13 +1,17 @@
 import { db } from "./db"
 import { getSession } from "./auth"
 import { headers } from "next/headers"
+import { Prisma } from "@prisma/client"
+
+type AuditTx = Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
 
 export async function logAudit(
   action: string,
   entityType: string,
   entityId: string,
-  metadata?: any,
-  overrideUserId?: string // Útil quando a própria action de login falhar/sucesso, e não temos sessão via cookie
+  metadata?: Prisma.InputJsonValue,
+  overrideUserId?: string, // Útil quando a própria action de login falhar/sucesso, e não temos sessão via cookie
+  tx?: AuditTx // Quando fornecido, o log participa da mesma transação da operação
 ) {
   try {
     let userId = overrideUserId
@@ -38,7 +42,8 @@ export async function logAudit(
       // Ignorar caso de erro ao pegar headers (ex: background jobs)
     }
 
-    await db.auditLog.create({
+    const client = tx || db
+    await client.auditLog.create({
       data: {
         userId,
         action,

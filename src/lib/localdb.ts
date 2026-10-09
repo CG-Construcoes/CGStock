@@ -29,9 +29,9 @@ export interface LocalCollectionItem {
 
 export interface SyncQueueTask {
   id?: number;
-  operation: 'SUBMIT_COLLECTION';
+  operation: 'SUBMIT_COLLECTION' | 'CREATE_RECEIPT';
   entityId: string;
-  payload: any;
+  payload: Record<string, unknown>;
   status: 'PENDING' | 'SYNCING' | 'SYNCED' | 'ERROR';
   attempts: number;
   lastAttemptAt?: Date;

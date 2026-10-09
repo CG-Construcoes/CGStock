@@ -1,8 +1,7 @@
 import { jwtVerify, SignJWT } from "jose"
 import { cookies } from "next/headers"
-
-const secretKey = process.env.JWT_SECRET || "super-secret-estoka-key"
-const key = new TextEncoder().encode(secretKey)
+import { jwtKey } from "./auth-secret"
+import { getUserSecurityContext } from "./user-context"
 
 export type SessionPayload = {
   userId: string
@@ -10,6 +9,7 @@ export type SessionPayload = {
   email: string
   roles: string[]
   mustChangePassword?: boolean
+  sessionVersion?: number
   expiresAt: Date
 }
 
@@ -18,12 +18,12 @@ export async function encrypt(payload: import('jose').JWTPayload & SessionPayloa
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")
-    .sign(key)
+    .sign(jwtKey)
 }
 
 export async function decrypt(input: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(input, key, {
+    const { payload } = await jwtVerify(input, jwtKey, {
       algorithms: ["HS256"],
     })
     // Backwards compatibility for old sessions that had { role: string }
@@ -40,7 +40,7 @@ export async function decrypt(input: string): Promise<SessionPayload | null> {
   }
 }
 
-export async function createSession(userId: string, name: string, email: string, roles: string[], mustChangePassword: boolean = false) {
+export async function createSession(userId: string, name: string, email: string, roles: string[], mustChangePassword: boolean = false, sessionVersion: number = 0) {
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
   
   const payload: SessionPayload = {
@@ -49,6 +49,7 @@ export async function createSession(userId: string, name: string, email: string,
     email,
     roles,
     mustChangePassword,
+    sessionVersion,
     expiresAt,
   }
 
@@ -74,4 +75,21 @@ export async function getSession() {
 export async function deleteSession() {
   const cookieStore = await cookies()
   cookieStore.delete("session")
+}
+
+/**
+ * Retorna a sessão somente se o usuário ainda estiver ativo e a versão de
+ * sessão do token corresponder à do banco (ou seja, não foi revogada).
+ * Usar em pontos sensíveis: mutations, dados protegidos.
+ */
+export async function getValidatedSession(): Promise<SessionPayload | null> {
+  const session = await getSession()
+  if (!session) return null
+
+  const ctx = await getUserSecurityContext(session.userId)
+
+  if (!ctx || ctx.status !== "ACTIVE") return null
+  if (session.sessionVersion !== undefined && ctx.sessionVersion !== session.sessionVersion) return null
+
+  return session
 }

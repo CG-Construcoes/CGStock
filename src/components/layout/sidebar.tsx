@@ -20,7 +20,8 @@ import {
   Settings,
   FolderSync,
   HelpCircle,
-  ChevronDown
+  ChevronDown,
+  type LucideIcon
 } from "lucide-react"
 
 export function Sidebar({ user }: { user?: { name: string; email: string; roles: string[]; permissions?: string[] } | null }) {
@@ -74,7 +75,7 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
     { name: "Configurações", href: "/admin/settings", icon: Settings, perm: 'CONFIG_MANAGE' },
   ]
 
-  const renderItem = (item: any) => {
+  const renderItem = (item: { name: string; href: string; icon: LucideIcon; perm?: string }) => {
     const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/dashboard' && item.href !== '/admin' && item.href !== '#' && pathname.startsWith(item.href))
     
     let allowed = true

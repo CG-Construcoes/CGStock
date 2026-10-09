@@ -4,12 +4,12 @@ import { Badge } from "@/components/ui/badge"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import { DashboardCharts } from "./charts"
-import { getSession } from "@/lib/auth"
+import { getSession, type SessionPayload } from "@/lib/auth"
 import { QRCodeBadge } from "@/components/ui/qr-code-badge"
 import { Button } from "@/components/ui/button"
-import { QrCode, ClipboardList, Clock, CheckCircle2 } from "lucide-react"
+import { QrCode, ClipboardList } from "lucide-react"
 
-async function RequesterDashboard({ user, qrToken }: { user: any, qrToken: string | null }) {
+async function RequesterDashboard({ user, qrToken }: { user: SessionPayload, qrToken: string | null }) {
   const recentRequests = await db.materialRequest.findMany({
     where: { requesterId: user.userId },
     orderBy: { createdAt: 'desc' },
@@ -115,71 +115,69 @@ export default async function DashboardPage() {
     return <RequesterDashboard user={session} qrToken={user?.qrToken || null} />
   }
 
-  const totalProducts = await db.product.count()
-
-  const pendingDivergencesCount = await db.inventoryDivergence.count({
-    where: { status: 'PENDING' }
-  })
-  
-  const pendingApprovalsCount = await db.inventoryDivergence.count({
-    where: { status: 'REVIEWED' }
-  })
-
-  const inTransitTransfersCount = await db.stockTransfer.count({
-    where: { status: 'IN_TRANSIT' } 
-  })
-
-  const activeInventories = await db.inventory.findMany({
-    where: { status: 'IN_PROGRESS' },
-    include: {
-      _count: { select: { locations: true } },
-      locations: { where: { status: 'COMPLETED' } }
-    },
-    take: 4
-  })
-
-  // Últimas movimentações
-  const recentMovements = await db.stockMovement.findMany({
-    take: 5,
-    orderBy: { createdAt: 'desc' },
-    include: { product: true }
-  })
-
-  // Agrega entradas e saídas dos últimos 30 dias (simplificado para o gráfico)
+  // Agrega entradas e saídas dos últimos 30 dias diretamente no banco
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-  const recentMovementsForChart = await db.stockMovement.findMany({
-    where: {
-      createdAt: { gte: thirtyDaysAgo },
-      type: { in: ['ENTRY', 'EXIT'] }
-    },
-    select: {
-      type: true,
-      quantity: true,
-      createdAt: true
-    }
-  })
+  type ChartRow = { day: Date, type: string, total: number }
 
-  // Prepara dados pro gráfico (agrupado por data de forma ingênua aqui no JS)
-  const chartDataMap: Record<string, { name: string, entradas: number, saidas: number }> = {}
+  const [
+    totalProducts,
+    pendingDivergencesCount,
+    pendingApprovalsCount,
+    inTransitTransfersCount,
+    activeInventories,
+    recentMovements,
+    chartRows
+  ] = await Promise.all([
+    db.product.count(),
+    db.inventoryDivergence.count({ where: { status: 'PENDING' } }),
+    db.inventoryDivergence.count({ where: { status: 'REVIEWED' } }),
+    db.stockTransfer.count({ where: { status: 'IN_TRANSIT' } }),
+    db.inventory.findMany({
+      where: { status: 'IN_PROGRESS' },
+      include: {
+        _count: { select: { locations: true } },
+        locations: { where: { status: 'COMPLETED' } }
+      },
+      take: 4
+    }),
+    db.stockMovement.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: { product: true }
+    }),
+    db.$queryRaw<ChartRow[]>`
+      SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
+      FROM "StockMovement"
+      WHERE "createdAt" >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT')
+      GROUP BY 1, 2
+      ORDER BY 1
+    `
+  ])
+
+  // Prepara dados pro gráfico (os 7 dias mais recentes com movimentação)
+  const chartDataMap: Record<string, { name: string, order: number, entradas: number, saidas: number }> = {}
   
-  recentMovementsForChart.forEach(m => {
-    const d = new Date(m.createdAt)
+  for (const row of chartRows) {
+    const d = new Date(row.day)
     const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}`
     
     if (!chartDataMap[dateStr]) {
-      chartDataMap[dateStr] = { name: dateStr, entradas: 0, saidas: 0 }
+      chartDataMap[dateStr] = { name: dateStr, order: d.getTime(), entradas: 0, saidas: 0 }
     }
     
-    if (m.type === 'ENTRY') {
-      chartDataMap[dateStr].entradas += m.quantity
+    if (row.type === 'ENTRY') {
+      chartDataMap[dateStr].entradas += row.total
     } else {
-      chartDataMap[dateStr].saidas += m.quantity
+      chartDataMap[dateStr].saidas += Math.abs(row.total)
     }
-  })
+  }
 
-  const chartData = Object.values(chartDataMap).slice(-7) // últimos 7 dias com mov.
+  const chartData = Object.values(chartDataMap)
+    .sort((a, b) => a.order - b.order)
+    .slice(-7)
+    .map(({ name, entradas, saidas }) => ({ name, entradas, saidas }))
 
   return (
     <div className="space-y-6">

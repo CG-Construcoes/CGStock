@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { reviewDivergenceAction, approveDivergenceAction, rejectDivergenceAction } from "./actions"
 
-export default function DivergenceForm({ divergenceId, inventoryId, userId, status }: { divergenceId: string, inventoryId: string, userId: string, status: string }) {
-  const reviewAction = reviewDivergenceAction.bind(null, divergenceId, inventoryId, userId)
-  const approveAction = approveDivergenceAction.bind(null, divergenceId, inventoryId, userId)
-  const rejectAction = rejectDivergenceAction.bind(null, divergenceId, inventoryId, userId)
+export default function DivergenceForm({ divergenceId, inventoryId, status }: { divergenceId: string, inventoryId: string, status: string }) {
+  const reviewAction = reviewDivergenceAction.bind(null, divergenceId, inventoryId)
+  const approveAction = approveDivergenceAction.bind(null, divergenceId, inventoryId)
+  const rejectAction = rejectDivergenceAction.bind(null, divergenceId, inventoryId)
 
   if (['APPROVED', 'REJECTED', 'ADJUSTED'].includes(status)) {
     return (

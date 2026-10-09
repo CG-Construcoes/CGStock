@@ -3,10 +3,12 @@
 import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
+import { requirePermission } from "@/lib/permissions"
 
 export async function createSupplierAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('STOCK_ENTRY')
 
   const name = formData.get("name") as string
   const tradeName = formData.get("tradeName") as string || null

@@ -2,13 +2,12 @@
 
 import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { getSession } from "@/lib/auth"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
+import { requireActionPermission } from "@/lib/action-guard"
 
 export async function createReceiptAction(formData: FormData) {
-  const session = await getSession()
-  if (!session) redirect("/login")
+  const session = await requireActionPermission('STOCK_ENTRY')
 
   const supplierId = formData.get("supplierId") as string
   const warehouseId = formData.get("warehouseId") as string
@@ -115,8 +114,7 @@ export async function createReceiptAction(formData: FormData) {
 }
 
 export async function confirmReceiptAction(formData: FormData) {
-  const session = await getSession()
-  if (!session) throw new Error("Não autorizado")
+  const session = await requireActionPermission('STOCK_ENTRY')
 
   const receiptId = formData.get("receiptId") as string
   if (!receiptId) throw new Error("ID do recebimento não informado")
@@ -157,9 +155,9 @@ export async function confirmReceiptAction(formData: FormData) {
     })
 
     await logAudit("RECEIPT_CONFIRMED", "StockReceipt", receipt.id, { status: "COMPLETED" })
-  } catch (error: any) {
+  } catch (error) {
     console.error("Erro ao confirmar recebimento", error)
-    throw new Error(error.message || "Erro ao processar a confirmação do recebimento no estoque.")
+    throw new Error(error instanceof Error ? error.message : "Erro ao processar a confirmação do recebimento no estoque.")
   }
 
   redirect(`/receipts/${receipt.id}`)

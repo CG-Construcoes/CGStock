@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { localDb } from "@/lib/localdb"
+import { useOnlineStatus } from "@/lib/use-online-status"
 import { toast } from "sonner"
-import { Wifi, WifiOff, Loader2 } from "lucide-react"
+import { WifiOff, Loader2 } from "lucide-react"
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const [isOnline, setIsOnline] = useState(true)
+  const isOnline = useOnlineStatus()
   const [isSyncing, setIsSyncing] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
 
@@ -36,32 +37,34 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         // Dynamic API call based on operation type
         const endpointMap: Record<string, string> = {
           'CREATE_RECEIPT': '/api/sync/receipt',
-          'CREATE_ISSUE': '/api/sync/issue',
-          'CREATE_QUICK_ISSUE': '/api/sync/quick-issue',
-          'SUBMIT_COLLECTION': '/api/sync/collection'
+          'SUBMIT_COLLECTION': '/api/sync'
         }
 
         const endpoint = endpointMap[task.operation]
-        if (!endpoint) throw new Error("Unknown operation")
+        if (!endpoint) throw new Error("Operação de sincronização desconhecida")
 
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payload: task.payload, idempotencyKey: task.entityId })
+          body: JSON.stringify({ operation: task.operation, payload: task.payload, idempotencyKey: task.entityId })
         })
 
+        if (res.status === 401) {
+          throw new Error("Sessão expirada. Faça login novamente para sincronizar.")
+        }
+
         if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error || "Sync failed")
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.error || "Falha na sincronização")
         }
 
         await localDb.syncQueue.delete(task.id!)
         successCount++
-      } catch (err: any) {
+      } catch (err) {
         console.error("Sync error:", err)
-        await localDb.syncQueue.update(task.id!, { 
-          status: 'ERROR', 
-          error: err.message,
+        await localDb.syncQueue.update(task.id!, {
+          status: 'ERROR',
+          error: err instanceof Error ? err.message : "Falha na sincronização",
           attempts: task.attempts + 1,
           lastAttemptAt: new Date()
         })
@@ -77,16 +80,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [isOnline, updatePendingCount])
 
   useEffect(() => {
-    setIsOnline(navigator.onLine)
-    updatePendingCount()
+    const loadInitialCount = async () => {
+      if (!localDb) return
+      const count = await localDb.syncQueue.where('status').equals('PENDING').count()
+      const errorCount = await localDb.syncQueue.where('status').equals('ERROR').count()
+      setPendingCount(count + errorCount)
+    }
+    void loadInitialCount()
 
     const handleOnline = () => {
-      setIsOnline(true)
       toast.success("Conexão restabelecida!")
       syncNow()
     }
     const handleOffline = () => {
-      setIsOnline(false)
       toast.error("Sem conexão. O sistema operará em modo offline.")
     }
 

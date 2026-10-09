@@ -3,10 +3,12 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { requirePermission } from "@/lib/permissions"
 
 export async function createLocationAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('CONFIG_MANAGE')
 
   const warehouseId = formData.get("warehouseId") as string
   const code = formData.get("code") as string
@@ -62,6 +64,7 @@ export async function createLocationAction(formData: FormData) {
 export async function updateLocationAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('CONFIG_MANAGE')
 
   const id = formData.get("id") as string
   const warehouseId = formData.get("warehouseId") as string

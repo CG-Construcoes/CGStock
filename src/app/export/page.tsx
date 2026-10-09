@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Download, FileSpreadsheet, FileText, Loader2, File, CheckCircle2 } from "lucide-react"
+import { FileSpreadsheet, FileText, Loader2 } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
 import { exportToCSV, exportToExcel, exportToPDF } from "@/lib/export-utils"
 import { exportProductsData, exportStockData, exportMovementsData, getInventoriesList, exportInventoryData } from "./actions"
@@ -14,7 +14,7 @@ type ExportFormat = 'csv' | 'xlsx' | 'pdf'
 
 export default function ExportPage() {
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
-  const [inventories, setInventories] = useState<any[]>([])
+  const [inventories, setInventories] = useState<{ id: string; name: string }[]>([])
   const [selectedInventory, setSelectedInventory] = useState<string>("")
   const [formatMap, setFormatMap] = useState<Record<string, 'csv' | 'xlsx'>>({
     products: 'xlsx',
@@ -31,7 +31,7 @@ export default function ExportPage() {
     try {
       setLoadingMap(prev => ({ ...prev, [`${type}_${format}`]: true }))
       
-      let data: any[] = []
+      let data: Record<string, unknown>[] = []
       let title = ""
       let filename = ""
 
@@ -68,8 +68,8 @@ export default function ExportPage() {
       }
       
       toast.success("Download iniciado com sucesso.")
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao gerar exportação. Tente novamente.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao gerar exportação. Tente novamente.")
     } finally {
       setLoadingMap(prev => ({ ...prev, [`${type}_${format}`]: false }))
     }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Lock, LogOut } from "lucide-react"
@@ -9,6 +10,7 @@ import { changePasswordAction } from "./actions"
 import { logoutAction } from "@/app/auth-actions"
 
 export default function ChangePasswordPage() {
+  const router = useRouter()
   const [state, formAction, isPending] = useActionState(changePasswordAction, null)
 
   useEffect(() => {
@@ -17,13 +19,13 @@ export default function ChangePasswordPage() {
     }
     if (state?.success) {
       toast.success("Senha alterada com sucesso!")
-      window.location.href = "/" // hard redirect to dashboard to clear middleware cache
+      router.push("/") // full navigation para refletir a nova sessão
     }
-  }, [state])
+  }, [state, router])
 
   const handleLogout = async () => {
     await logoutAction()
-    window.location.href = "/login"
+    router.push("/login")
   }
 
   return (
@@ -58,10 +60,10 @@ export default function ChangePasswordPage() {
             <Input 
               name="newPassword" 
               type="password" 
-              placeholder="Mínimo 6 caracteres" 
+              placeholder="Mínimo 10 caracteres, com letras e números" 
               required 
               className="h-12 bg-background/50"
-              minLength={6}
+              minLength={10}
             />
           </div>
           <div className="space-y-2">
@@ -72,7 +74,7 @@ export default function ChangePasswordPage() {
               placeholder="Repita a nova senha" 
               required 
               className="h-12 bg-background/50"
-              minLength={6}
+              minLength={10}
             />
           </div>
 

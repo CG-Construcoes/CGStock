@@ -1,16 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Plus, PackageX } from "lucide-react"
 
-export function ReturnItemsForm({ products, warehouses }: { products: any[], warehouses: any[] }) {
-  const [items, setItems] = useState([{ id: Date.now() }])
+type ReturnProduct = { id: string; code: string; name: string; unitId: string | null }
+type ReturnWarehouse = { locations: { id: string; code: string }[] }
+
+export function ReturnItemsForm({ products, warehouses }: { products: ReturnProduct[], warehouses: ReturnWarehouse[] }) {
+  const idCounter = useRef(1)
+  const [items, setItems] = useState([{ id: 0 }])
 
   const addItem = () => {
-    setItems([...items, { id: Date.now() }])
+    setItems(prev => [...prev, { id: idCounter.current++ }])
   }
 
   const removeItem = (id: number) => {
@@ -28,7 +32,7 @@ export function ReturnItemsForm({ products, warehouses }: { products: any[], war
         </Button>
       </h3>
       
-      {items.map((item, index) => (
+      {items.map((item) => (
         <div key={item.id} className="border rounded-lg p-4 bg-muted flex items-start gap-4">
           <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="col-span-2 space-y-2">

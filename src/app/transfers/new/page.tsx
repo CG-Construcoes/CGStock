@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
-import {  Save, Plus, PackageX, ArrowRightLeft } from "lucide-react"
+import {  Plus, PackageX, ArrowRightLeft } from "lucide-react"
 import Link from "next/link"
 import { createTransferAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
@@ -20,15 +20,10 @@ export default async function NewTransferPage({
     include: { locations: true }
   })
   
-  const users = await db.user.findMany({ where: { status: 'ACTIVE' }, include: { roles: true } })
   const products = await db.product.findMany({ 
     where: { status: 'ACTIVE' },
     include: { unit: true }
   })
-
-  // Almoxarife simulado
-  const userAlmox = users.find(u => u.roles && u.roles.length > 0)
-  const mockUserId = userAlmox?.id || ""
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -49,8 +44,6 @@ export default async function NewTransferPage({
             </div>
           )}
           <form action={createTransferAction} className="space-y-8">
-            <input type="hidden" name="createdById" value={mockUserId} />
-            
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">Informações da Rota</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

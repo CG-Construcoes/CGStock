@@ -11,7 +11,7 @@ import { fulfillRequestAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { handleAction } from "@/lib/handle-action"
 
-export default function FulfillmentForm({ request, userId }: any) {
+export default function FulfillmentForm({ request }: any) {
   const hasPendingItems = request.items.some((item: any) => (item.approvedQuantity - item.deliveredQuantity) > 0)
 
   if (!hasPendingItems || request.status === 'FULFILLED') {
@@ -65,7 +65,6 @@ export default function FulfillmentForm({ request, userId }: any) {
             }}
           >
             <input type="hidden" name="requestId" value={request.id} />
-            <input type="hidden" name="userId" value={userId} />
 
             <div className="space-y-4">
               {request.items.map((item: any) => {

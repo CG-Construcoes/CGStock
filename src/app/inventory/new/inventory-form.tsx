@@ -11,7 +11,7 @@ import Link from "next/link"
 import { createInventoryAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 
-export default function InventoryForm({ warehouses, users, userId }: any) {
+export default function InventoryForm({ warehouses, users }: any) {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState("")
 
   const warehouse = warehouses.find((w: any) => w.id === selectedWarehouseId)
@@ -30,8 +30,6 @@ export default function InventoryForm({ warehouses, users, userId }: any) {
       <Card>
         <CardContent className="p-6">
           <form action={createInventoryAction} className="space-y-8">
-            <input type="hidden" name="createdById" value={userId} />
-
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">Informações Gerais</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

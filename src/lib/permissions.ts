@@ -1,5 +1,5 @@
-import { getSession } from "./auth"
-import { db } from "./db"
+import { getValidatedSession } from "./auth"
+import { getUserSecurityContext } from "./user-context"
 import { redirect } from "next/navigation"
 
 export type PermissionKey = 
@@ -12,33 +12,16 @@ export type PermissionKey =
   | 'CONFIG_MANAGE' | 'AUDIT_VIEW'
 
 export async function hasPermission(permissionKey: PermissionKey): Promise<boolean> {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return false
 
   // ADMIN sempre tem acesso a tudo
   if (session.roles?.includes('ADMIN')) return true
 
-  // Busca permissões do usuário
-  const user = await db.user.findUnique({
-    where: { id: session.userId },
-    include: {
-      roles: {
-        include: {
-          permissions: {
-            include: {
-              permission: true
-            }
-          }
-        }
-      }
-    }
-  })
+  const ctx = await getUserSecurityContext(session.userId)
+  if (!ctx) return false
 
-  if (!user || user.status !== 'ACTIVE') return false
-
-  const allPermissions = user.roles.flatMap((role: any) => role.permissions)
-  const hasPerm = allPermissions.some((rp: any) => rp.permission.key === permissionKey)
-  return hasPerm
+  return ctx.permissionKeys.has(permissionKey)
 }
 
 export async function requirePermission(permissionKey: PermissionKey) {

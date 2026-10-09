@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {  CheckCircle2, Clock, Smartphone, Play, StopCircle, FileText, Trash2 } from "lucide-react"
+import {  Smartphone, Play, StopCircle, FileText } from "lucide-react"
 import Link from "next/link"
 import { finishInventoryAction, deleteInventoryAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
@@ -32,9 +32,6 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
 
   if (!inv) notFound()
 
-  const userGestor = await db.user.findFirst({ where: { roles: { some: { name: 'GESTOR' } } } })
-  const mockUserId = userGestor?.id || ""
-
   let statusVariant = "default"
   let statusLabel = inv.status
   if (inv.status === 'IN_PROGRESS' || inv.status === 'COUNTING') { statusVariant = "default"; statusLabel = "Em Andamento" }
@@ -45,7 +42,7 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
   const totalLocs = inv.locations.length
   const progress = totalLocs > 0 ? Math.round((completedLocs / totalLocs) * 100) : 0
 
-  const finishAction = finishInventoryAction.bind(null, inv.id, mockUserId)
+  const finishAction = finishInventoryAction.bind(null, inv.id)
 
   return (
     <div className="space-y-6">

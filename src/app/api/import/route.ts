@@ -1,10 +1,30 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
+import { db } from '@/lib/db'
+import { getSession } from '@/lib/auth'
+import { logAudit } from '@/lib/audit'
+import { Prisma } from '@prisma/client'
 
-const prisma = new PrismaClient()
+const MAX_IMPORT_ROWS = 5000
+
+type ParsedRow = {
+  code: string
+  name: string
+  unitCode: string
+  quantity: number
+  averageCost: number
+  minimumStock: number
+}
 
 export async function POST(request: Request) {
+  const session = await getSession()
+  if (!session) {
+    return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
+  }
+  if (!session.roles?.includes('ADMIN')) {
+    return NextResponse.json({ error: 'Apenas administradores podem importar dados.' }, { status: 403 })
+  }
+
   try {
     const body = await request.json()
     const { filename, data } = body
@@ -12,175 +32,208 @@ export async function POST(request: Request) {
     if (!data || !Array.isArray(data)) {
       return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
     }
-
-    // Identifica se é Mahay pelo nome do arquivo
-    const isMahay = filename?.toLowerCase().includes('mahay')
-    
-    // 1. Obter ou criar a Categoria Padrão
-    let defaultCategory = await prisma.productCategory.findFirst({
-      where: { name: 'Geral' }
-    })
-    
-    if (!defaultCategory) {
-      defaultCategory = await prisma.productCategory.create({
-        data: { name: 'Geral', description: 'Categoria padrão de importação' }
-      })
+    if (data.length > MAX_IMPORT_ROWS) {
+      return NextResponse.json({ error: `A planilha excede o limite de ${MAX_IMPORT_ROWS} linhas.` }, { status: 400 })
     }
 
-    // 2. Obter ou criar Armazém e Localização
-    const warehouseCode = isMahay ? 'MAHAY' : 'ALM-01'
-    const warehouseName = isMahay ? 'Almoxarifado Mahay' : 'Almoxarifado Principal'
-    
-    let warehouse = await prisma.warehouse.findUnique({
-      where: { code: warehouseCode }
-    })
-    
-    if (!warehouse) {
-      warehouse = await prisma.warehouse.create({
-        data: { code: warehouseCode, name: warehouseName }
-      })
-    }
-    
-    let location = await prisma.warehouseLocation.findFirst({
-      where: { warehouseId: warehouse.id, code: 'GERAL' }
-    })
-    
-    if (!location) {
-      location = await prisma.warehouseLocation.create({
-        data: { 
-          warehouseId: warehouse.id, 
-          code: 'GERAL', 
-          name: 'Geral' 
-        }
-      })
-    }
+    // 1. Validar e normalizar as linhas antes de tocar no banco
+    const rows: ParsedRow[] = []
+    const skippedRows: number[] = []
 
-    // 3. Obter um usuário para ser o responsável pelas movimentações
-    let adminUser = await prisma.user.findFirst({
-      where: { email: 'admin@estoka.com' }
-    })
-    
-    if (!adminUser) {
-       adminUser = await prisma.user.findFirst()
-    }
-    
-    if (!adminUser) {
-      return NextResponse.json({ error: 'Nenhum usuário no banco de dados.' }, { status: 500 })
-    }
-
-    let processedCount = 0
-
-    // 4. Processar cada linha
-    for (const row of data) {
-      const code = String(row['Material'])
-      const name = String(row['Especificação'])
-      const unitCode = String(row['Unidade']).toUpperCase() || 'UN'
+    data.forEach((row: Record<string, unknown>, index: number) => {
+      const code = String(row['Material'] ?? '').trim()
+      const name = String(row['Especificação'] ?? '').trim()
+      const unitCode = String(row['Unidade'] ?? 'UN').toUpperCase() || 'UN'
       const quantity = Number(row['Quantidade']) || 0
       const statedCost = Number(row['Pr. Unitário']) || 0
       const totalValue = Number(row['Valor']) || 0
-      
-      // Calculate exact averageCost to avoid rounding divergence from 'Pr. Unitário'
       const averageCost = (quantity > 0 && totalValue > 0) ? (totalValue / quantity) : statedCost
       const minimumStock = Number(row['Estq.Mínimo']) || 0
 
       if (!code || code === 'undefined' || !name || name === 'undefined') {
-        continue // Pula linhas vazias
+        skippedRows.push(index + 1)
+        return
       }
+      rows.push({ code, name, unitCode, quantity, averageCost, minimumStock })
+    })
 
-      // 4.1 Unidade
-      let unit = await prisma.productUnit.findUnique({
-        where: { code: unitCode }
-      })
-      
-      if (!unit) {
-        unit = await prisma.productUnit.create({
-          data: { code: unitCode, name: unitCode }
-        })
-      }
-
-      // 4.2 Produto (Upsert)
-      const product = await prisma.product.upsert({
-        where: { code },
-        update: {
-          name,
-          unitId: unit.id,
-          minimumStock,
-          averageCost,
-        },
-        create: {
-          code,
-          name,
-          categoryId: defaultCategory.id,
-          unitId: unit.id,
-          minimumStock,
-          averageCost,
-          status: 'ACTIVE'
-        }
-      })
-
-      // 4.3 Estoque e Movimentação
-      // Busca saldo atual
-      const currentStock = await prisma.stock.findUnique({
-        where: {
-          productId_locationId: {
-            productId: product.id,
-            locationId: location.id
-          }
-        }
-      })
-
-      const currentQty = currentStock?.quantity || 0
-      const difference = quantity - currentQty
-
-      if (difference !== 0) {
-        // Atualiza/Cria saldo em estoque
-        await prisma.stock.upsert({
-          where: {
-            productId_locationId: {
-              productId: product.id,
-              locationId: location.id
-            }
-          },
-          update: {
-            quantity
-          },
-          create: {
-            productId: product.id,
-            warehouseId: warehouse.id,
-            locationId: location.id,
-            quantity
-          }
-        })
-
-        // Registra Movimentação de Ajuste
-        await prisma.stockMovement.create({
-          data: {
-            productId: product.id,
-            warehouseId: warehouse.id,
-            locationId: location.id,
-            type: difference > 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
-            quantity: Math.abs(difference),
-            unitCost: averageCost,
-            totalCost: averageCost * Math.abs(difference),
-            referenceType: 'INVENTORY_ADJUSTMENT',
-            reason: 'Importação de Planilha Excel',
-            performedById: adminUser.id
-          }
-        })
-
-      }
-
-      processedCount++
+    if (rows.length === 0) {
+      return NextResponse.json({ success: true, processedCount: 0, created: 0, updated: 0, skipped: skippedRows.length })
     }
-    
+
+    const isMahay = filename?.toLowerCase().includes('mahay')
+    const warehouseCode = isMahay ? 'MAHAY' : 'ALM-01'
+    const warehouseName = isMahay ? 'Almoxarifado Mahay' : 'Almoxarifado Principal'
+
+    const result = await db.$transaction(async (tx) => {
+      // 2. Categoria, armazém e localização padrão
+      const defaultCategory = await tx.productCategory.upsert({
+        where: { name: 'Geral' },
+        update: {},
+        create: { name: 'Geral', description: 'Categoria padrão de importação' }
+      })
+
+      const warehouse = await tx.warehouse.upsert({
+        where: { code: warehouseCode },
+        update: {},
+        create: { code: warehouseCode, name: warehouseName }
+      })
+
+      const location = await tx.warehouseLocation.upsert({
+        where: { code: 'GERAL' },
+        update: {},
+        create: { warehouseId: warehouse.id, code: 'GERAL', name: 'Geral' }
+      })
+
+      if (location.warehouseId !== warehouse.id) {
+        throw new Error("A localização GERAL pertence a outro almoxarifado.")
+      }
+
+      // 3. Unidades: pré-carrega e cria as que faltam em lote
+      const unitCodes = [...new Set(rows.map(r => r.unitCode))]
+      const existingUnits = await tx.productUnit.findMany({ where: { code: { in: unitCodes } } })
+      const unitMap = new Map(existingUnits.map(u => [u.code, u.id]))
+      const missingUnitCodes = unitCodes.filter(c => !unitMap.has(c))
+      if (missingUnitCodes.length > 0) {
+        await tx.productUnit.createMany({
+          data: missingUnitCodes.map(code => ({ code, name: code })),
+          skipDuplicates: true
+        })
+        const createdUnits = await tx.productUnit.findMany({ where: { code: { in: missingUnitCodes } } })
+        createdUnits.forEach(u => unitMap.set(u.code, u.id))
+      }
+
+      // 4. Produtos: pré-carrega os existentes e separa criação de atualização
+      const codes = rows.map(r => r.code)
+      const existingProducts = await tx.product.findMany({
+        where: { code: { in: codes } },
+        select: { id: true, code: true }
+      })
+      const productByCode = new Map(existingProducts.map(p => [p.code, p.id]))
+
+      const toCreate = rows.filter(r => !productByCode.has(r.code))
+      const toUpdate = rows.filter(r => productByCode.has(r.code))
+
+      if (toCreate.length > 0) {
+        await tx.product.createMany({
+          data: toCreate.map(r => ({
+            code: r.code,
+            name: r.name,
+            categoryId: defaultCategory.id,
+            unitId: unitMap.get(r.unitCode)!,
+            minimumStock: r.minimumStock,
+            averageCost: r.averageCost,
+            status: 'ACTIVE'
+          })),
+          skipDuplicates: true
+        })
+        const createdProducts = await tx.product.findMany({
+          where: { code: { in: toCreate.map(r => r.code) } },
+          select: { id: true, code: true }
+        })
+        createdProducts.forEach(p => productByCode.set(p.code, p.id))
+      }
+
+      for (const r of toUpdate) {
+        await tx.product.update({
+          where: { id: productByCode.get(r.code)! },
+          data: {
+            name: r.name,
+            unitId: unitMap.get(r.unitCode)!,
+            minimumStock: r.minimumStock,
+            averageCost: r.averageCost,
+          }
+        })
+      }
+
+      // 5. Estoque: ajusta apenas onde houve diferença
+      const productIds = rows.map(r => productByCode.get(r.code)!).filter(Boolean)
+      const existingStocks = await tx.stock.findMany({
+        where: { productId: { in: productIds }, locationId: location.id }
+      })
+      const stockByProduct = new Map(existingStocks.map(s => [s.productId, s]))
+
+      const stockCreates: Prisma.StockCreateManyInput[] = []
+      const stockUpdates: { id: string, quantity: number }[] = []
+      const movementCreates: Prisma.StockMovementCreateManyInput[] = []
+
+      for (const r of rows) {
+        const productId = productByCode.get(r.code)
+        if (!productId) continue
+
+        const current = stockByProduct.get(productId)
+        const currentQty = current?.quantity || 0
+        const difference = r.quantity - currentQty
+
+        if (difference === 0) continue
+
+        if (current) {
+          stockUpdates.push({ id: current.id, quantity: r.quantity })
+        } else {
+          stockCreates.push({
+            productId,
+            warehouseId: warehouse.id,
+            locationId: location.id,
+            quantity: r.quantity
+          })
+        }
+
+        movementCreates.push({
+          productId,
+          warehouseId: warehouse.id,
+          locationId: location.id,
+          type: difference > 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
+          quantity: Math.abs(difference),
+          unitCost: r.averageCost,
+          totalCost: r.averageCost * Math.abs(difference),
+          referenceType: 'INVENTORY_ADJUSTMENT',
+          reason: 'Importação de Planilha Excel',
+          performedById: session.userId
+        })
+      }
+
+      if (stockCreates.length > 0) {
+        await tx.stock.createMany({ data: stockCreates })
+      }
+      for (const s of stockUpdates) {
+        await tx.stock.update({ where: { id: s.id }, data: { quantity: s.quantity } })
+      }
+      if (movementCreates.length > 0) {
+        await tx.stockMovement.createMany({ data: movementCreates })
+      }
+
+      return {
+        processed: rows.length,
+        created: toCreate.length,
+        updated: toUpdate.length,
+        stockAdjustments: movementCreates.length
+      }
+    }, {
+      timeout: 120000
+    })
+
+    await logAudit("PRODUCTS_IMPORTED", "Product", warehouseCode, {
+      filename,
+      ...result,
+      skipped: skippedRows.length
+    }, session.userId)
+
     try {
       revalidatePath('/products')
-    } catch(e) {}
+      revalidatePath('/stock')
+    } catch {}
 
-    return NextResponse.json({ success: true, processedCount })
+    return NextResponse.json({
+      success: true,
+      processedCount: result.processed,
+      created: result.created,
+      updated: result.updated,
+      stockAdjustments: result.stockAdjustments,
+      skipped: skippedRows.length
+    })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Import error:', error)
-    return NextResponse.json({ error: error.message || 'Erro interno.' }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno ao processar a importação.' }, { status: 500 })
   }
 }

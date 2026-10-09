@@ -99,7 +99,7 @@ export async function updateProductAction(formData: FormData) {
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
-  const status = formData.get("status") as any || "ACTIVE"
+  const status = (formData.get("status") as string) || "ACTIVE"
 
   if (!id || !code || !name || !categoryId || !unitId) {
     redirect(`/products/${id}/edit?error=missing_fields`)
@@ -153,19 +153,23 @@ export async function deleteProduct(id: string) {
 }
 
 import { revalidatePath } from "next/cache"
+import { requireAdmin } from "@/lib/action-guard"
+import { logAudit } from "@/lib/audit"
 
 export async function deleteAllProducts() {
-  const session = await getSession()
-  if (!session) throw new Error("Unauthorized")
+  const session = await requireAdmin()
 
   try {
-    // Apaga os movimentos primeiro devido as restrições
-    await db.stockMovement.deleteMany()
-    await db.stock.deleteMany()
-    await db.product.deleteMany()
+    await db.$transaction(async (tx) => {
+      // Apaga os movimentos primeiro devido as restrições
+      await tx.stockMovement.deleteMany()
+      await tx.stock.deleteMany()
+      await tx.product.deleteMany()
+    })
+    await logAudit("PRODUCTS_BULK_DELETED", "Product", "ALL", undefined, session.userId)
     revalidatePath('/products')
   } catch (error) {
     console.error("Error deleting all products:", error)
-    throw new Error("Failed to delete all products")
+    throw new Error("Falha ao excluir todos os produtos.")
   }
 }

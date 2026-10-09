@@ -1,12 +1,13 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 import { getAccessibleWorksiteIds } from "@/lib/context"
 import { revalidatePath } from "next/cache"
+import { createWithUniqueNumber } from "@/lib/sequential"
 
 export async function verifyEmployeeQR(qrToken: string) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return { error: "Não autorizado." }
   
   // 1. Localizar usuário pelo token
@@ -65,7 +66,7 @@ export async function verifyEmployeeQR(qrToken: string) {
 }
 
 export async function getProductStockForQuickIssue(worksiteId: string, productCode: string) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return { error: "Não autorizado." }
 
   // Verificar se o almoxarife/operador logado tem acesso à obra (no backend!)
@@ -130,7 +131,7 @@ export async function confirmQuickIssue(payload: {
     requestedQuantity: number
   }[]
 }) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return { error: "Não autorizado." }
   
   const allowedWorksites = await getAccessibleWorksiteIds()
@@ -143,10 +144,13 @@ export async function confirmQuickIssue(payload: {
   }
 
   try {
-    const issueResult = await db.$transaction(async (tx) => {
+    const issueResult = await createWithUniqueNumber(
+      async (attempt) => {
+        const issueCount = await db.quickIssue.count()
+        return `ENT-${String(issueCount + 1 + attempt).padStart(6, '0')}`
+      },
+      (issueNumber) => db.$transaction(async (tx) => {
       // 1. Criar o QuickIssue master
-      const issueCount = await tx.quickIssue.count()
-      const issueNumber = `ENT-${String(issueCount + 1).padStart(6, '0')}`
       
       const issue = await tx.quickIssue.create({
         data: {
@@ -228,14 +232,15 @@ export async function confirmQuickIssue(payload: {
       }
       
       return issue
-    })
+      })
+    )
     
     revalidatePath("/quick-issue")
     revalidatePath("/reports/exits")
     return { success: true, issueNumber: issueResult.issueNumber }
     
-  } catch (error: any) {
+  } catch (error) {
     console.error("Transaction Error:", error)
-    return { error: error.message || "Erro ao processar entrega." }
+    return { error: error instanceof Error ? error.message : "Erro ao processar entrega." }
   }
 }

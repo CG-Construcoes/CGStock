@@ -1,16 +1,17 @@
 import { db } from "@/lib/db"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
+import { Badge, type BadgeProps } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { BackButton } from "@/components/ui/back-button"
 import { getAccessibleWorksiteIds } from "@/lib/context"
+import { Prisma } from "@prisma/client"
 
 export interface MovementsReportTemplateProps {
   page: number;
   title: string;
   description: string;
   icon: React.ElementType;
-  typeFilter?: any;
+  typeFilter?: Prisma.StockMovementWhereInput["type"];
   basePath: string;
 }
 
@@ -47,7 +48,7 @@ export async function MovementsReportTemplate({
   const total = await db.stockMovement.count({ where: whereClause })
   const totalPages = Math.ceil(total / pageSize)
 
-  const getTypeLabel = (type: string) => {
+  const getTypeLabel = (type: string): { label: string; color: BadgeProps["variant"] } => {
     switch(type) {
       case 'ENTRY': return { label: 'Entrada', color: 'success' }
       case 'EXIT': return { label: 'Saída', color: 'destructive' }
@@ -106,7 +107,7 @@ export async function MovementsReportTemplate({
                         {format(mov.createdAt, "dd/MM/yyyy HH:mm")}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={t.color as any} className="text-[10px] uppercase">
+                        <Badge variant={t.color} className="text-[10px] uppercase">
                           {t.label}
                         </Badge>
                       </TableCell>

@@ -33,8 +33,8 @@ export function PermissionsTable({ roles, permissions }: PermissionsTableProps) 
     try {
       await togglePermission(roleId, permissionId, checked)
       toast.success(checked ? "Permissão concedida" : "Permissão removida")
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao atualizar permissão")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao atualizar permissão")
     } finally {
       setLoadingMap(prev => ({ ...prev, [key]: false }))
     }

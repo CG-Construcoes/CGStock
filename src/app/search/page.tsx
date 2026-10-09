@@ -23,7 +23,7 @@ export default async function SearchPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Resultados da Busca</h1>
         <p className="text-muted-foreground mt-2">
-          Mostrando resultados para: <span className="font-bold text-foreground">"{query}"</span>
+          Mostrando resultados para: <span className="font-bold text-foreground">&quot;{query}&quot;</span>
         </p>
       </div>
       

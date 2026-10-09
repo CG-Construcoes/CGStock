@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { requirePermission } from "@/lib/permissions"
 import { format } from "date-fns"
+import { Prisma } from "@prisma/client"
 
 export async function exportProductsData() {
   await requirePermission('REPORT_EXPORT')
@@ -27,7 +28,7 @@ export async function exportStockData() {
     include: { product: true, warehouse: true, location: true },
     orderBy: { product: { name: 'asc' } }
   })
-  return stock.map((s: any) => ({
+  return stock.map((s) => ({
     "Cód.Insumo": s.product.code,
     Produto: s.product.name,
     Almoxarifado: s.warehouse.name,
@@ -38,7 +39,7 @@ export async function exportStockData() {
 
 export async function exportMovementsData(startDate?: Date, endDate?: Date) {
   await requirePermission('REPORT_EXPORT')
-  const whereClause: any = {}
+  const whereClause: Prisma.StockMovementWhereInput = {}
   if (startDate && endDate) {
     whereClause.createdAt = { gte: new Date(startDate), lte: new Date(endDate) }
   }
@@ -48,7 +49,7 @@ export async function exportMovementsData(startDate?: Date, endDate?: Date) {
     orderBy: { createdAt: 'desc' }
   })
   
-  return movements.map((m: any) => {
+  return movements.map((m) => {
     let typeLabel = m.type
     if (m.type === 'ENTRY') typeLabel = 'Entrada'
     if (m.type === 'EXIT') typeLabel = 'Saída'
@@ -93,23 +94,31 @@ export async function exportInventoryData(inventoryId: string) {
   if (!inv) throw new Error("Inventário não encontrado")
 
   // Fetch collections to get the items
-  const collections = await db.inventoryCollection.findMany({
-    where: { inventoryId },
-    include: { items: { include: { product: true } }, location: true }
-  })
+  const [collections, divergences] = await Promise.all([
+    db.inventoryCollection.findMany({
+      where: { inventoryId },
+      include: { items: { include: { product: true } }, location: true }
+    }),
+    db.inventoryDivergence.findMany({ where: { inventoryId } })
+  ])
+  const expectedByLocationProduct = new Map(
+    divergences.map(d => [`${d.locationId}:${d.productId}`, d.systemQuantity])
+  )
 
-  const data: any[] = []
-  collections.forEach((col: any) => {
-    col.items.forEach((item: any) => {
+  const data: Record<string, unknown>[] = []
+  collections.forEach((col) => {
+    col.items.forEach((item) => {
+      // Sem divergência registrada, a quantidade esperada equivale à contada
+      const expected = expectedByLocationProduct.get(`${col.locationId}:${item.productId}`) ?? item.quantity
       data.push({
         Inventario: inv.name,
         Data: format(inv.createdAt, "dd/MM/yyyy"),
         Local: col.location.code,
         "Cód.Insumo": item.product.code,
         Produto: item.product.name,
-        QtdSistema: item.expectedQuantity || 0,
-        QtdContada: item.quantity !== null ? item.quantity : 'Não contado',
-        Divergencia: item.quantity !== null ? item.quantity - (item.expectedQuantity || 0) : '-'
+        QtdSistema: expected,
+        QtdContada: item.quantity,
+        Divergencia: item.quantity - expected
       })
     })
   })

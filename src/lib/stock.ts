@@ -30,34 +30,21 @@ export async function createStockMovement(
     throw new Error("Quantidade da movimentação não pode ser zero.")
   }
 
-  const product = await prisma.product.findUnique({ where: { id: params.productId } })
+  const [product, warehouse, location] = await Promise.all([
+    prisma.product.findUnique({ where: { id: params.productId } }),
+    prisma.warehouse.findUnique({ where: { id: params.warehouseId } }),
+    prisma.warehouseLocation.findUnique({ where: { id: params.locationId } })
+  ])
+
   if (!product) throw new Error("Produto não encontrado.")
-
-  const warehouse = await prisma.warehouse.findUnique({ where: { id: params.warehouseId } })
   if (!warehouse) throw new Error("Almoxarifado não encontrado.")
-
-  const location = await prisma.warehouseLocation.findUnique({ where: { id: params.locationId } })
   if (!location) throw new Error("Localização não encontrada.")
   if (location.warehouseId !== params.warehouseId) {
     throw new Error("A localização não pertence ao almoxarifado selecionado.")
   }
 
-  const currentStock = await prisma.stock.findUnique({
-    where: {
-      productId_locationId: {
-        productId: params.productId,
-        locationId: params.locationId,
-      }
-    }
-  })
-
-  const currentQuantity = currentStock?.quantity || 0
   const isOut = ['EXIT', 'ADJUSTMENT_OUT', 'TRANSFER_OUT'].includes(params.type)
   const movementValue = isOut ? -Math.abs(params.quantity) : Math.abs(params.quantity)
-
-  if (isOut && currentQuantity + movementValue < 0) {
-    throw new Error(`Estoque insuficiente na localização ${location.code}. Saldo atual: ${currentQuantity}`)
-  }
 
   const movement = await prisma.stockMovement.create({
     data: {
@@ -77,31 +64,67 @@ export async function createStockMovement(
     }
   })
 
-  const newStock = await prisma.stock.upsert({
-    where: {
-      productId_locationId: {
+  let newStock
+
+  if (isOut) {
+    // Débito atômico com guarda de saldo: elimina a corrida entre leitura e escrita.
+    const debited = await prisma.stock.updateMany({
+      where: {
         productId: params.productId,
         locationId: params.locationId,
-      }
-    },
-    update: {
-      quantity: { increment: movementValue }
-    },
-    create: {
-      productId: params.productId,
-      warehouseId: params.warehouseId,
-      locationId: params.locationId,
-      quantity: movementValue,
-      reservedQuantity: 0
+        quantity: { gte: Math.abs(movementValue) }
+      },
+      data: { quantity: { increment: movementValue } }
+    })
+
+    if (debited.count === 0) {
+      const currentStock = await prisma.stock.findUnique({
+        where: {
+          productId_locationId: {
+            productId: params.productId,
+            locationId: params.locationId,
+          }
+        }
+      })
+      throw new Error(`Estoque insuficiente na localização ${location.code}. Saldo atual: ${currentStock?.quantity ?? 0}`)
     }
-  })
+
+    newStock = await prisma.stock.findUniqueOrThrow({
+      where: {
+        productId_locationId: {
+          productId: params.productId,
+          locationId: params.locationId,
+        }
+      }
+    })
+  } else {
+    newStock = await prisma.stock.upsert({
+      where: {
+        productId_locationId: {
+          productId: params.productId,
+          locationId: params.locationId,
+        }
+      },
+      update: {
+        quantity: { increment: movementValue }
+      },
+      create: {
+        productId: params.productId,
+        warehouseId: params.warehouseId,
+        locationId: params.locationId,
+        quantity: movementValue,
+        reservedQuantity: 0
+      }
+    })
+  }
 
   // Atualiza o custo médio se for uma entrada ou ajuste de entrada com custo informado
   if (['ENTRY', 'ADJUSTMENT_IN'].includes(params.type) && params.unitCost != null) {
-    const allStocks = await prisma.stock.findMany({
-      where: { productId: params.productId }
+    const totals = await prisma.stock.aggregate({
+      where: { productId: params.productId },
+      _sum: { quantity: true }
     })
-    const totalStockAfter = allStocks.reduce((sum: number, s: any) => sum + s.quantity, 0)
+    const totalStockAfter = totals._sum.quantity || 0
     const totalStockBefore = totalStockAfter - movementValue
     
     let newAverageCost = params.unitCost
@@ -184,10 +207,8 @@ export async function deliverMaterialRequest(requestId: string, userId: string, 
       }
     })
 
-    // Emite log audit via background/transactionless ou manual
-    try {
-      await logAudit("REQUEST_FULFILLED", "MaterialRequest", requestId, { status: newStatus }, userId)
-    } catch(e) {}
+    // Log de auditoria dentro da mesma transação para manter consistência
+    await logAudit("REQUEST_FULFILLED", "MaterialRequest", requestId, { status: newStatus }, userId, tx)
 
     return updatedRequest
   })

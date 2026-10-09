@@ -1,13 +1,12 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Filter, Trash2 } from "lucide-react"
+import { Search, Plus } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { ProductActions } from "./product-actions"
-import { DeleteAllButton } from "./delete-all-button"
 import { cn } from "@/lib/utils"
+import { Prisma } from "@prisma/client"
 
 import { requirePermissionPage, hasPermission } from "@/lib/permissions"
 
@@ -27,7 +26,7 @@ export default async function ProductsPage({
   const categoryId = resolvedSearchParams.category as string
   const status = resolvedSearchParams.status as string
 
-  const where: any = {}
+  const where: Prisma.ProductWhereInput = {}
   if (search) {
     where.OR = [
       { name: { contains: search, mode: 'insensitive' } },
@@ -70,7 +69,7 @@ export default async function ProductsPage({
   let totalItemsInStock = 0
 
   allProductsSlim.forEach(product => {
-    const totalStock = product.stocks.reduce((acc: number, stock: any) => acc + stock.quantity, 0)
+    const totalStock = product.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
     const cost = Number(product.averageCost || 0)
     grandTotalValue += totalStock * cost
     totalItemsInStock += totalStock
@@ -161,7 +160,7 @@ export default async function ProductsPage({
                 </TableRow>
               ) : (
                 productsList.map((product) => {
-                  const totalStock = product.stocks.reduce((acc: number, stock: any) => acc + stock.quantity, 0)
+                  const totalStock = product.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
                   const totalValue = totalStock * Number(product.averageCost || 0)
                   return (
                     <TableRow 

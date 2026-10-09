@@ -1,6 +1,5 @@
 import { db } from "@/lib/db"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Smartphone, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
@@ -13,7 +12,7 @@ export default async function CollectorHomePage() {
     redirect("/login")
   }
 
-  const isAdminOrManager = ['ADMIN', 'GESTOR'].some((r: any) => ['ADMIN', 'GESTOR'].includes(r))
+  const isAdminOrManager = session.roles.some(r => ['ADMIN', 'GESTOR'].includes(r))
 
   const activeInventories = await db.inventory.findMany({
     where: {

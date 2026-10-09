@@ -340,10 +340,10 @@ export function HelpContent() {
           </p>
           <ul className="list-disc list-inside space-y-3 text-muted-foreground">
             <li>
-              <strong className="text-foreground">Auditoria (Inventário):</strong> Você cria um lote de contagem de uma área inteira (Ex: Prateleira B). O sistema "congela" o saldo esperado daquele momento.
+              <strong className="text-foreground">Auditoria (Inventário):</strong> Você cria um lote de contagem de uma área inteira (Ex: Prateleira B). O sistema &quot;congela&quot; o saldo esperado daquele momento.
             </li>
             <li>
-              <strong className="text-foreground">Coletor (App PWA):</strong> Os operários abrem o "Coletor" no celular. Podem ficar <strong>offline</strong>, usar a câmera para bipar códigos de barras e digitar a quantidade real encontrada na prateleira. Quando voltam para uma área com Wi-Fi, eles sincronizam os dados no botão superior.
+              <strong className="text-foreground">Coletor (App PWA):</strong> Os operários abrem o &quot;Coletor&quot; no celular. Podem ficar <strong>offline</strong>, usar a câmera para bipar códigos de barras e digitar a quantidade real encontrada na prateleira. Quando voltam para uma área com Wi-Fi, eles sincronizam os dados no botão superior.
             </li>
             <li>
               <strong className="text-foreground">Divergências:</strong> Se o sistema esperava 10 e o Coletor contou 8, o Admin do sistema visualiza as divergências e decide se aprova o <em>Ajuste Automático</em> (gera uma Movimentação de Saída por Ajuste) ou manda recontar.
@@ -378,7 +378,7 @@ export function HelpContent() {
             <div className="border border-border rounded-md p-4 bg-card">
               <h4 className="font-bold">1. O saldo de um produto está errado no sistema. Como corrigir?</h4>
               <p className="text-sm text-muted-foreground mt-2">
-                Como o CGStock trabalha com Imutabilidade Operacional, você não pode "editar" o saldo de um produto. Se houver uma diferença física, você deve ir em <strong>Inventário</strong> e criar um Ajuste (Entrada ou Saída por Ajuste) para justificar a sobra ou perda. Isso mantém o rastro de auditoria perfeito.
+                Como o CGStock trabalha com Imutabilidade Operacional, você não pode &quot;editar&quot; o saldo de um produto. Se houver uma diferença física, você deve ir em <strong>Inventário</strong> e criar um Ajuste (Entrada ou Saída por Ajuste) para justificar a sobra ou perda. Isso mantém o rastro de auditoria perfeito.
               </p>
             </div>
             
@@ -399,12 +399,12 @@ export function HelpContent() {
             <div className="border border-border rounded-md p-4 bg-card">
               <h4 className="font-bold">4. Posso entregar menos material do que o funcionário pediu na Requisição?</h4>
               <p className="text-sm text-muted-foreground mt-2">
-                Sim! Ao atender uma Requisição, você verá a coluna "Qtd. Aprovada/Entregue". Se o funcionário pediu 10 luvas, mas você só tem 5 em estoque (ou só quer liberar 5), basta preencher 5. A requisição ficará com status de <em>Parcialmente Atendida</em>.
+                Sim! Ao atender uma Requisição, você verá a coluna &quot;Qtd. Aprovada/Entregue&quot;. Se o funcionário pediu 10 luvas, mas você só tem 5 em estoque (ou só quer liberar 5), basta preencher 5. A requisição ficará com status de <em>Parcialmente Atendida</em>.
               </p>
             </div>
 
             <div className="border border-border rounded-md p-4 bg-card">
-              <h4 className="font-bold">5. O que significa "Imutabilidade Operacional"?</h4>
+              <h4 className="font-bold">5. O que significa &quot;Imutabilidade Operacional&quot;?</h4>
               <p className="text-sm text-muted-foreground mt-2">
                 É a segurança do seu patrimônio. Significa que os registros passados de entradas e saídas nunca podem ser alterados ou apagados. Isso evita fraudes e erros invisíveis. Se um lançamento foi feito errado, deve-se fazer um lançamento de estorno ou ajuste, criando um rastro transparente que qualquer auditor ou gestor consegue entender depois.
               </p>

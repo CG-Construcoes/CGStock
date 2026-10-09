@@ -1,8 +1,8 @@
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 
 export async function getUserWorksites() {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return []
 
   // Admins can see everything (optional logic, but usually good. Or require explicit access)
@@ -27,7 +27,7 @@ export async function hasWorksiteAccess(worksiteId: string) {
 }
 
 export async function getUserWorksiteAccess(worksiteId: string) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return null
   
   return db.userWorksiteAccess.findUnique({

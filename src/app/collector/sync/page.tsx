@@ -1,17 +1,17 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { localDb } from "@/lib/localdb"
+import { localDb, type SyncQueueTask } from "@/lib/localdb"
+import { useOnlineStatus } from "@/lib/use-online-status"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {  RefreshCw, CheckCircle2, CloudOff, Cloud, AlertCircle } from "lucide-react"
-import Link from "next/link"
 import { BackButton } from "@/components/ui/back-button"
 
 export default function SyncPage() {
-  const [isOnline, setIsOnline] = useState(true)
-  const [tasks, setTasks] = useState<any[]>([])
+  const isOnline = useOnlineStatus()
+  const [tasks, setTasks] = useState<SyncQueueTask[]>([])
   const [isSyncing, setIsSyncing] = useState(false)
 
   const loadTasks = async () => {
@@ -22,20 +22,13 @@ export default function SyncPage() {
   }
 
   useEffect(() => {
-    setIsOnline(navigator.onLine)
-    
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-    
-    loadTasks()
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
+    const loadInitialTasks = async () => {
+      if (localDb) {
+        const q = await localDb.syncQueue.toArray()
+        setTasks(q.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()))
+      }
     }
+    void loadInitialTasks()
   }, [])
 
   const syncNow = async () => {
@@ -67,10 +60,10 @@ export default function SyncPage() {
             lastAttemptAt: new Date()
           })
         }
-      } catch (err: any) {
-        await localDb.syncQueue.update(task.id, { 
-          status: 'ERROR', 
-          error: err.message, 
+      } catch (err) {
+        await localDb.syncQueue.update(task.id, {
+          status: 'ERROR',
+          error: err instanceof Error ? err.message : "Erro desconhecido",
           attempts: task.attempts + 1,
           lastAttemptAt: new Date()
         })

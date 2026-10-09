@@ -9,7 +9,16 @@ import { Search, UserPlus, Printer } from "lucide-react"
 import Link from "next/link"
 import { UserActions } from "./user-actions"
 
-export function UsersClient({ users }: { users: any[] }) {
+type UserListItem = {
+  id: string
+  name: string
+  email: string
+  status: string
+  createdAt: Date | string
+  roles: { id: string; name: string }[]
+}
+
+export function UsersClient({ users }: { users: UserListItem[] }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,7 +100,7 @@ export function UsersClient({ users }: { users: any[] }) {
               </div>
 
               <div className="flex flex-wrap gap-1">
-                {user.roles.map((role: any) => (
+                {user.roles.map((role) => (
                   <Badge key={role.id} variant="outline" className="font-normal text-xs bg-muted/20">
                     {role.name}
                   </Badge>
@@ -151,7 +160,7 @@ export function UsersClient({ users }: { users: any[] }) {
                 <TableCell className="text-muted-foreground">{user.email}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {user.roles.map((role: any) => (
+                    {user.roles.map((role) => (
                       <Badge key={role.id} variant="outline" className="font-normal text-xs bg-muted/20">
                         {role.name}
                       </Badge>

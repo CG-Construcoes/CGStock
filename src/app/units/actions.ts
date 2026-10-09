@@ -3,10 +3,12 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { requirePermission } from "@/lib/permissions"
 
 export async function createUnitAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('PRODUCT_CREATE')
 
   const code = formData.get("code") as string
   const name = formData.get("name") as string
@@ -48,6 +50,7 @@ export async function createUnitAction(formData: FormData) {
 export async function updateUnitAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('PRODUCT_UPDATE')
 
   const id = formData.get("id") as string
   const code = formData.get("code") as string

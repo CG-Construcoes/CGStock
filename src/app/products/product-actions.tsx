@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { MoreHorizontal, Pencil, QrCode, Printer, Trash2 } from "lucide-react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { QRCodeSVG } from "qrcode.react"
 import { createPortal } from "react-dom"
@@ -10,12 +10,8 @@ import { createPortal } from "react-dom"
 export function ProductActions({ productId, productCode, productName, hasUpdate = true, hasDelete = true }: { productId: string, productCode: string, productName: string, hasUpdate?: boolean, hasDelete?: boolean }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showQrModal, setShowQrModal] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   // Close dropdown on click outside
   useEffect(() => {

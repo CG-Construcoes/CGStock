@@ -2,12 +2,13 @@
 
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
-import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { requirePermission } from "@/lib/permissions"
 
 export async function createCategoryAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('PRODUCT_CREATE')
 
   const name = formData.get("name") as string
   const description = formData.get("description") as string || null
@@ -48,6 +49,7 @@ export async function createCategoryAction(formData: FormData) {
 export async function updateCategoryAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
+  await requirePermission('PRODUCT_UPDATE')
 
   const id = formData.get("id") as string
   const name = formData.get("name") as string

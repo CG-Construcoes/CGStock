@@ -11,11 +11,13 @@ export default async function SystemHealthPage() {
   let dbStatus = "Desconectado"
   let dbLatency = 0
   try {
+    // eslint-disable-next-line react-hooks/purity -- medição de latência em Server Component (não é render de cliente)
     const start = Date.now()
     await db.$queryRaw`SELECT 1`
+    // eslint-disable-next-line react-hooks/purity
     dbLatency = Date.now() - start
     dbStatus = "Conectado (Neon Serverless)"
-  } catch (error) {
+  } catch {
     dbStatus = "Erro de Conexão"
   }
 

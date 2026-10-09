@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { QRCodeBadge } from "@/components/ui/qr-code-badge";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PrintButton from "./print-button";
 

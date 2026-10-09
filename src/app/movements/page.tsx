@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Filter, Eye, ArrowRight, ArrowLeft } from "lucide-react"
+import { Eye, ArrowRight, ArrowLeft } from "lucide-react"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import { Prisma } from "@prisma/client"

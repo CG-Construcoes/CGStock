@@ -5,8 +5,10 @@ import { getSession } from "@/lib/auth"
 import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { validatePasswordStrength } from "@/lib/password-policy"
+import { Prisma } from "@prisma/client"
 
-export async function editUserAction(prevState: any, formData: FormData) {
+export async function editUserAction(prevState: { error?: string } | null, formData: FormData) {
   const session = await getSession()
   if (!session || !session.roles?.includes("ADMIN")) {
     return { error: "Sem permissão. Apenas administradores podem editar usuários." }
@@ -29,7 +31,14 @@ export async function editUserAction(prevState: any, formData: FormData) {
     return { error: "Este e-mail já está em uso por outro usuário." }
   }
 
-  const updateData: any = {
+  if (password) {
+    const passwordError = validatePasswordStrength(password)
+    if (passwordError) {
+      return { error: passwordError }
+    }
+  }
+
+  const updateData: Prisma.UserUpdateInput = {
     name,
     email,
     roles: {
@@ -43,10 +52,12 @@ export async function editUserAction(prevState: any, formData: FormData) {
         canRequestMaterial: true,
         canUseQuickIssue: true
       }))
-    }
+    },
+    // Perfis alterados: invalida sessões antigas que carregam roles no token
+    sessionVersion: { increment: 1 }
   }
 
-  if (password && password.length >= 6) {
+  if (password) {
     updateData.passwordHash = await bcrypt.hash(password, 10)
     updateData.mustChangePassword = formData.get("mustChangePassword") === "true"
   }

@@ -36,8 +36,8 @@ export function ReportsHeaderControls({ initialFrom, initialTo }: { initialFrom:
       }
 
       toast.success("Download concluído com sucesso.")
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao exportar.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao exportar.")
     } finally {
       setLoadingExcel(false)
       setLoadingPdf(false)

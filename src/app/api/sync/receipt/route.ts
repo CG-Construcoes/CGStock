@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import { hasPermission } from "@/lib/permissions"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 })
+
+  const isAdmin = session.roles?.includes('ADMIN')
+  if (!isAdmin && !(await hasPermission('STOCK_ENTRY'))) {
+    return NextResponse.json({ error: "Sem permissão para registrar recebimentos." }, { status: 403 })
+  }
 
   try {
     const { payload, idempotencyKey } = await req.json()
@@ -18,7 +24,7 @@ export async function POST(req: NextRequest) {
     const documentNumber = payload.documentNumber || null
     const documentDate = payload.documentDate ? new Date(payload.documentDate) : null
     const actionType = payload.actionType || "DRAFT"
-    const items = payload.items as any[]
+    const items = payload.items as { productId: string, locationId: string, quantity: number, unitCost: number }[]
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "No items provided" }, { status: 400 })
@@ -92,8 +98,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err) {
     console.error("Offline sync error (receipt):", err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return NextResponse.json({ error: "Erro interno ao processar o recebimento." }, { status: 500 })
   }
 }

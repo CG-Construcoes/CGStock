@@ -3,8 +3,11 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { requireAdmin } from "@/lib/action-guard"
 
 export async function createSupplierAction(formData: FormData) {
+  await requireAdmin()
+
   const name = formData.get("name") as string
   const tradeName = formData.get("tradeName") as string || null
   const document = formData.get("document") as string || null
@@ -21,6 +24,8 @@ export async function createSupplierAction(formData: FormData) {
 }
 
 export async function updateSupplierAction(formData: FormData) {
+  await requireAdmin()
+
   const id = formData.get("id") as string
   const name = formData.get("name") as string
   const tradeName = formData.get("tradeName") as string || null
@@ -40,6 +45,8 @@ export async function updateSupplierAction(formData: FormData) {
 }
 
 export async function deleteSupplierAction(formData: FormData) {
+  await requireAdmin()
+
   const id = formData.get("id") as string
   await db.supplier.delete({ where: { id } })
   revalidatePath("/admin/suppliers")

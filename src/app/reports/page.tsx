@@ -2,7 +2,7 @@ import { requirePermissionPage } from "@/lib/permissions"
 import { db } from "@/lib/db"
 import { format } from "date-fns"
 import Link from "next/link"
-import { ArrowLeft, Download, FileText, Search, Filter } from "lucide-react"
+import { ArrowLeft, FileText, Search } from "lucide-react"
 import { DashboardCharts } from "@/app/dashboard/charts"
 
 import { ReportsHeaderControls, ReportsFilterControls } from "./client-controls"

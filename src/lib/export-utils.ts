@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 
-export async function exportToCSV(data: any[], filename: string) {
+export async function exportToCSV(data: Record<string, unknown>[], filename: string) {
   if (!data || data.length === 0) return
   
   const XLSX = await import('xlsx')
@@ -20,7 +20,7 @@ export async function exportToCSV(data: any[], filename: string) {
   document.body.removeChild(link)
 }
 
-export async function exportToExcel(data: any[], filename: string) {
+export async function exportToExcel(data: Record<string, unknown>[], filename: string) {
   if (!data || data.length === 0) return
 
   const XLSX = await import('xlsx')
@@ -38,11 +38,11 @@ export async function exportToExcel(data: any[], filename: string) {
   XLSX.writeFile(workbook, `${filename}.xlsx`)
 }
 
-export async function exportToPDF(data: any[], title: string, filename: string, period?: string) {
+export async function exportToPDF(data: Record<string, unknown>[], title: string, filename: string, period?: string) {
   if (!data || data.length === 0) return
 
   const { default: jsPDF } = await import('jspdf')
-  await import('jspdf-autotable')
+  const { default: autoTable } = await import('jspdf-autotable')
 
   const doc = new jsPDF()
   
@@ -67,9 +67,9 @@ export async function exportToPDF(data: any[], title: string, filename: string, 
 
   // Generate table
   const columns = Object.keys(data[0])
-  const rows = data.map(obj => columns.map(col => obj[col] !== null && obj[col] !== undefined ? obj[col].toString() : ''))
+  const rows = data.map(obj => columns.map(col => obj[col] !== null && obj[col] !== undefined ? String(obj[col]) : ''))
 
-  ;(doc as any).autoTable({
+  autoTable(doc, {
     startY: period ? 52 : 46,
     head: [columns],
     body: rows,
@@ -77,20 +77,16 @@ export async function exportToPDF(data: any[], title: string, filename: string, 
     headStyles: { fillColor: [92, 51, 16], textColor: [253, 239, 214], fontStyle: 'bold' },
     styles: { fontSize: 8, cellPadding: 3 },
     margin: { top: 20 },
-    didDrawPage: function (data: any) {
+    didDrawPage: (data) => {
       // Footer
-      const docAny = doc as any
-      const str = "Página " + docAny.internal.getNumberOfPages()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const str = "Página " + doc.getNumberOfPages()
       doc.setFontSize(8)
-      doc.text(
-        str,
-        data.settings.margin.left,
-        docAny.internal.pageSize.height - 10
-      )
+      doc.text(str, data.settings.margin.left, pageHeight - 10)
       doc.text(
         "CGSTOCK - Documento gerado automaticamente",
-        196 - docAny.getTextWidth("CGSTOCK - Documento gerado automaticamente"),
-        docAny.internal.pageSize.height - 10
+        196 - doc.getTextWidth("CGSTOCK - Documento gerado automaticamente"),
+        pageHeight - 10
       )
     }
   })

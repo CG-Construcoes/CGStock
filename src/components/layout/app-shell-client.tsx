@@ -3,12 +3,12 @@ import { Sidebar } from "./sidebar"
 import { Topbar } from "./topbar"
 import { usePathname } from "next/navigation"
 
-export function AppShellClient({ 
-  children, 
-  user 
-}: { 
+export function AppShellClient({
+  children,
+  user
+}: {
   children: React.ReactNode,
-  user: any
+  user?: { name: string; email: string; roles: string[]; permissions?: string[] } | null
 }) {
   const pathname = usePathname()
 

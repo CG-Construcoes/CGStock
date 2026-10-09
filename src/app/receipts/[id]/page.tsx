@@ -1,8 +1,6 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -40,7 +38,6 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
 
   const isDraft = receipt.status === 'DRAFT'
   const isCompleted = receipt.status === 'COMPLETED'
-  const isCancelled = receipt.status === 'CANCELLED'
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -70,7 +67,7 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
           <AlertCircleIcon className="h-5 w-5 shrink-0" />
           <div>
             <h4 className="font-medium">Esta entrada está em Rascunho</h4>
-            <p className="text-sm mt-1">Os itens listados abaixo ainda não foram adicionados ao estoque. Clique em "Confirmar Recebimento" para efetivar a movimentação no almoxarifado.</p>
+            <p className="text-sm mt-1">Os itens listados abaixo ainda não foram adicionados ao estoque. Clique em &quot;Confirmar Recebimento&quot; para efetivar a movimentação no almoxarifado.</p>
           </div>
         </div>
       )}
@@ -198,7 +195,7 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
   )
 }
 
-function AlertCircleIcon(props: any) {
+function AlertCircleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -219,7 +216,7 @@ function AlertCircleIcon(props: any) {
   )
 }
 
-function CheckCircleIcon(props: any) {
+function CheckCircleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

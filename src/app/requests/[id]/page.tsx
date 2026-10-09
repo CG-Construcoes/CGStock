@@ -29,10 +29,6 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
 
   if (!req) notFound()
 
-  // Mocks user para ações (Em produção viria da sessão real)
-  const userGestor = await db.user.findFirst({ where: { roles: { some: { name: 'GESTOR' } } } })
-  const mockUserId = userGestor?.id || ""
-
   let statusColor = "default"
   let statusLabel = req.status
   if (req.status === 'DRAFT') { statusColor = "secondary"; statusLabel = "Rascunho" }
@@ -43,10 +39,10 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   if (req.status === 'FULFILLED') { statusColor = "outline"; statusLabel = "Atendido" }
   if (req.status === 'REJECTED' || req.status === 'CANCELLED') { statusColor = "destructive"; statusLabel = req.status === 'REJECTED' ? 'Rejeitado' : 'Cancelado' }
 
-  const approveAction = approveRequestAction.bind(null, req.id, mockUserId)
-  const rejectAction = rejectRequestAction.bind(null, req.id, mockUserId, "Rejeitado pelo gestor (mock)")
-  const separationAction = startSeparationAction.bind(null, req.id, mockUserId)
-  const cancelAction = cancelRequestAction.bind(null, req.id, mockUserId)
+  const approveAction = approveRequestAction.bind(null, req.id)
+  const rejectAction = rejectRequestAction.bind(null, req.id, "Rejeitado pelo gestor")
+  const separationAction = startSeparationAction.bind(null, req.id)
+  const cancelAction = cancelRequestAction.bind(null, req.id)
 
   return (
     <div className="space-y-6">

@@ -5,10 +5,13 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { deliverMaterialRequest } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
-import { getSession } from "@/lib/auth"
+import { requireSession, requireActionPermission } from "@/lib/action-guard"
+import { hasPermission } from "@/lib/permissions"
+import { createWithUniqueNumber } from "@/lib/sequential"
 
 export async function createRequestAction(formData: FormData) {
-  const requesterId = formData.get("requesterId") as string
+  const session = await requireActionPermission('REQUEST_CREATE')
+
   const warehouseId = formData.get("warehouseId") as string
   const priority = formData.get("priority") as string
   const notes = formData.get("notes") as string
@@ -26,21 +29,24 @@ export async function createRequestAction(formData: FormData) {
 
   if (items.length === 0) throw new Error("A requisição deve ter pelo menos um item.")
 
-  const count = await db.materialRequest.count()
-  const requestNumber = `REQ-${String(count + 1).padStart(4, '0')}`
-
-  const request = await db.materialRequest.create({
-    data: {
-      requestNumber,
-      requesterId,
-      warehouseId,
-      priority,
-      notes,
-      status: actionType === 'DRAFT' ? 'DRAFT' : 'PENDING_APPROVAL',
-      requestedAt: actionType === 'DRAFT' ? null : new Date(),
-      items: { create: items }
-    }
-  })
+  const request = await createWithUniqueNumber(
+    async (attempt) => {
+      const count = await db.materialRequest.count()
+      return `REQ-${String(count + 1 + attempt).padStart(4, '0')}`
+    },
+    (requestNumber) => db.materialRequest.create({
+      data: {
+        requestNumber,
+        requesterId: session.userId,
+        warehouseId,
+        priority,
+        notes,
+        status: actionType === 'DRAFT' ? 'DRAFT' : 'PENDING_APPROVAL',
+        requestedAt: actionType === 'DRAFT' ? null : new Date(),
+        items: { create: items }
+      }
+    })
+  )
 
   await logAudit("REQUEST_CREATED", "MaterialRequest", request.id, { 
     status: actionType === 'DRAFT' ? 'DRAFT' : 'PENDING_APPROVAL',
@@ -51,25 +57,29 @@ export async function createRequestAction(formData: FormData) {
   redirect(`/requests/${request.id}`)
 }
 
-export async function approveRequestAction(requestId: string, userId: string) {
-  await db.materialRequest.update({
-    where: { id: requestId },
-    data: {
-      status: 'APPROVED',
-      approvedById: userId,
-      approvedAt: new Date(),
-    }
+export async function approveRequestAction(requestId: string) {
+  const session = await requireActionPermission('REQUEST_APPROVE')
+
+  const req = await db.materialRequest.findUnique({ where: { id: requestId } })
+  if (!req) throw new Error("Requisição não encontrada")
+  if (req.status !== 'PENDING_APPROVAL') throw new Error("A requisição não está aguardando aprovação.")
+
+  await db.$transaction(async (tx) => {
+    await tx.materialRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'APPROVED',
+        approvedById: session.userId,
+        approvedAt: new Date(),
+      }
+    })
+    // Aprova a quantidade total solicitada de todos os itens em uma única query
+    await tx.$executeRaw`
+      UPDATE "MaterialRequestItem"
+      SET "approvedQuantity" = "requestedQuantity", "updatedAt" = NOW()
+      WHERE "requestId" = ${requestId}
+    `
   })
-  
-  const req = await db.materialRequest.findUnique({ where: { id: requestId }, include: { items: true } })
-  if (req) {
-    for (const item of req.items) {
-      await db.materialRequestItem.update({
-        where: { id: item.id },
-        data: { approvedQuantity: item.requestedQuantity }
-      })
-    }
-  }
 
   await logAudit("REQUEST_APPROVED", "MaterialRequest", requestId)
 
@@ -77,7 +87,13 @@ export async function approveRequestAction(requestId: string, userId: string) {
   revalidatePath("/requests")
 }
 
-export async function rejectRequestAction(requestId: string, userId: string, reason: string) {
+export async function rejectRequestAction(requestId: string, reason: string) {
+  await requireActionPermission('REQUEST_APPROVE')
+
+  const req = await db.materialRequest.findUnique({ where: { id: requestId } })
+  if (!req) throw new Error("Requisição não encontrada")
+  if (req.status !== 'PENDING_APPROVAL') throw new Error("A requisição não está aguardando aprovação.")
+
   await db.materialRequest.update({
     where: { id: requestId },
     data: {
@@ -92,9 +108,17 @@ export async function rejectRequestAction(requestId: string, userId: string, rea
   revalidatePath("/requests")
 }
 
-export async function cancelRequestAction(requestId: string, userId: string) {
+export async function cancelRequestAction(requestId: string) {
+  const session = await requireSession()
+
   const req = await db.materialRequest.findUnique({ where: { id: requestId } })
   if (!req) throw new Error("Requisição não encontrada")
+
+  const isRequester = req.requesterId === session.userId
+  const isApprover = await hasPermission('REQUEST_APPROVE')
+  if (!isRequester && !isApprover) {
+    throw new Error("Apenas o solicitante ou um aprovador pode cancelar esta requisição.")
+  }
 
   if (['PARTIALLY_FULFILLED', 'FULFILLED'].includes(req.status)) {
     throw new Error("Não é possível cancelar uma requisição que já teve itens separados/entregues. Faça um estorno das movimentações de saída no módulo de devoluções.")
@@ -111,7 +135,9 @@ export async function cancelRequestAction(requestId: string, userId: string) {
   revalidatePath("/requests")
 }
 
-export async function startSeparationAction(requestId: string, userId: string) {
+export async function startSeparationAction(requestId: string) {
+  await requireActionPermission('REQUEST_FULFILL')
+
   const req = await db.materialRequest.findUnique({ where: { id: requestId } })
   if (!req) throw new Error("Requisição não encontrada")
 
@@ -131,8 +157,9 @@ export async function startSeparationAction(requestId: string, userId: string) {
 }
 
 export async function fulfillRequestAction(formData: FormData) {
+  const session = await requireActionPermission('REQUEST_FULFILL')
+
   const requestId = formData.get("requestId") as string
-  const userId = formData.get("userId") as string
   
   const itemKeys = Array.from(formData.keys()).filter(k => k.startsWith('delivery_quantity_'))
   
@@ -149,8 +176,7 @@ export async function fulfillRequestAction(formData: FormData) {
     throw new Error("Nenhuma quantidade informada para entrega.")
   }
 
-  await deliverMaterialRequest(requestId, userId, deliveredItems)
-  // Audit is logged inside deliverMaterialRequest transactional flow to ensure consistency.
+  await deliverMaterialRequest(requestId, session.userId, deliveredItems)
 
   revalidatePath(`/requests/${requestId}`)
   revalidatePath("/requests")

@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { createPortal } from "react-dom"
 import { Bell, Menu, Search } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
@@ -13,9 +13,12 @@ export function Topbar({ user }: { user?: { name: string; email: string; roles: 
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  useEffect(() => {
+  // Fecha o menu mobile ao navegar (ajuste de estado durante render, padrão recomendado)
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname)
     setIsMobileMenuOpen(false)
-  }, [pathname])
+  }
   
   const titleMap: Record<string, string> = {
     'new': 'Novo',

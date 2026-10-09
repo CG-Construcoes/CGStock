@@ -16,6 +16,7 @@ model User {
   roles                Role[]
   status               String                @default("ACTIVE") // ACTIVE, INACTIVE
   mustChangePassword   Boolean               @default(false)
+  sessionVersion       Int                   @default(0)
 
   
   movementsPerformed   StockMovement[]
@@ -117,6 +118,8 @@ model Product {
   unit                 ProductUnit               @relation(fields: [unitId], references: [id])
   brand                String?
   model                String?
+
+  @@index([barcode])
   minimumStock         Int                       @default(0)
   maximumStock         Int                       @default(0)
   averageCost          Decimal?                  @db.Decimal(16, 6)
@@ -242,6 +245,7 @@ model StockMovement {
   @@index([locationId])
   @@index([type])
   @@index([createdAt])
+  @@index([referenceType, referenceId])
 }
 
 model Supplier {
@@ -565,6 +569,16 @@ model AuditLog {
   @@index([action])
   @@index([entityType, entityId])
   @@index([timestamp])
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  email     String
+  ip        String?
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
 }
 
 model Notification {

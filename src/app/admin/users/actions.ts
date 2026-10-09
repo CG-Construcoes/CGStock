@@ -57,10 +57,10 @@ export async function softDeleteUserAction(userId: string) {
   }
 
   try {
-    // "Soft delete"
+    // "Soft delete" + invalida sessões ativas do usuário
     await db.user.update({
       where: { id: userId },
-      data: { status: "DELETED" }
+      data: { status: "DELETED", sessionVersion: { increment: 1 } }
     })
     revalidatePath("/admin/users")
     return { success: true }

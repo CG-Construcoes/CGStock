@@ -3,8 +3,11 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { requireAdmin } from "@/lib/action-guard"
 
 export async function createWarehouseAction(formData: FormData) {
+  await requireAdmin()
+
   const name = formData.get("name") as string
   const code = formData.get("code") as string
   const description = formData.get("description") as string
@@ -19,6 +22,8 @@ export async function createWarehouseAction(formData: FormData) {
 }
 
 export async function updateWarehouseAction(formData: FormData) {
+  await requireAdmin()
+
   const id = formData.get("id") as string
   const name = formData.get("name") as string
   const code = formData.get("code") as string
@@ -36,6 +41,8 @@ export async function updateWarehouseAction(formData: FormData) {
 }
 
 export async function deleteWarehouseAction(formData: FormData) {
+  await requireAdmin()
+
   const id = formData.get("id") as string
   await db.warehouse.delete({ where: { id } })
   revalidatePath("/admin/warehouses")

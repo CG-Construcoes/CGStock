@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {  Send, Scan, Plus, Minus, Trash2, Camera, X } from "lucide-react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { localDb } from "@/lib/localdb"
+import { localDb, type LocalProduct } from "@/lib/localdb"
 import { Html5Qrcode } from "html5-qrcode"
 import { BackButton } from "@/components/ui/back-button"
 
@@ -17,26 +16,54 @@ type CollectedItem = {
   quantity: number
 }
 
-export default function CollectorForm({ 
-  inventoryId, 
-  locationId, 
-  locationCode, 
-  operatorId, 
-  products 
-}: any) {
+export default function CollectorForm({
+  inventoryId,
+  locationId,
+  locationCode,
+  products
+}: {
+  inventoryId: string
+  locationId: string
+  locationCode: string
+  products: LocalProduct[]
+}) {
   const router = useRouter()
   const [items, setItems] = useState<CollectedItem[]>([])
   const [searchInput, setSearchInput] = useState("")
   const [showScanner, setShowScanner] = useState(false)
   const [cameraError, setCameraError] = useState("")
 
+  const processSearch = useCallback((term: string) => {
+    if (!term.trim()) return
+
+    const upperTerm = term.trim().toUpperCase()
+    const found = products.find((p) =>
+      p.code.toUpperCase().includes(upperTerm) ||
+      p.barcode?.toUpperCase() === upperTerm ||
+      p.name.toUpperCase().includes(upperTerm)
+    )
+
+    if (found) {
+      setItems(prev => {
+        const existing = prev.find(i => i.productId === found.id)
+        if (existing) {
+          return prev.map(i => i.productId === found.id ? { ...i, quantity: i.quantity + 1 } : i)
+        } else {
+          return [{ productId: found.id, code: found.code, name: found.name, quantity: 1 }, ...prev]
+        }
+      })
+      setSearchInput("")
+    } else {
+      alert("Produto não encontrado!")
+    }
+  }, [products])
+
   useEffect(() => {
     let html5QrCode: Html5Qrcode | null = null
 
     if (showScanner) {
-      setCameraError("")
       html5QrCode = new Html5Qrcode("reader")
-      
+
       html5QrCode.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -45,7 +72,7 @@ export default function CollectorForm({
           setShowScanner(false)
           processSearch(decodedText)
         },
-        (errorMessage) => {
+        () => {
           // Ignorar erros de leitura de frame (muito comuns)
         }
       ).catch(err => {
@@ -61,32 +88,7 @@ export default function CollectorForm({
         }).catch(console.error)
       }
     }
-  }, [showScanner])
-
-  const processSearch = (term: string) => {
-    if (!term.trim()) return
-
-    const upperTerm = term.trim().toUpperCase()
-    const found = products.find((p: any) => 
-      p.code.toUpperCase().includes(upperTerm) || 
-      p.barcode?.toUpperCase() === upperTerm ||
-      p.name.toUpperCase().includes(upperTerm)
-    )
-
-    if (found) {
-      setItems(prev => {
-        const existing = prev.find(i => i.productId === found.id)
-        if (existing) {
-          return prev.map(i => i.productId === found.id ? { ...i, quantity: i.quantity + 1 } : i)
-        } else {
-          return [{ productId: found.id, code: found.code, name: found.name, quantity: 1 }, ...prev]
-        }
-      })
-      setSearchInput("") 
-    } else {
-      alert("Produto não encontrado!")
-    }
-  }
+  }, [showScanner, processSearch])
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,7 +122,6 @@ export default function CollectorForm({
     const payload = {
       inventoryId,
       locationId,
-      operatorId,
       items: items.map(i => ({ productId: i.productId, quantity: i.quantity }))
     }
 
@@ -130,7 +131,7 @@ export default function CollectorForm({
         operation: 'SUBMIT_COLLECTION',
         entityId: `${inventoryId}_${locationId}`,
         payload,
-        status: navigator.onLine ? 'PENDING' : 'PENDING',
+        status: 'PENDING',
         attempts: 0,
         createdAt: new Date()
       })
@@ -211,7 +212,7 @@ export default function CollectorForm({
             variant="outline"
             size="icon"
             className="h-12 w-12 border-gray-300"
-            onClick={() => setShowScanner(true)}
+            onClick={() => { setCameraError(""); setShowScanner(true) }}
           >
             <Camera className="h-6 w-6 text-muted-foreground" />
           </Button>

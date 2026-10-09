@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useState } from "react"
@@ -24,13 +23,20 @@ type ItemData = {
   unitCost: number
 }
 
-export default function ReceiptForm({ suppliers, warehouses, products, locations }: any) {
+type ReceiptFormProps = {
+  suppliers: { id: string; name: string; document: string | null }[]
+  warehouses: { id: string; name: string }[]
+  products: { id: string; code: string; name: string; averageCost: unknown }[]
+  locations: { id: string; code: string; name: string; warehouseId: string }[]
+}
+
+export default function ReceiptForm({ suppliers, warehouses, products, locations }: ReceiptFormProps) {
   const router = useRouter()
   const [warehouseId, setWarehouseId] = useState("")
   const [items, setItems] = useState<ItemData[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const filteredLocations = warehouseId ? locations.filter((l: any) => l.warehouseId === warehouseId) : []
+  const filteredLocations = warehouseId ? locations.filter((l) => l.warehouseId === warehouseId) : []
 
   const addItem = () => {
     setItems([...items, { id: crypto.randomUUID(), productId: "", locationId: "", quantity: 1, unitCost: 0 }])
@@ -58,20 +64,22 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
     }
 
     const formData = new FormData(e.currentTarget)
-    const actionType = (e.nativeEvent as any).submitter?.value || "DRAFT"
+    const actionType = (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter instanceof HTMLButtonElement)
+      ? e.nativeEvent.submitter.value || "DRAFT"
+      : "DRAFT"
     formData.set("actionType", actionType)
 
     setIsSubmitting(true)
 
     if (!navigator.onLine) {
-      const payload = Object.fromEntries(formData.entries())
-      payload.items = items as any
+      const payload: Record<string, unknown> = Object.fromEntries(formData.entries())
+      payload.items = items
       try {
         await queueOfflineOperation('CREATE_RECEIPT', payload)
         toast.success("Salvo localmente (Offline). Será sincronizado automaticamente.")
         router.push("/receipts")
-      } catch (err: any) {
-        toast.error("Erro ao salvar offline: " + err.message)
+      } catch (err) {
+        toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
         setIsSubmitting(false)
       }
       return
@@ -85,7 +93,7 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
       } else {
         toast.error(`Erro ao processar recebimento: ${result?.error}`)
       }
-    } catch (err) {
+    } catch {
       toast.error("Erro inesperado ao processar recebimento.")
     } finally {
       setIsSubmitting(false)
@@ -113,7 +121,7 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
                   <label className="text-sm font-medium">Fornecedor *</label>
                   <Select name="supplierId" required>
                     <option value="">Selecione...</option>
-                    {suppliers.map((s: any) => (
+                    {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>{s.name} {s.document ? `(${s.document})` : ''}</option>
                     ))}
                   </Select>
@@ -127,7 +135,7 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
                     onChange={e => setWarehouseId(e.target.value)}
                   >
                     <option value="">Selecione...</option>
-                    {warehouses.map((w: any) => (
+                    {warehouses.map((w) => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </Select>
@@ -174,13 +182,13 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
                         required 
                         value={item.productId}
                         onChange={val => {
-                          const product = products.find((p: any) => p.id === val)
+                          const product = products.find((p) => p.id === val)
                           updateItemFields(item.id, { 
                             productId: val, 
                             unitCost: product && product.averageCost ? Number(product.averageCost) : 0 
                           })
                         }}
-                        options={products.map((p: any) => ({
+                        options={products.map((p) => ({
                           value: p.id,
                           label: `${p.code} - ${p.name}`
                         }))}
@@ -220,7 +228,7 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
                         onChange={e => updateItem(item.id, "locationId", e.target.value)}
                       >
                         <option value="">Selecionar...</option>
-                        {filteredLocations.map((l: any) => (
+                        {filteredLocations.map((l) => (
                           <option key={l.id} value={l.id}>{l.code} - {l.name}</option>
                         ))}
                       </Select>

@@ -1,22 +1,19 @@
 "use client"
 import { toast } from "sonner"
 
-export function handleAction<T extends (...args: any[]) => Promise<any>>(action: T): T {
-  return (async (...args: Parameters<T>) => {
+export function handleAction<Args extends unknown[], R>(action: (...args: Args) => Promise<R>) {
+  return async (...args: Args): Promise<R | void> => {
     try {
       return await action(...args)
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as { message?: string; digest?: string }
       // Allow Next.js redirect errors to propagate naturally
-      if (
-        error?.message === 'NEXT_REDIRECT' || 
-        error?.digest?.startsWith('NEXT_REDIRECT')
-      ) {
+      if (err.message === 'NEXT_REDIRECT' || err.digest?.startsWith('NEXT_REDIRECT')) {
         throw error
       }
-      
+
       // Extract the message from the standard Error object thrown by server actions
-      const message = error?.message || "Ocorreu um erro inesperado."
-      toast.error(message)
+      toast.error(err.message ?? "Ocorreu um erro inesperado.")
     }
-  }) as T
+  }
 }

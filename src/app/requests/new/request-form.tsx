@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Save, Plus, Trash2, Send, Camera } from "lucide-react"
+import { Save, Plus, Trash2, Send } from "lucide-react"
 import Link from "next/link"
 import { createRequestAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { handleAction } from "@/lib/handle-action"
-import { QRScanner } from "@/components/ui/qr-scanner"
 
 type RequestItemData = {
   id: string
@@ -21,10 +20,8 @@ type RequestItemData = {
   unitId: string
 }
 
-export default function RequestForm({ users, warehouses, products }: any) {
+export default function RequestForm({ warehouses, products }: any) {
   const [items, setItems] = useState<RequestItemData[]>([])
-  const [showScanner, setShowScanner] = useState(false)
-  const [requesterId, setRequesterId] = useState("")
 
   const addItem = () => {
     setItems([...items, { id: crypto.randomUUID(), productId: "", quantity: 1, unitId: "" }])
@@ -66,20 +63,6 @@ export default function RequestForm({ users, warehouses, products }: any) {
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">Dados da Requisição</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Solicitante *</label>
-                  <div className="flex gap-2">
-                    <Select name="requesterId" required value={requesterId} onChange={(e: any) => setRequesterId(e.target.value)} className="flex-1">
-                      <option value="">Selecione...</option>
-                      {users.map((u: any) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.roles.map((r: any) => r.name).join(', ')})</option>
-                      ))}
-                    </Select>
-                    <Button type="button" variant="outline" size="icon" onClick={() => setShowScanner(true)} title="Escanear Crachá">
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Almoxarifado Destino *</label>
                   <Select name="warehouseId" required>
@@ -194,17 +177,6 @@ export default function RequestForm({ users, warehouses, products }: any) {
           </form>
         </CardContent>
       </Card>
-
-      {showScanner && (
-        <QRScanner
-          onScanSuccess={(decodedText) => {
-            setRequesterId(decodedText);
-            setShowScanner(false);
-          }}
-          onClose={() => setShowScanner(false)}
-          title="Escanear Crachá do Funcionário"
-        />
-      )}
     </>
   )
 }

@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { getSession, createSession } from "@/lib/auth"
+import { validatePasswordStrength } from "@/lib/password-policy"
 import bcrypt from "bcryptjs"
 
 export async function changePasswordAction(prevState: unknown, formData: FormData) {
@@ -20,8 +21,9 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
     return { error: "As novas senhas não coincidem." }
   }
 
-  if (newPassword.length < 6) {
-    return { error: "A nova senha deve ter no mínimo 6 caracteres." }
+  const passwordError = validatePasswordStrength(newPassword)
+  if (passwordError) {
+    return { error: passwordError }
   }
 
   const user = await db.user.findUnique({
@@ -40,16 +42,19 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
 
   const newHash = await bcrypt.hash(newPassword, 10)
 
-  await db.user.update({
+  // Incrementa a versão de sessão: invalida todas as outras sessões ativas
+  const updatedUser = await db.user.update({
     where: { id: user.id },
     data: {
       passwordHash: newHash,
-      mustChangePassword: false
-    }
+      mustChangePassword: false,
+      sessionVersion: { increment: 1 }
+    },
+    include: { roles: true }
   })
 
   // Renew session to remove mustChangePassword flag
-  await createSession(user.id, user.name, user.email, user.roles.map((r: any) => r.name), false)
+  await createSession(updatedUser.id, updatedUser.name, updatedUser.email, updatedUser.roles.map(r => r.name), false, updatedUser.sessionVersion)
 
   return { success: true }
 }

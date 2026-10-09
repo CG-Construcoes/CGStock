@@ -3,32 +3,26 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import {  Save, Plus, PackageX } from "lucide-react"
+import {  Save } from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { createReturnAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { ReturnItemsForm } from "./return-items-form"
 
 export default async function NewReturnPage() {
-  const warehouses = await db.warehouse.findMany({ 
-    where: { status: 'ACTIVE' },
-    include: { locations: true }
-  })
-  
-  const users = await db.user.findMany({ where: { status: 'ACTIVE' }, include: { roles: true } })
-  const products = await db.product.findMany({ 
-    where: { status: 'ACTIVE' },
-    include: { unit: true }
-  })
-  const requests = await db.materialRequest.findMany({
-    where: { status: { in: ['FULFILLED', 'PARTIALLY_FULFILLED'] } }
-  })
-
-  // Almoxarife simulado
-  const userAlmox = users.find(u => u.roles && u.roles.length > 0)
-  const mockUserId = userAlmox?.id || ""
+  const [warehouses, products, requests] = await Promise.all([
+    db.warehouse.findMany({
+      where: { status: 'ACTIVE' },
+      include: { locations: true }
+    }),
+    db.product.findMany({
+      where: { status: 'ACTIVE' },
+      include: { unit: true }
+    }),
+    db.materialRequest.findMany({
+      where: { status: { in: ['FULFILLED', 'PARTIALLY_FULFILLED'] } }
+    })
+  ])
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -47,15 +41,6 @@ export default async function NewReturnPage() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">Informações da Devolução</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Quem está devolvendo?</label>
-                  <Select name="returnedById" required>
-                    <option value="">Selecione o usuário...</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </Select>
-                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Almoxarifado de Destino</label>
                   <Select name="warehouseId" required>

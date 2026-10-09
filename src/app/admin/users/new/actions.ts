@@ -5,8 +5,9 @@ import { getSession } from "@/lib/auth"
 import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { validatePasswordStrength } from "@/lib/password-policy"
 
-export async function createUserAction(prevState: any, formData: FormData) {
+export async function createUserAction(prevState: { error?: string } | null, formData: FormData) {
   const session = await getSession()
   if (!session || !session.roles?.includes("ADMIN")) {
     return { error: "Sem permissão. Apenas administradores podem criar usuários." }
@@ -25,6 +26,11 @@ export async function createUserAction(prevState: any, formData: FormData) {
   const existing = await db.user.findUnique({ where: { email } })
   if (existing) {
     return { error: "Este e-mail já está em uso." }
+  }
+
+  const passwordError = validatePasswordStrength(password)
+  if (passwordError) {
+    return { error: passwordError }
   }
 
   const passwordHash = await bcrypt.hash(password, 10)

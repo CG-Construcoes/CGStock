@@ -67,24 +67,33 @@ async function main() {
   }
 
   // 4. Usuários
-  const adminPassword = process.env.ADMIN_PASSWORD || 'estoka123'
+  const adminPassword = process.env.ADMIN_PASSWORD
+  if (!adminPassword) {
+    throw new Error(
+      'Defina a variável de ambiente ADMIN_PASSWORD para executar o seed. ' +
+      'Não existe mais senha padrão por motivos de segurança.'
+    )
+  }
   const passwordHash = await bcrypt.hash(adminPassword, 10)
 
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@estoka.com'
+  const includeDemoUsers = process.env.SEED_DEMO_USERS === 'true'
 
   const users = [
     { email: adminEmail, name: 'Administrador Sistema', roleId: roleAdmin.id },
-    { email: 'gestor@estoka.com', name: 'Gestor Principal', roleId: roleGestor.id },
-    { email: 'almoxarife@estoka.com', name: 'João Almoxarife', roleId: roleAlmox.id },
-    { email: 'conferente@estoka.com', name: 'Maria Conferente', roleId: roleConf.id },
-    { email: 'solicitante@estoka.com', name: 'Carlos Solicitante', roleId: roleSol.id },
+    ...(includeDemoUsers ? [
+      { email: 'gestor@estoka.com', name: 'Gestor Principal', roleId: roleGestor.id },
+      { email: 'almoxarife@estoka.com', name: 'João Almoxarife', roleId: roleAlmox.id },
+      { email: 'conferente@estoka.com', name: 'Maria Conferente', roleId: roleConf.id },
+      { email: 'solicitante@estoka.com', name: 'Carlos Solicitante', roleId: roleSol.id },
+    ] : []),
   ]
 
   for (const u of users) {
     await prisma.user.upsert({
       where: { email: u.email },
       update: {},
-      create: { ...u, passwordHash },
+      create: { ...u, passwordHash, mustChangePassword: true },
     })
   }
 

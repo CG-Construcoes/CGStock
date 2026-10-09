@@ -89,9 +89,9 @@ export default function ImportPage() {
       }
 
       toast.success(`Sucesso! ${processedTotal} produtos importados/atualizados.`)
-    } catch (error: any) {
+    } catch (error) {
       console.error(error)
-      toast.error(error.message || "Erro inesperado ao processar o arquivo.")
+      toast.error(error instanceof Error ? error.message : "Erro inesperado ao processar o arquivo.")
     } finally {
       setIsProcessing(false)
       setProgress(0)

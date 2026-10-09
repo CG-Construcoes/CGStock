@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Filter, ClipboardList, CheckCircle2, Clock } from "lucide-react"
+import { Search, Plus, Filter, ClipboardList, Clock } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 

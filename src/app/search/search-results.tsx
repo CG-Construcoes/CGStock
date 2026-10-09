@@ -59,7 +59,7 @@ export async function SearchResults({ query }: { query: string }) {
         </div>
         <h3 className="text-lg font-bold text-foreground">Nenhum resultado encontrado</h3>
         <p className="text-muted-foreground mt-1">
-          Não conseguimos encontrar nada correspondente a "{query}". Tente buscar por outros termos.
+          Não conseguimos encontrar nada correspondente a &quot;{query}&quot;. Tente buscar por outros termos.
         </p>
       </div>
     )

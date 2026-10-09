@@ -7,7 +7,7 @@ import { X, Camera } from 'lucide-react';
 
 interface QRScannerProps {
   onScanSuccess: (decodedText: string) => void;
-  onScanFailure?: (error: any) => void;
+  onScanFailure?: (error: string) => void;
   onClose?: () => void;
   title?: string;
 }
@@ -43,12 +43,12 @@ export function QRScanner({ onScanSuccess, onScanFailure, onClose, title = "Esca
       try {
         const audio = new Audio('/beep.mp3');
         audio.play().catch(e => console.log('Audio play failed', e));
-      } catch (e) {}
+      } catch {}
 
       onScanSuccess(decodedText);
     };
 
-    const handleScanFailure = (error: any) => {
+    const handleScanFailure = (error: string) => {
       if (onScanFailure) {
         onScanFailure(error);
       }
