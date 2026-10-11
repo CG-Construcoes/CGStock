@@ -17,6 +17,9 @@ model User {
   status               String                @default("ACTIVE") // ACTIVE, INACTIVE
   mustChangePassword   Boolean               @default(false)
   sessionVersion       Int                   @default(0)
+  temporaryPasswordExpiresAt DateTime?
+  employeeCode         String?               @unique
+  loginEnabled         Boolean               @default(true)
 
   
   movementsPerformed   StockMovement[]
@@ -48,6 +51,9 @@ model User {
   qrToken              String?               @unique
   qrStatus             String                @default("ACTIVE") // ACTIVE, REVOKED
   worksiteAccesses     UserWorksiteAccess[]
+  warehouseAccesses    UserWarehouseAccess[] @relation("WarehouseAccessUser")
+  grantedWarehouseAccesses UserWarehouseAccess[] @relation("WarehouseAccessGrantedBy")
+  importBatches        ImportBatch[]
   quickIssuesReceived  QuickIssue[]          @relation("IssueRecipient")
   quickIssuesPerformed QuickIssue[]          @relation("IssueOperator")
   
@@ -162,6 +168,8 @@ model Warehouse {
   transfersSource      StockTransfer[]     @relation("TransferSourceWarehouse")
   transfersDestination StockTransfer[]     @relation("TransferDestinationWarehouse")
   quickIssues          QuickIssue[]
+  userAccesses         UserWarehouseAccess[]
+  importBatches        ImportBatch[]
   
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -677,4 +685,45 @@ model QuickIssueItem {
   location    WarehouseLocation @relation(fields: [locationId], references: [id])
   quantity    Int
   notes       String?
+}
+
+model UserWarehouseAccess {
+  id          String    @id @default(uuid())
+  userId      String
+  warehouseId String
+  grantedById String?
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation("WarehouseAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  grantedBy   User?     @relation("WarehouseAccessGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, warehouseId])
+  @@index([userId])
+  @@index([warehouseId])
+}
+
+model ImportBatch {
+  id          String           @id @default(uuid())
+  createdAt   DateTime         @default(now())
+  createdById String
+  status      String           @default("STAGING")
+  warehouseId String?
+
+  createdBy   User             @relation(fields: [createdById], references: [id])
+  warehouse   Warehouse?       @relation(fields: [warehouseId], references: [id])
+  rows        ImportBatchRow[]
+}
+
+model ImportBatchRow {
+  id           String      @id @default(uuid())
+  batchId      String
+  productCode  String
+  productName  String
+  quantity     Decimal     @db.Decimal(18, 4)
+  unitCost     Decimal?    @db.Decimal(18, 4)
+  status       String      @default("PENDING")
+  errorMessage String?
+
+  batch        ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
