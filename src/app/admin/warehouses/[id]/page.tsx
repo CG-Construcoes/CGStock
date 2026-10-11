@@ -3,10 +3,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { BackButton } from "@/components/ui/back-button"
-import { Save, Trash2 } from "lucide-react"
+import { Save } from "lucide-react"
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
-import { updateWarehouseAction, deleteWarehouseAction } from "../actions"
+import { updateWarehouseAction } from "../actions"
+import { WarehouseDeleteDialog } from "../warehouse-delete-dialog"
+import { WarehouseLocationsManager } from "../warehouse-locations-manager"
 import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditWarehousePage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,13 +16,23 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
   const { id } = await params
   
   const warehouse = await db.warehouse.findUnique({
-    where: { id }
+    where: { id },
+    include: {
+      locations: {
+        include: {
+          _count: {
+            select: { stocks: true, products: true }
+          }
+        },
+        orderBy: { code: 'asc' }
+      }
+    }
   })
 
   if (!warehouse) notFound()
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-8 max-w-3xl mx-auto pb-12">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <BackButton />
@@ -30,30 +42,29 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
           </div>
         </div>
         
-        <form action={deleteWarehouseAction}>
-          <input type="hidden" name="id" value={warehouse.id} />
-          <Button variant="destructive" className="flex items-center gap-2">
-            <Trash2 className="h-4 w-4" />
-            Excluir
-          </Button>
-        </form>
+        <WarehouseDeleteDialog
+          warehouseId={warehouse.id}
+          warehouseName={warehouse.name}
+          warehouseCode={warehouse.code}
+          redirectAfterDelete={true}
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dados do Almoxarifado</CardTitle>
+      <Card className="border border-border shadow-xs">
+        <CardHeader className="border-b border-border pb-4">
+          <CardTitle className="text-lg">Dados do Almoxarifado</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form action={updateWarehouseAction} className="space-y-4">
             <input type="hidden" name="id" value={warehouse.id} />
             
             <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label htmlFor="name">Nome do Almoxarifado *</Label>
               <Input id="name" name="name" defaultValue={warehouse.name} required />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="code">Código</Label>
+              <Label htmlFor="code">Código Identificador *</Label>
               <Input id="code" name="code" defaultValue={warehouse.code} required />
             </div>
 
@@ -63,7 +74,7 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">Status Operacional</Label>
               <select 
                 id="status" 
                 name="status" 
@@ -75,7 +86,7 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
               </select>
             </div>
 
-            <div className="pt-4 flex justify-end gap-2">
+            <div className="pt-4 flex justify-end gap-2 border-t border-border">
               <BackButton />
               <Button type="submit" className="flex items-center gap-2">
                 <Save className="h-4 w-4" />
@@ -85,6 +96,14 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
           </form>
         </CardContent>
       </Card>
+
+      {/* Seção de Gerenciamento das Localizações Físicas deste Almoxarifado */}
+      <WarehouseLocationsManager
+        warehouseId={warehouse.id}
+        warehouseName={warehouse.name}
+        warehouseCode={warehouse.code}
+        locations={warehouse.locations}
+      />
     </div>
   )
 }

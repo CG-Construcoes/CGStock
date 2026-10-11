@@ -21,7 +21,7 @@ export default async function AdminHubPage() {
         { name: "Almoxarifados", href: "/admin/warehouses", icon: PackageOpen, description: "Unidades e galpões" },
         { name: "Fornecedores", href: "/admin/suppliers", icon: Truck, description: "Empresas parceiras" },
         { name: "Localizações", href: "/admin/locations", icon: MapPin, description: "Corredores, estantes e prateleiras" },
-        { name: "Categorias", href: "/admin/categories", icon: Tags, description: "Famílias de produtos" },
+        { name: "Categorias", href: "/categories", icon: Tags, description: "Famílias de produtos" },
       ]
     },
     {

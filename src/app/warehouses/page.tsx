@@ -27,7 +27,7 @@ export default async function WarehousesPage() {
           <p className="text-muted-foreground">Visualize os almoxarifados disponíveis e suas localizações.</p>
         </div>
         {isAdmin && (
-          <Link href="/admin/locations">
+          <Link href="/admin/warehouses">
             <Button>Gerenciar Almoxarifados</Button>
           </Link>
         )}

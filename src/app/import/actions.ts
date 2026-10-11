@@ -57,13 +57,23 @@ export async function executeImportBatchAction(batchId: string) {
   })
 
   if (!defaultLocation) {
-    defaultLocation = await db.warehouseLocation.findFirst({
-       where: { warehouseId: batch.warehouseId }
+    const warehouse = await db.warehouse.findUnique({ where: { id: batch.warehouseId } })
+    const baseCode = warehouse ? warehouse.code : "ALM"
+    let locCode = `${baseCode}-GERAL`
+    const existing = await db.warehouseLocation.findUnique({ where: { code: locCode } })
+    if (existing) {
+      locCode = `${baseCode}-GERAL-${Date.now().toString().slice(-4)}`
+    }
+
+    defaultLocation = await db.warehouseLocation.create({
+      data: {
+        warehouseId: batch.warehouseId,
+        code: locCode,
+        name: "Estoque Geral",
+        description: "Localização padrão criada automaticamente para importação",
+        status: "ACTIVE"
+      }
     })
-  }
-  
-  if (!defaultLocation) {
-     return { success: false, error: "Almoxarifado sem nenhuma localização cadastrada." }
   }
 
   // Get product categories/units just in case we need to create products

@@ -1,12 +1,18 @@
 import { db } from "@/lib/db"
-import { requireAnyPermissionPage } from "@/lib/permissions"
+import { requireAnyPermissionPage, hasPermission } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 import { notFound } from "next/navigation"
+import Link from "next/link"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { BackButton } from "@/components/ui/back-button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Settings } from "lucide-react"
 
 export default async function WarehouseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAnyPermissionPage('STOCK_VIEW', 'STOCK_ENTRY', 'STOCK_TRANSFER')
+  const session = await getValidatedSession()
+  const canManage = session?.roles?.includes('ADMIN') || (await hasPermission('CONFIG_MANAGE'))
   const resolvedParams = await params
 
   const warehouse = await db.warehouse.findUnique({
@@ -18,12 +24,22 @@ export default async function WarehouseDetailPage({ params }: { params: Promise<
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <BackButton />
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">{warehouse.name}</h2>
-          <p className="text-muted-foreground">Código: {warehouse.code}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">{warehouse.name}</h2>
+            <p className="text-muted-foreground">Código: {warehouse.code}</p>
+          </div>
         </div>
+        {canManage && (
+          <Link href={`/admin/warehouses/${warehouse.id}`}>
+            <Button variant="outline" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Editar / Gerenciar
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
