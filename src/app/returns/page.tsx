@@ -5,8 +5,10 @@ import {  RotateCcw, Plus } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function ReturnsPage() {
+  await requirePermissionPage('STOCK_ENTRY')
   const returns = await db.materialReturn.findMany({
     orderBy: { createdAt: 'desc' },
     include: {

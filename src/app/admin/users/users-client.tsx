@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, UserPlus, Printer } from "lucide-react"
+import { Search, UserPlus, Printer, FileUp } from "lucide-react"
 import Link from "next/link"
 import { UserActions } from "./user-actions"
 
@@ -55,6 +55,12 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
               <span className="hidden sm:inline">
                 Imprimir Crachás {selectedIds.length > 0 ? `(${selectedIds.length})` : '(Todos)'}
               </span>
+            </Button>
+          </Link>
+          <Link href="/admin/users/import">
+            <Button variant="secondary" className="flex items-center gap-2 shadow-sm active:scale-95">
+              <FileUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Importar</span>
             </Button>
           </Link>
           <Link href="/admin/users/new">

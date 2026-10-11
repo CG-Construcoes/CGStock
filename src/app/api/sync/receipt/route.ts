@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 import { hasPermission } from "@/lib/permissions"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 
 export async function POST(req: NextRequest) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 })
 
   const isAdmin = session.roles?.includes('ADMIN')
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
             warehouseId: receipt.warehouseId,
             locationId: item.locationId,
             type: 'ENTRY',
-            quantity: item.quantity,
+            quantity: Number(item.quantity),
             unitCost: Number(item.unitCost),
             totalCost: Number(item.totalCost),
             referenceType: 'RECEIPT',

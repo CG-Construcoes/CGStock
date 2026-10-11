@@ -6,8 +6,13 @@ import { Button } from "@/components/ui/button"
 import {  Clock, ArrowRight, User, Package, FileText, Link as LinkIcon } from "lucide-react"
 import Link from "next/link"
 import { BackButton } from "@/components/ui/back-button"
+import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
+import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export default async function MovementDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('STOCK_VIEW')
   const { id } = await params
   
   const mov = await db.stockMovement.findUnique({
@@ -20,18 +25,10 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
   })
 
   if (!mov) notFound()
+  await assertWarehouseAccess(mov.warehouseId, (await getValidatedSession())!.userId)
 
-  const isPositive = ['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(mov.type)
-  let badgeVariant = 'secondary'
-  let typeLabel = mov.type
-  
-  if (mov.type === 'ENTRY') { badgeVariant = 'success'; typeLabel = 'Entrada' }
-  if (mov.type === 'EXIT') { badgeVariant = 'destructive'; typeLabel = 'Saída' }
-  if (mov.type === 'ADJUSTMENT_IN') { badgeVariant = 'outline'; typeLabel = 'Ajuste de Inventário (+)' }
-  if (mov.type === 'ADJUSTMENT_OUT') { badgeVariant = 'outline'; typeLabel = 'Ajuste de Inventário (-)' }
-  if (mov.type === 'TRANSFER_IN') { badgeVariant = 'secondary'; typeLabel = 'Transferência de Entrada' }
-  if (mov.type === 'TRANSFER_OUT') { badgeVariant = 'secondary'; typeLabel = 'Transferência de Saída' }
-  if (mov.type === 'RETURN') { badgeVariant = 'default'; typeLabel = 'Devolução' }
+  const isPositive = isInMovement(mov.type)
+  const typeLabel = getMovementTypeLabel(mov.type, mov.referenceType)
 
   // Resolução de link do documento de origem
   let originLink = null
@@ -59,8 +56,7 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold tracking-tight">Detalhes da Movimentação</h2>
-              {/* @ts-expect-error: variant string mismatch */}
-              <Badge variant={badgeVariant}>{typeLabel}</Badge>
+              <Badge variant={isPositive ? 'success' : 'destructive'}>{typeLabel}</Badge>
             </div>
             <p className="text-muted-foreground font-mono text-sm mt-1">{mov.id}</p>
           </div>
@@ -130,7 +126,7 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
             <div className="flex flex-col justify-center items-end border-l pl-6">
               <p className="text-sm text-muted-foreground mb-1">Quantidade</p>
               <div className={`text-4xl font-black flex items-center ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                {isPositive ? '+' : '-'}{mov.quantity}
+                {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
               </div>
             </div>
           </CardContent>

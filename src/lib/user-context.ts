@@ -6,6 +6,7 @@ export type UserSecurityContext = {
   sessionVersion: number
   roleNames: string[]
   permissionKeys: Set<string>
+  mustChangePassword: boolean
 }
 
 /**
@@ -37,6 +38,7 @@ export const getUserSecurityContext = cache(async (userId: string): Promise<User
     roleNames: user.roles.map(r => r.name),
     permissionKeys: new Set(
       user.roles.flatMap(r => r.permissions.map(rp => rp.permission.key))
-    )
+    ),
+    mustChangePassword: user.mustChangePassword
   }
 })

@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Truck, Hash, Mail, Phone } from "lucide-react"
 import { db } from "@/lib/db"
 import Link from "next/link"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function SuppliersPage() {
+  await requirePermissionPage('CONFIG_MANAGE')
   const suppliers = await db.supplier.findMany({
     orderBy: { name: 'asc' }
   })

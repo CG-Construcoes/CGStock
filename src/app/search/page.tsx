@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { SearchResults } from "./search-results"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export const metadata = {
   title: "Busca | CGStock",
@@ -10,6 +11,7 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<{ q: string | string[] | undefined }>
 }) {
+  await requireAnyPermissionPage('PRODUCT_VIEW', 'STOCK_VIEW', 'REQUEST_CREATE')
   const resolvedParams = await searchParams
   const q = resolvedParams.q
   const query = Array.isArray(q) ? q[0] : q

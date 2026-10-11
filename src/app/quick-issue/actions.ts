@@ -1,14 +1,19 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getValidatedSession } from "@/lib/auth"
 import { getAccessibleWorksiteIds } from "@/lib/context"
 import { revalidatePath } from "next/cache"
 import { createWithUniqueNumber } from "@/lib/sequential"
+import { requireActionPermission } from "@/lib/action-guard"
+import { createStockMovement } from "@/lib/stock"
 
 export async function verifyEmployeeQR(qrToken: string) {
-  const session = await getValidatedSession()
-  if (!session) return { error: "Não autorizado." }
+  let session
+  try {
+    session = await requireActionPermission('STOCK_EXIT')
+  } catch {
+    return { error: "Não autorizado." }
+  }
   
   // 1. Localizar usuário pelo token
   const employee = await db.user.findUnique({
@@ -66,8 +71,12 @@ export async function verifyEmployeeQR(qrToken: string) {
 }
 
 export async function getProductStockForQuickIssue(worksiteId: string, productCode: string) {
-  const session = await getValidatedSession()
-  if (!session) return { error: "Não autorizado." }
+  let session
+  try {
+    session = await requireActionPermission('STOCK_EXIT')
+  } catch {
+    return { error: "Não autorizado." }
+  }
 
   // Verificar se o almoxarife/operador logado tem acesso à obra (no backend!)
   const allowedWorksites = await getAccessibleWorksiteIds()
@@ -97,13 +106,13 @@ export async function getProductStockForQuickIssue(worksiteId: string, productCo
     }
   })
 
-  const availableStocks = stocks.filter(s => s.quantity > 0)
+  const availableStocks = stocks.filter(s => Number(s.quantity) > 0)
   
   if (availableStocks.length === 0) {
     return { error: "Este produto não possui estoque disponível nesta obra." }
   }
 
-  const totalAvailable = availableStocks.reduce((sum, s) => sum + s.quantity, 0)
+  const totalAvailable = availableStocks.reduce((sum, s) => sum + Number(s.quantity), 0)
 
   return {
     success: true,
@@ -117,8 +126,8 @@ export async function getProductStockForQuickIssue(worksiteId: string, productCo
     locations: availableStocks.map(s => ({
       locationId: s.locationId,
       locationCode: s.location.code,
-      quantity: s.quantity
-    })).sort((a, b) => b.quantity - a.quantity) // Sugerir pegar da que tem mais primeiro, ou FIFO se houvesse data
+      quantity: Number(s.quantity)
+    })).sort((a, b) => Number(b.quantity) - Number(a.quantity)) // Sugerir pegar da que tem mais primeiro, ou FIFO se houvesse data
   }
 }
 
@@ -131,9 +140,12 @@ export async function confirmQuickIssue(payload: {
     requestedQuantity: number
   }[]
 }) {
-  const session = await getValidatedSession()
-  if (!session) return { error: "Não autorizado." }
-  
+  let session
+  try {
+    session = await requireActionPermission('STOCK_EXIT')
+  } catch {
+    return { error: "Não autorizado." }
+  }
   const allowedWorksites = await getAccessibleWorksiteIds()
   if (!allowedWorksites.includes(payload.worksiteId)) {
     return { error: "Você não tem permissão para registrar saídas nesta obra." }
@@ -176,9 +188,9 @@ export async function confirmQuickIssue(payload: {
           orderBy: { quantity: 'desc' }
         })
         
-        let remainingToFulfill = item.requestedQuantity
+        let remainingToFulfill = Number(item.requestedQuantity)
         
-        const totalAvailable = stocks.reduce((sum, s) => sum + s.quantity, 0)
+        const totalAvailable = stocks.reduce((sum, s) => sum + Number(s.quantity), 0)
         if (remainingToFulfill > totalAvailable) {
           throw new Error(`Estoque insuficiente para o produto ID: ${item.productId}`)
         }
@@ -187,7 +199,7 @@ export async function confirmQuickIssue(payload: {
         for (const stock of stocks) {
           if (remainingToFulfill <= 0) break;
           
-          const qtyToTake = Math.min(stock.quantity, remainingToFulfill)
+          const qtyToTake = Math.min(Number(stock.quantity), remainingToFulfill)
           
           // Criar QuickIssueItem
           await tx.quickIssueItem.create({
@@ -199,24 +211,23 @@ export async function confirmQuickIssue(payload: {
             }
           })
           
-          // Debitar Estoque
-          await tx.stock.update({
-            where: { id: stock.id },
-            data: { quantity: { decrement: qtyToTake } }
-          })
-          
-          // Gerar StockMovement
-          await tx.stockMovement.create({
+          // Debitar estoque e gerar movimentação com guarda atômica de saldo
+          const { movement } = await createStockMovement({
+            productId: item.productId,
+            warehouseId: stock.warehouseId,
+            locationId: stock.locationId,
+            type: "EXIT",
+            quantity: qtyToTake,
+            referenceType: "QUICK_ISSUE",
+            referenceId: issue.id,
+            documentNumber: issueNumber,
+            reason: "Entrega rápida",
+            performedById: session.userId
+          }, tx)
+
+          await tx.stockMovement.update({
+            where: { id: movement.id },
             data: {
-              productId: item.productId,
-              warehouseId: stock.warehouseId,
-              locationId: stock.locationId,
-              type: "EXIT",
-              quantity: qtyToTake,
-              referenceType: "QUICK_ISSUE",
-              referenceId: issue.id,
-              documentNumber: issueNumber,
-              performedById: session.userId,
               recipientUserId: payload.employeeId,
               worksiteId: payload.worksiteId
             }

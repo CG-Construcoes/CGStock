@@ -1,15 +1,20 @@
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart3 } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function ConsumptionReportPage() {
   await requirePermissionPage('REPORT_VIEW')
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const where = wFilter ? { request: wFilter } : {}
 
   // Agrega a quantidade total entregue agrupada por produto
   const consumption = await db.materialRequestItem.groupBy({
     by: ['productId'],
+    where,
     _sum: {
       deliveredQuantity: true,
     },
@@ -32,7 +37,7 @@ export default async function ConsumptionReportPage() {
   const enrichedData = consumption.map(c => ({
     ...c,
     product: products.find(p => p.id === c.productId)
-  })).filter(c => c.product && c._sum.deliveredQuantity && c._sum.deliveredQuantity > 0)
+  })).filter(c => c.product && Number(c._sum.deliveredQuantity) && Number(c._sum.deliveredQuantity) > 0)
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -82,7 +87,7 @@ export default async function ConsumptionReportPage() {
                       {item.product?.category?.name}
                     </TableCell>
                     <TableCell className="text-right font-bold text-emerald-600 text-lg">
-                      {item._sum.deliveredQuantity} <span className="text-xs text-muted-foreground font-normal">{item.product?.unit?.code}</span>
+                      {Number(item._sum.deliveredQuantity)} <span className="text-xs text-muted-foreground font-normal">{item.product?.unit?.code}</span>
                     </TableCell>
                   </TableRow>
                 ))}

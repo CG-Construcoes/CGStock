@@ -124,7 +124,7 @@ export async function createStockMovement(
       where: { productId: params.productId },
       _sum: { quantity: true }
     })
-    const totalStockAfter = totals._sum.quantity || 0
+    const totalStockAfter = Number(totals._sum.quantity || 0)
     const totalStockBefore = totalStockAfter - movementValue
     
     let newAverageCost = params.unitCost
@@ -164,7 +164,7 @@ export async function deliverMaterialRequest(requestId: string, userId: string, 
       const item = request.items.find(i => i.id === delivery.itemId)
       if (!item) throw new Error(`Item ${delivery.itemId} não pertence a esta requisição.`)
 
-      const pendingQuantity = item.approvedQuantity - item.deliveredQuantity
+      const pendingQuantity = Number(item.approvedQuantity) - Number(item.deliveredQuantity)
       if (delivery.quantity > pendingQuantity) {
         throw new Error("A quantidade de entrega não pode ser maior que a quantidade pendente aprovada.")
       }
@@ -195,7 +195,7 @@ export async function deliverMaterialRequest(requestId: string, userId: string, 
       include: { items: true }
     })
 
-    const allFulfilled = updatedRequest?.items.every(i => i.deliveredQuantity >= i.approvedQuantity)
+    const allFulfilled = updatedRequest?.items.every(i => Number(i.deliveredQuantity) >= Number(i.approvedQuantity))
     const newStatus = allFulfilled ? 'FULFILLED' : 'PARTIALLY_FULFILLED'
 
     await tx.materialRequest.update({
@@ -238,7 +238,7 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
       for (const item of col.items) {
         const key = `${col.locationId}_${item.productId}`
         const current = countedMap.get(key) || 0
-        countedMap.set(key, current + item.quantity)
+        countedMap.set(key, current + Number(item.quantity))
       }
     }
 
@@ -252,7 +252,7 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
     const systemStockMap = new Map<string, number>()
     for (const sys of systemStocks) {
       const key = `${sys.locationId}_${sys.productId}`
-      systemStockMap.set(key, sys.quantity)
+      systemStockMap.set(key, Number(sys.quantity))
       if (!countedMap.has(key)) {
         countedMap.set(key, 0)
       }
@@ -310,14 +310,15 @@ export async function executeDivergenceAdjustment(divergenceId: string, userId: 
     if (!div) throw new Error("Divergência não encontrada.")
     if (div.status !== 'APPROVED') throw new Error("A divergência precisa estar aprovada para ser ajustada.")
 
-    const moveType = div.difference > 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT'
+    const diffNum = Number(div.difference)
+    const moveType = diffNum > 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT'
     
     await createStockMovement({
       productId: div.productId,
       warehouseId: div.inventory.warehouseId,
       locationId: div.locationId,
       type: moveType,
-      quantity: Math.abs(div.difference),
+      quantity: Math.abs(diffNum),
       referenceType: 'INVENTORY_ADJUSTMENT',
       referenceId: div.id,
       reason: 'Ajuste de inventário aprovado',

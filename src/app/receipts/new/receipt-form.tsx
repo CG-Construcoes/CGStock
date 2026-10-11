@@ -199,7 +199,7 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
                       <label className="text-xs font-medium text-muted-foreground">Qtd *</label>
                       <Input 
                         name="item_quantity" 
-                        type="number" 
+                        type="number" step="0.0001" 
                         min="1" 
                         required 
                         value={item.quantity || ''}
@@ -211,8 +211,7 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
                       <label className="text-xs font-medium text-muted-foreground">Custo Unitário (R$)</label>
                       <Input 
                         name="item_unitCost" 
-                        type="number" 
-                        step="0.01" 
+                        type="number" step="0.0001" 
                         min="0"
                         value={item.unitCost || ''}
                         onChange={e => updateItem(item.id, "unitCost", Number(e.target.value))}

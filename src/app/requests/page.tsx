@@ -5,8 +5,10 @@ import { Plus, Filter, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { SearchInput } from "@/components/ui/search-input"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function RequestsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireAnyPermissionPage('REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL')
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const requests = await db.materialRequest.findMany({

@@ -66,6 +66,12 @@ export default async function proxy(request: NextRequest) {
     const { payload } = await jwtVerify(session, jwtKey, { algorithms: ["HS256"] })
 
     if (isApi) {
+      if (payload.mustChangePassword) {
+        return NextResponse.json(
+          { error: 'É obrigatório definir uma nova senha para continuar.' },
+          { status: 403 }
+        )
+      }
       return NextResponse.next()
     }
 

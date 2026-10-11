@@ -15,13 +15,15 @@ type User = {
   qrStatus?: string
   roles: { id: string, name: string }[]
   worksiteAccesses?: { worksiteId: string, canUseQuickIssue: boolean }[]
+  warehouseAccesses?: { warehouseId: string }[]
 }
 
-export function EditUserForm({ user, roles, worksites }: { user: User, roles: { id: string, name: string }[], worksites: { id: string, name: string }[] }) {
+export function EditUserForm({ user, roles, worksites, warehouses }: { user: User, roles: { id: string, name: string }[], worksites: { id: string, name: string }[], warehouses: { id: string, name: string, code: string }[] }) {
   const [state, action, isPending] = useActionState(editUserAction, null)
-  
+
   const userRoleIds = user.roles.map(r => r.id)
   const userWorksiteIds = user.worksiteAccesses?.map(a => a.worksiteId) || []
+  const userWarehouseIds = user.warehouseAccesses?.map(a => a.warehouseId) || []
 
   return (
     <form action={action} className="space-y-6">
@@ -135,6 +137,34 @@ export function EditUserForm({ user, roles, worksites }: { user: User, roles: { 
             </label>
           ))}
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Almoxarifados Autorizados</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-4 rounded-md border border-border">
+          {warehouses.map(wh => (
+            <label key={wh.id} className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative flex items-center">
+                <input
+                  type="checkbox"
+                  name="warehouseIds"
+                  value={wh.id}
+                  defaultChecked={userWarehouseIds.includes(wh.id)}
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-blue-500/50 checked:border-blue-600 checked:bg-blue-600 "
+                />
+                <svg className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-sm font-medium text-foreground group-hover:text-blue-700 ">
+                {wh.name} <span className="text-xs text-muted-foreground font-mono">({wh.code})</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          O usuário só visualiza saldos, valores e movimentações dos almoxarifados marcados. Sem nenhuma marcação, ele não vê dados de estoque (administradores enxergam tudo).
+        </p>
       </div>
 
       <div className="space-y-3">

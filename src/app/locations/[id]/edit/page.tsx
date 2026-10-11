@@ -8,11 +8,13 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { updateLocationAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditLocationPage(props: {
   params: Promise<{ id: string }>
   searchParams: Promise<{ error?: string }>
 }) {
+  await requirePermissionPage('CONFIG_MANAGE')
   const params = await props.params;
   const searchParams = await props.searchParams;
 

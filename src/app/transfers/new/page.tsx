@@ -7,12 +7,14 @@ import {  Plus, PackageX, ArrowRightLeft } from "lucide-react"
 import Link from "next/link"
 import { createTransferAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewTransferPage({
   searchParams
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
+  await requirePermissionPage('STOCK_TRANSFER')
   const resolvedParams = await searchParams
   const error = resolvedParams?.error
   const warehouses = await db.warehouse.findMany({ 
@@ -89,7 +91,7 @@ export default async function NewTransferPage({
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium">Quantidade a mover</label>
-                    <Input type="number" name="quantity" defaultValue={1} min={1} required />
+                    <Input type="number" step="0.0001" name="quantity" defaultValue={1} min={0.0001} required />
                   </div>
                   <input type="hidden" name="unitId" value={products[0]?.unitId || ''} />
                 </div>

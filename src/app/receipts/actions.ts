@@ -44,7 +44,7 @@ export async function createReceiptAction(formData: FormData) {
         unitCost,
         totalCost,
       }
-    }).filter(i => i.quantity > 0)
+    }).filter(i => Number(i.quantity) > 0)
 
     if (itemsData.length === 0) {
       return { success: false, error: "no_valid_items" }
@@ -93,7 +93,7 @@ export async function createReceiptAction(formData: FormData) {
             warehouseId: receipt.warehouseId,
             locationId: item.locationId,
             type: 'ENTRY',
-            quantity: item.quantity,
+            quantity: Number(item.quantity),
             unitCost: Number(item.unitCost),
             totalCost: Number(item.totalCost),
             referenceType: 'RECEIPT',
@@ -143,7 +143,7 @@ export async function confirmReceiptAction(formData: FormData) {
           warehouseId: receipt.warehouseId,
           locationId: item.locationId,
           type: 'ENTRY',
-          quantity: item.quantity,
+          quantity: Number(item.quantity),
           unitCost: item.unitCost ? Number(item.unitCost) : null,
           totalCost: item.totalCost ? Number(item.totalCost) : null,
           referenceType: 'RECEIPT',

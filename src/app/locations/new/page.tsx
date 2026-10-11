@@ -7,12 +7,14 @@ import Link from "next/link"
 import { db } from "@/lib/db"
 import { createLocationAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewLocationPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
+  await requirePermissionPage('CONFIG_MANAGE')
   const resolvedSearchParams = await searchParams;
   const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE' } })
   const parentLocations = await db.warehouseLocation.findMany({ where: { status: 'ACTIVE' }, include: { warehouse: true } })

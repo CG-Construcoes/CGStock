@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal, Pencil, Trash2, Printer } from "lucide-react"
-import { deleteUserAction, softDeleteUserAction } from "./actions"
+import { MoreHorizontal, Pencil, Trash2, Printer, KeyRound, Copy } from "lucide-react"
+import { deleteUserAction, softDeleteUserAction, resetPasswordAction } from "./actions"
 import { useTransition, useState, useRef, useEffect } from "react"
 import Link from "next/link"
 
@@ -11,6 +11,8 @@ export function UserActions({ userId, userName }: { userId: string, userName: st
   const [isOpen, setIsOpen] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown on click outside
@@ -52,6 +54,18 @@ export function UserActions({ userId, userName }: { userId: string, userName: st
     })
   }
 
+  const handleResetPassword = () => {
+    startTransition(async () => {
+      const res = await resetPasswordAction(userId)
+      if (res?.error) {
+        alert(res.error)
+        setShowResetModal(false)
+      } else if (res?.success && res.newPassword) {
+        setGeneratedPassword(res.newPassword)
+      }
+    })
+  }
+
   return (
     <div className="relative flex justify-end" ref={dropdownRef}>
       <Button 
@@ -77,6 +91,17 @@ export function UserActions({ userId, userName }: { userId: string, userName: st
               Editar
             </button>
           </Link>
+          <button 
+            onClick={() => {
+              setIsOpen(false)
+              setShowResetModal(true)
+              setGeneratedPassword(null)
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground hover:bg-muted mt-1"
+          >
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
+            Resetar Senha
+          </button>
           <button 
             onClick={() => {
               setIsOpen(false)
@@ -147,6 +172,64 @@ export function UserActions({ userId, userName }: { userId: string, userName: st
                 {isPending ? "Apagando..." : "Sim, Apagar"}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showResetModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-sm rounded-md bg-card p-6 shadow-sm border border-border">
+            <h2 className="text-xl font-bold text-foreground">Resetar Senha</h2>
+            
+            {generatedPassword ? (
+              <div className="mt-4 space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  A senha foi resetada com sucesso e é válida por 24 horas. O usuário precisará definir uma nova senha no próximo login.
+                </p>
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-md border border-border">
+                  <span className="font-mono text-lg font-bold flex-1">{generatedPassword}</span>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedPassword)
+                      alert("Senha copiada!")
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button onClick={() => setShowResetModal(false)} className="rounded-md">
+                    Concluir
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Ao resetar a senha, as sessões ativas do usuário <span className="font-bold text-foreground">{userName}</span> serão desconectadas e uma nova senha temporária será gerada.
+                </p>
+                <div className="mt-6 flex justify-end gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowResetModal(false)}
+                    disabled={isPending}
+                    className="rounded-md"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    onClick={handleResetPassword}
+                    disabled={isPending}
+                    className="rounded-md shadow-sm bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {isPending ? "Gerando..." : "Confirmar Reset"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

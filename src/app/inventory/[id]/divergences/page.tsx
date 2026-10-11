@@ -7,8 +7,10 @@ import {  CheckCircle2, AlertTriangle } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
 import { concludeInventoryAction } from "../../actions"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function DivergencesPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAnyPermissionPage('INVENTORY_REVIEW', 'INVENTORY_APPROVE', 'INVENTORY_CREATE')
   const { id } = await params
   
   const inv = await db.inventory.findUnique({
@@ -26,8 +28,8 @@ export default async function DivergencesPage({ params }: { params: Promise<{ id
   if (!inv) notFound()
 
   const totalDivergences = inv.divergences.length
-  const withSurplus = inv.divergences.filter(d => d.difference > 0).length
-  const withShortage = inv.divergences.filter(d => d.difference < 0).length
+  const withSurplus = inv.divergences.filter(d => Number(d.difference) > 0).length
+  const withShortage = inv.divergences.filter(d => Number(d.difference) < 0).length
 
   return (
     <div className="space-y-6">
@@ -93,8 +95,8 @@ export default async function DivergencesPage({ params }: { params: Promise<{ id
               </TableRow>
             ) : (
               inv.divergences.map(div => {
-                const diffColor = div.difference > 0 ? 'text-emerald-600' : 'text-red-600'
-                const diffSignal = div.difference > 0 ? '+' : ''
+                const diffColor = Number(div.difference) > 0 ? 'text-emerald-600' : 'text-red-600'
+                const diffSignal = Number(div.difference) > 0 ? '+' : ''
                 
                 return (
                   <TableRow key={div.id}>
@@ -103,10 +105,10 @@ export default async function DivergencesPage({ params }: { params: Promise<{ id
                       <div className="font-medium">{div.product.code}</div>
                       <div className="text-xs text-muted-foreground">{div.product.name}</div>
                     </TableCell>
-                    <TableCell className="text-center text-muted-foreground">{div.systemQuantity}</TableCell>
-                    <TableCell className="text-center font-bold text-foreground">{div.countedQuantity}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{Number(div.systemQuantity)}</TableCell>
+                    <TableCell className="text-center font-bold text-foreground">{Number(div.countedQuantity)}</TableCell>
                     <TableCell className={`text-center font-bold ${diffColor}`}>
-                      {diffSignal}{div.difference}
+                      {diffSignal}{Number(div.difference)}
                     </TableCell>
                     <TableCell>
                       {div.status === 'PENDING' ? (

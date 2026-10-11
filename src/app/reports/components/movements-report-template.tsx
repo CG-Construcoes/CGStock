@@ -3,7 +3,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge, type BadgeProps } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { BackButton } from "@/components/ui/back-button"
-import { getAccessibleWorksiteIds } from "@/lib/context"
+import { warehouseIdFilter } from "@/lib/dal"
+import { getValidatedSession } from "@/lib/auth"
+import { getMovementTypeLabel, getMovementBadgeVariant, isManualAdjustment, isInMovement } from "@/lib/movement-labels"
 import { Prisma } from "@prisma/client"
 
 export interface MovementsReportTemplateProps {
@@ -25,11 +27,12 @@ export async function MovementsReportTemplate({
 }: MovementsReportTemplateProps) {
   const pageSize = 50
   
-  const allowedWorksites = await getAccessibleWorksiteIds()
+  const session = await getValidatedSession()
+  const wFilter = session ? await warehouseIdFilter(session.userId) : undefined
   
-  const whereClause = {
+  const whereClause: Prisma.StockMovementWhereInput = {
     ...(typeFilter ? { type: typeFilter } : {}),
-    warehouse: { worksiteId: { in: allowedWorksites } }
+    ...(wFilter ? wFilter : {})
   }
 
   const movements = await db.stockMovement.findMany({
@@ -48,16 +51,10 @@ export async function MovementsReportTemplate({
   const total = await db.stockMovement.count({ where: whereClause })
   const totalPages = Math.ceil(total / pageSize)
 
-  const getTypeLabel = (type: string): { label: string; color: BadgeProps["variant"] } => {
-    switch(type) {
-      case 'ENTRY': return { label: 'Entrada', color: 'success' }
-      case 'EXIT': return { label: 'Saída', color: 'destructive' }
-      case 'RETURN': return { label: 'Devolução', color: 'secondary' }
-      case 'ADJUSTMENT_IN': return { label: 'Ajuste In', color: 'success' }
-      case 'ADJUSTMENT_OUT': return { label: 'Ajuste Out', color: 'destructive' }
-      case 'TRANSFER_IN': return { label: 'Transf In', color: 'outline' }
-      case 'TRANSFER_OUT': return { label: 'Transf Out', color: 'outline' }
-      default: return { label: type, color: 'secondary' }
+  const getTypeLabel = (type: string, referenceType?: string | null): { label: string; color: BadgeProps["variant"] } => {
+    return {
+      label: getMovementTypeLabel(type, referenceType),
+      color: getMovementBadgeVariant(type, isManualAdjustment(referenceType)),
     }
   }
 
@@ -98,9 +95,9 @@ export async function MovementsReportTemplate({
               </TableHeader>
               <TableBody>
                 {movements.map((mov) => {
-                  const t = getTypeLabel(mov.type)
-                  const isPositive = ['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(mov.type)
-                  
+                  const t = getTypeLabel(mov.type, mov.referenceType)
+                  const isPositive = isInMovement(mov.type)
+
                   return (
                     <TableRow key={mov.id}>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
@@ -115,7 +112,7 @@ export async function MovementsReportTemplate({
                         {mov.product.code} - {mov.product.name}
                       </TableCell>
                       <TableCell className={`text-right font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {isPositive ? '+' : '-'}{mov.quantity}
+                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{mov.warehouse.name}</TableCell>
                       <TableCell className="text-xs font-mono bg-muted">{mov.location.code}</TableCell>

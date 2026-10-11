@@ -5,8 +5,13 @@ import { Filter, MoreHorizontal, LogOut } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { SearchInput } from "@/components/ui/search-input"
+import { requireAnyPermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function IssuesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireAnyPermissionPage('STOCK_EXIT', 'REQUEST_FULFILL')
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const issues = await db.materialRequest.findMany({
@@ -14,6 +19,7 @@ export default async function IssuesPage({ searchParams }: { searchParams: Promi
       status: {
         in: ['PARTIALLY_FULFILLED', 'FULFILLED']
       },
+      ...(wFilter ? wFilter : {}),
       ...(q ? { OR: [{ requestNumber: { contains: q, mode: 'insensitive' } }, { requester: { name: { contains: q, mode: 'insensitive' } } }] } : {})
     },
     include: {
@@ -58,7 +64,7 @@ export default async function IssuesPage({ searchParams }: { searchParams: Promi
             </div>
           ) : (
             issues.map((issue) => {
-              const totalDelivered = issue.items.reduce((sum, item) => sum + item.deliveredQuantity, 0)
+              const totalDelivered = issue.items.reduce((sum, item) => sum + Number(item.deliveredQuantity), 0)
               
               return (
                 <div key={issue.id} className="p-4 space-y-3 bg-card hover:bg-muted/30 ">
@@ -130,7 +136,7 @@ export default async function IssuesPage({ searchParams }: { searchParams: Promi
               </TableRow>
             ) : (
               issues.map((issue) => {
-                const totalDelivered = issue.items.reduce((sum, item) => sum + item.deliveredQuantity, 0)
+                const totalDelivered = issue.items.reduce((sum, item) => sum + Number(item.deliveredQuantity), 0)
                 
                 return (
                   <TableRow key={issue.id}>

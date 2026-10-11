@@ -1,16 +1,19 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
 import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { validatePasswordStrength } from "@/lib/password-policy"
+import { requireAdmin } from "@/lib/action-guard"
+import { logAuditStrict } from "@/lib/audit"
 import { Prisma } from "@prisma/client"
 
 export async function editUserAction(prevState: { error?: string } | null, formData: FormData) {
-  const session = await getSession()
-  if (!session || !session.roles?.includes("ADMIN")) {
+  let session
+  try {
+    session = await requireAdmin()
+  } catch {
     return { error: "Sem permissão. Apenas administradores podem editar usuários." }
   }
 
@@ -62,10 +65,54 @@ export async function editUserAction(prevState: { error?: string } | null, formD
     updateData.mustChangePassword = formData.get("mustChangePassword") === "true"
   }
 
+  const warehouseIds = formData.getAll("warehouseIds") as string[]
+
   try {
-    await db.user.update({
-      where: { id },
-      data: updateData
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: updateData
+      })
+
+      await tx.userWarehouseAccess.deleteMany({
+        where: { userId: id, warehouseId: { notIn: warehouseIds } }
+      })
+      const existingAccesses = await tx.userWarehouseAccess.findMany({
+        where: { userId: id },
+        select: { warehouseId: true }
+      })
+      const existingWarehouseIds = new Set(existingAccesses.map(a => a.warehouseId))
+      const toGrant = warehouseIds.filter(wid => !existingWarehouseIds.has(wid))
+
+      if (toGrant.length > 0) {
+        await tx.userWarehouseAccess.createMany({
+          data: toGrant.map(wid => ({
+            userId: id,
+            warehouseId: wid,
+            grantedById: session.userId
+          })),
+          skipDuplicates: true
+        })
+
+        await Promise.all(toGrant.map(wid =>
+          logAuditStrict("WAREHOUSE_ACCESS_GRANTED", "User", id, { warehouseId: wid }, session.userId, tx)
+        ))
+      }
+
+      const toRevoke = existingAccesses.map(a => a.warehouseId).filter(wid => !warehouseIds.includes(wid))
+      await Promise.all(toRevoke.map(wid =>
+        logAuditStrict("WAREHOUSE_ACCESS_REVOKED", "User", id, { warehouseId: wid }, session.userId, tx)
+      ))
+
+      await logAuditStrict("USER_UPDATED", "User", id, {
+        name,
+        email,
+        roleIds,
+        worksiteIds,
+        warehouseIds,
+        passwordChanged: !!password,
+        mustChangePassword: updateData.mustChangePassword ?? null
+      }, session.userId, tx)
     })
   } catch (error) {
     console.error("Erro ao editar usuário:", error)

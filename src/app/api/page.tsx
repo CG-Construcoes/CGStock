@@ -3,8 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Code2, Webhook, Key, ExternalLink } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
-export default function ApiPage() {
+export default async function ApiPage() {
+  await requirePermissionPage('CONFIG_MANAGE')
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">

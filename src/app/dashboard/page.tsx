@@ -2,9 +2,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Package, AlertTriangle, ArrowRightLeft, FileText, Smartphone, RotateCcw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { db } from "@/lib/db"
+import { Prisma } from "@prisma/client"
 import Link from "next/link"
 import { DashboardCharts } from "./charts"
-import { getSession, type SessionPayload } from "@/lib/auth"
+import { getValidatedSession, type SessionPayload } from "@/lib/auth"
+import { redirect } from "next/navigation"
+import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
+import { warehouseScopeIds, warehouseIdFilter } from "@/lib/dal"
 import { QRCodeBadge } from "@/components/ui/qr-code-badge"
 import { Button } from "@/components/ui/button"
 import { QrCode, ClipboardList } from "lucide-react"
@@ -105,8 +109,9 @@ async function RequesterDashboard({ user, qrToken }: { user: SessionPayload, qrT
 }
 
 export default async function DashboardPage() {
-  const session = await getSession()
-  const roles = session?.roles || []
+  const session = await getValidatedSession()
+  if (!session) redirect("/login")
+  const roles = session.roles || []
   
   const isRequesterOnly = roles.includes('SOLICITANTE') && !roles.some(r => ['ADMIN', 'GESTOR', 'ALMOXARIFE'].includes(r))
   
@@ -121,6 +126,43 @@ export default async function DashboardPage() {
 
   type ChartRow = { day: Date, type: string, total: number }
 
+  const wFilter = await warehouseIdFilter(session.userId)
+  const scopeIds = await warehouseScopeIds(session.userId)
+
+  const divPendingWhere: Prisma.InventoryDivergenceWhereInput = { status: 'PENDING' }
+  const divReviewedWhere: Prisma.InventoryDivergenceWhereInput = { status: 'REVIEWED' }
+  if (wFilter) {
+    divPendingWhere.inventory = { warehouseId: wFilter.warehouseId }
+    divReviewedWhere.inventory = { warehouseId: wFilter.warehouseId }
+  }
+
+  const trWhere: Prisma.StockTransferWhereInput = { status: 'IN_TRANSIT' }
+  if (scopeIds) {
+    trWhere.OR = [
+      { sourceWarehouseId: { in: scopeIds } },
+      { destinationWarehouseId: { in: scopeIds } }
+    ]
+  }
+
+  let chartQuery
+  if (scopeIds) {
+    chartQuery = Prisma.sql`
+      SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
+      FROM "StockMovement"
+      WHERE "createdAt" >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT') AND "warehouseId" IN (${Prisma.join(scopeIds)})
+      GROUP BY 1, 2
+      ORDER BY 1
+    `
+  } else {
+    chartQuery = Prisma.sql`
+      SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
+      FROM "StockMovement"
+      WHERE "createdAt" >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT')
+      GROUP BY 1, 2
+      ORDER BY 1
+    `
+  }
+
   const [
     totalProducts,
     pendingDivergencesCount,
@@ -131,11 +173,11 @@ export default async function DashboardPage() {
     chartRows
   ] = await Promise.all([
     db.product.count(),
-    db.inventoryDivergence.count({ where: { status: 'PENDING' } }),
-    db.inventoryDivergence.count({ where: { status: 'REVIEWED' } }),
-    db.stockTransfer.count({ where: { status: 'IN_TRANSIT' } }),
+    db.inventoryDivergence.count({ where: divPendingWhere }),
+    db.inventoryDivergence.count({ where: divReviewedWhere }),
+    db.stockTransfer.count({ where: trWhere }),
     db.inventory.findMany({
-      where: { status: 'IN_PROGRESS' },
+      where: { status: 'IN_PROGRESS', ...wFilter },
       include: {
         _count: { select: { locations: true } },
         locations: { where: { status: 'COMPLETED' } }
@@ -143,17 +185,12 @@ export default async function DashboardPage() {
       take: 4
     }),
     db.stockMovement.findMany({
+      where: wFilter,
       take: 5,
       orderBy: { createdAt: 'desc' },
       include: { product: true }
     }),
-    db.$queryRaw<ChartRow[]>`
-      SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
-      FROM "StockMovement"
-      WHERE "createdAt" >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT')
-      GROUP BY 1, 2
-      ORDER BY 1
-    `
+    db.$queryRaw<ChartRow[]>(chartQuery)
   ])
 
   // Prepara dados pro gráfico (os 7 dias mais recentes com movimentação)
@@ -268,15 +305,8 @@ export default async function DashboardPage() {
                 </div>
               ) : (
                 recentMovements.map(mov => {
-                  const isPositive = ['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(mov.type)
-                  let typeStr = mov.type
-                  if (mov.type === 'ENTRY') typeStr = 'Entrada'
-                  if (mov.type === 'EXIT') typeStr = 'Saída'
-                  if (mov.type === 'ADJUSTMENT_IN') typeStr = 'Ajuste (+)'
-                  if (mov.type === 'ADJUSTMENT_OUT') typeStr = 'Ajuste (-)'
-                  if (mov.type === 'TRANSFER_IN') typeStr = 'Transf. (+)'
-                  if (mov.type === 'TRANSFER_OUT') typeStr = 'Transf. (-)'
-                  if (mov.type === 'RETURN') typeStr = 'Devolução'
+                  const isPositive = isInMovement(mov.type)
+                  const typeStr = getMovementTypeLabel(mov.type, mov.referenceType)
 
                   const Icon = mov.type === 'RETURN' ? RotateCcw : ArrowRightLeft
 
@@ -296,7 +326,7 @@ export default async function DashboardPage() {
                       <div className={`font-black text-lg ${
                         isPositive ? 'text-success' : 'text-destructive'
                       }`}>
-                        {isPositive ? '+' : ''}{mov.quantity}
+                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
                       </div>
                     </div>
                   )

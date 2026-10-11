@@ -4,8 +4,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Plus, Filter, Edit } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function UnitsPage() {
+  await requirePermissionPage('PRODUCT_VIEW')
   const units = await db.productUnit.findMany({
     orderBy: { code: 'asc' },
     include: {

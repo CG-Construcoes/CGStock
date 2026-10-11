@@ -7,8 +7,10 @@ import { Save, Trash2 } from "lucide-react"
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { updateWarehouseAction, deleteWarehouseAction } from "../actions"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditWarehousePage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('CONFIG_MANAGE')
   const { id } = await params
   
   const warehouse = await db.warehouse.findUnique({

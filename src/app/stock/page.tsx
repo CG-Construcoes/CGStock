@@ -1,28 +1,90 @@
+import { Suspense } from "react"
+import { Search, Filter, Box, Loader2 } from "lucide-react"
+import Link from "next/link"
+import { db } from "@/lib/db"
+import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { getAccessibleWarehouseIds } from "@/lib/dal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Filter, Box } from "lucide-react"
-import Link from "next/link"
-import { db } from "@/lib/db"
+import { StockFilterForm } from "./stock-filter-form"
 
-export default async function StockPage() {
-  // O Prisma não suporta GroupBy com includes aninhados perfeitamente num nível único,
-  // então vamos buscar todos os produtos e somar seus estoques.
+export default async function StockPage({ searchParams }: { searchParams: Promise<{ q?: string, warehouseId?: string }> }) {
+  await requirePermissionPage('STOCK_VIEW')
+  const session = await getValidatedSession()
+  const params = await searchParams
+  const q = params.q || ""
+  const selectedWarehouseId = params.warehouseId || ""
+
+  const allowedIds = await getAccessibleWarehouseIds(session!.userId)
+  
+  let warehouses = []
+  if (allowedIds === null) {
+    warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } })
+  } else {
+    warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: allowedIds } }, orderBy: { name: 'asc' } })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Estoque e Saldos</h2>
+          <p className="text-muted-foreground">Acompanhe a disponibilidade física dos materiais no almoxarifado.</p>
+        </div>
+      </div>
+
+      <StockFilterForm q={q} selectedWarehouseId={selectedWarehouseId} warehouses={warehouses} />
+
+      <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+        <StockList q={q} selectedWarehouseId={selectedWarehouseId} allowedIds={allowedIds} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function StockList({ q, selectedWarehouseId, allowedIds }: { q: string, selectedWarehouseId: string, allowedIds: string[] | null }) {
+  let effectiveWarehouseIds = allowedIds
+  if (selectedWarehouseId) {
+    if (allowedIds === null || allowedIds.includes(selectedWarehouseId)) {
+      effectiveWarehouseIds = [selectedWarehouseId]
+    }
+  }
+
+  const wFilter: any = {}
+  if (effectiveWarehouseIds !== null) {
+    wFilter.warehouseId = { in: effectiveWarehouseIds }
+  }
+
+  const productWhere: any = {}
+  if (q) {
+    productWhere.OR = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { code: { contains: q, mode: 'insensitive' } }
+    ]
+  }
+  
+  if (effectiveWarehouseIds !== null) {
+    productWhere.stocks = { some: wFilter }
+  }
+
   const products = await db.product.findMany({
+    where: productWhere,
     include: {
       category: true,
       unit: true,
       stocks: {
+        where: wFilter,
         include: { location: true }
       }
     },
     orderBy: { name: 'asc' }
   })
 
-  // Agrupando visualmente os dados para exibir
   const stockData = products.map(p => {
-    const totalQuantity = p.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
-    const totalReserved = p.stocks.reduce((acc, stock) => acc + stock.reservedQuantity, 0)
+    const totalQuantity = p.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
+    const totalReserved = p.stocks.reduce((acc, stock) => acc + Number(stock.reservedQuantity), 0)
     const available = totalQuantity - totalReserved
 
     let status = 'NORMAL'
@@ -57,28 +119,7 @@ export default async function StockPage() {
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Estoque e Saldos</h2>
-          <p className="text-muted-foreground">Acompanhe a disponibilidade física dos materiais no almoxarifado.</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cód. insumo ou produto..." className="pl-9" />
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
-          </Button>
-        </div>
-      </div>
-
-      <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">
+    <div className="bg-card rounded-md border border-border shadow-sm overflow-hidden">
         {/* Mobile View: Cards */}
         <div className="md:hidden divide-y divide-border/50">
           {stockData.length === 0 ? (
@@ -87,18 +128,18 @@ export default async function StockPage() {
                 <Search className="h-6 w-6 text-muted-foreground/50" />
               </div>
               <p className="text-base font-medium text-foreground mb-1">Nenhum produto em estoque</p>
-              <p className="text-sm text-muted-foreground">Você ainda não possui produtos cadastrados no sistema.</p>
+              <p className="text-sm text-muted-foreground">Você ainda não possui produtos cadastrados ou encontrados no filtro.</p>
             </div>
           ) : (
             stockData.map((data) => (
-              <div key={data.product.id} className="p-5 space-y-4 bg-transparent hover:bg-muted/20 ">
+              <div key={data.product.id} className="p-5 space-y-4 bg-transparent hover:bg-muted/20">
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 shrink-0 rounded-md bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm uppercase">
                       {data.product.name.charAt(0)}
                     </div>
                     <div className="flex flex-col">
-                      <Link href={`/stock/${data.product.id}`} className="font-semibold text-base text-foreground leading-tight hover:text-primary  line-clamp-1">
+                      <Link href={`/stock/${data.product.id}`} className="font-semibold text-base text-foreground leading-tight hover:text-primary line-clamp-1">
                         {data.product.name}
                       </Link>
                       <span className="text-xs text-muted-foreground mt-0.5">Cod: {data.product.code}</span>
@@ -106,13 +147,13 @@ export default async function StockPage() {
                   </div>
                   {data.status === 'NORMAL' && (
                     <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-medium whitespace-nowrap">
-                      <span className="h-1 w-1 rounded-full bg-emerald-600 "></span>
+                      <span className="h-1 w-1 rounded-full bg-emerald-600"></span>
                       Normal
                     </div>
                   )}
                   {data.status === 'LOW' && (
                     <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 border border-orange-500/20 text-[10px] font-medium whitespace-nowrap">
-                      <span className="h-1 w-1 rounded-full bg-orange-600 "></span>
+                      <span className="h-1 w-1 rounded-full bg-orange-600"></span>
                       Baixo
                     </div>
                   )}
@@ -152,7 +193,7 @@ export default async function StockPage() {
                     </div>
                   </div>
                   <Link href={`/stock/${data.product.id}`}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-blue-500/10 hover:text-blue-600 ">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-blue-500/10 hover:text-blue-600">
                       <Box className="h-4 w-4" />
                     </Button>
                   </Link>
@@ -187,7 +228,7 @@ export default async function StockPage() {
                       <Search className="h-8 w-8 text-muted-foreground/50" />
                     </div>
                     <p className="text-lg font-medium text-foreground">Nenhum produto encontrado</p>
-                    <p className="text-sm text-muted-foreground">Você ainda não possui produtos cadastrados no sistema.</p>
+                    <p className="text-sm text-muted-foreground">Você ainda não possui produtos cadastrados ou encontrados no filtro.</p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -195,15 +236,15 @@ export default async function StockPage() {
               stockData.map((data) => (
                 <TableRow 
                   key={data.product.id}
-                  className="group border-b border-border hover:bg-primary/[0.02]   "
+                  className="group border-b border-border hover:bg-primary/[0.02]"
                 >
                   <TableCell className="px-6 py-4 font-mono text-sm text-muted-foreground">{data.product.code}</TableCell>
                   <TableCell className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm group-hover:bg-primary group-hover:text-primary-foreground   uppercase text-sm">
+                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm group-hover:bg-primary group-hover:text-primary-foreground uppercase text-sm">
                         {data.product.name.charAt(0)}
                       </div>
-                      <Link href={`/stock/${data.product.id}`} className="font-semibold text-base text-foreground group-hover:text-primary  ">
+                      <Link href={`/stock/${data.product.id}`} className="font-semibold text-base text-foreground group-hover:text-primary">
                         {data.product.name}
                       </Link>
                     </div>
@@ -261,7 +302,7 @@ export default async function StockPage() {
                         variant="ghost" 
                         size="icon" 
                         title="Ver Distribuição"
-                        className="h-9 w-9 rounded-full opacity-0 group-hover:opacity-100 hover:bg-blue-500/10 hover:text-blue-600   translate-x-2 group-hover:translate-x-0"
+                        className="h-9 w-9 rounded-full opacity-0 group-hover:opacity-100 hover:bg-blue-500/10 hover:text-blue-600 translate-x-2 group-hover:translate-x-0 transition-all"
                       >
                         <Box className="h-4 w-4" />
                       </Button>
@@ -274,6 +315,5 @@ export default async function StockPage() {
         </Table>
         </div>
       </div>
-    </div>
   )
 }

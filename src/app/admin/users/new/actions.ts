@@ -1,15 +1,18 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
 import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { validatePasswordStrength } from "@/lib/password-policy"
+import { requireAdmin } from "@/lib/action-guard"
+import { logAuditStrict } from "@/lib/audit"
 
 export async function createUserAction(prevState: { error?: string } | null, formData: FormData) {
-  const session = await getSession()
-  if (!session || !session.roles?.includes("ADMIN")) {
+  let session
+  try {
+    session = await requireAdmin()
+  } catch {
     return { error: "Sem permissão. Apenas administradores podem criar usuários." }
   }
 
@@ -36,17 +39,26 @@ export async function createUserAction(prevState: { error?: string } | null, for
   const passwordHash = await bcrypt.hash(password, 10)
 
   try {
-    await db.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        roles: {
-          connect: roleIds.map(id => ({ id }))
-        },
-        status: "ACTIVE",
-        mustChangePassword: formData.get("mustChangePassword") === "true"
-      }
+    await db.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name,
+          email,
+          passwordHash,
+          roles: {
+            connect: roleIds.map(id => ({ id }))
+          },
+          status: "ACTIVE",
+          mustChangePassword: formData.get("mustChangePassword") === "true"
+        }
+      })
+      // Nunca registrar senha (nem em hash) nos metadados de auditoria
+      await logAuditStrict("USER_CREATED", "User", user.id, {
+        name: user.name,
+        email: user.email,
+        roleIds,
+        mustChangePassword: user.mustChangePassword
+      }, session.userId, tx)
     })
   } catch (error) {
     console.error("Erro ao criar usuário:", error)

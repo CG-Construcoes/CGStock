@@ -2,8 +2,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { db } from "@/lib/db"
 import { UserForm } from "./user-form"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewUserPage() {
+  await requirePermissionPage('USER_MANAGE')
   const roles = await db.role.findMany({
     orderBy: { name: 'asc' }
   })

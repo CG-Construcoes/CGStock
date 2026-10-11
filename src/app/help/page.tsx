@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { HelpContent } from "./help-content"
 import { BookOpen } from "lucide-react"
@@ -9,7 +9,7 @@ export const metadata = {
 }
 
 export default async function HelpPage() {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) redirect("/login")
 
   return (

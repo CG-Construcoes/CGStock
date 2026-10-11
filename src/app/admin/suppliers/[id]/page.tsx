@@ -7,8 +7,10 @@ import { Save, Trash2 } from "lucide-react"
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { updateSupplierAction, deleteSupplierAction } from "../actions"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditSupplierPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('CONFIG_MANAGE')
   const { id } = await params
   
   const supplier = await db.supplier.findUnique({

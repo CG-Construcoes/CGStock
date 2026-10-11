@@ -8,8 +8,10 @@ import Link from "next/link"
 import { approveRequestAction, rejectRequestAction, startSeparationAction, cancelRequestAction } from "../actions"
 import { CancelRequestButton } from "./cancel-button"
 import { BackButton } from "@/components/ui/back-button"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAnyPermissionPage('REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL')
   const { id } = await params
   
   const req = await db.materialRequest.findUnique({
@@ -113,7 +115,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                     <p className="text-sm text-muted-foreground">Unidade: {item.unit.code}</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold">{item.requestedQuantity}</div>
+                    <div className="text-2xl font-bold">{Number(item.requestedQuantity)}</div>
                     <p className="text-xs text-muted-foreground">Qtd Solicitada</p>
                   </div>
                 </div>
@@ -162,12 +164,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                   <div key={item.id} className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="truncate max-w-[150px]">{item.product.code}</span>
-                      <span className="font-medium text-emerald-600">{item.deliveredQuantity} / {item.approvedQuantity}</span>
+                      <span className="font-medium text-emerald-600">{Number(item.deliveredQuantity)} / {Number(item.approvedQuantity)}</span>
                     </div>
                     <div className="w-full bg-accent rounded-full h-2">
                       <div 
                         className="bg-emerald-500 h-2 rounded-full" 
-                        style={{ width: `${item.approvedQuantity > 0 ? (item.deliveredQuantity / item.approvedQuantity) * 100 : 0}%` }}
+                        style={{ width: `${Number(item.approvedQuantity) > 0 ? (Number(item.deliveredQuantity) / Number(item.approvedQuantity)) * 100 : 0}%` }}
                       ></div>
                     </div>
                   </div>

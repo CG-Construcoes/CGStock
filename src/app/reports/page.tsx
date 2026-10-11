@@ -1,4 +1,5 @@
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { format } from "date-fns"
 import Link from "next/link"
@@ -6,10 +7,12 @@ import { ArrowLeft, FileText, Search } from "lucide-react"
 import { DashboardCharts } from "@/app/dashboard/charts"
 
 import { ReportsHeaderControls, ReportsFilterControls } from "./client-controls"
+import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function ReportsHubPage(props: { searchParams: Promise<{ from?: string, to?: string }> }) {
   await requirePermissionPage('REPORT_VIEW')
-
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
   const searchParams = await props.searchParams
   const defaultThirtyDaysAgo = new Date()
   defaultThirtyDaysAgo.setDate(defaultThirtyDaysAgo.getDate() - 30)
@@ -20,14 +23,15 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
   const fromDate = new Date(fromDateStr + "T00:00:00")
   const toDate = new Date(toDateStr + "T23:59:59")
 
-  const entradas = await db.stockMovement.count({ where: { type: 'ENTRY', createdAt: { gte: fromDate, lte: toDate } } })
-  const saidas = await db.stockMovement.count({ where: { type: 'EXIT', createdAt: { gte: fromDate, lte: toDate } } })
-  const totalMovements = await db.stockMovement.count({ where: { createdAt: { gte: fromDate, lte: toDate } } })
+  const entradas = await db.stockMovement.count({ where: { type: 'ENTRY', createdAt: { gte: fromDate, lte: toDate }, ...wFilter } })
+  const saidas = await db.stockMovement.count({ where: { type: 'EXIT', createdAt: { gte: fromDate, lte: toDate }, ...wFilter } })
+  const totalMovements = await db.stockMovement.count({ where: { createdAt: { gte: fromDate, lte: toDate }, ...wFilter } })
   
   const recentMovementsForChart = await db.stockMovement.findMany({
     where: {
       createdAt: { gte: fromDate, lte: toDate },
-      type: { in: ['ENTRY', 'EXIT'] }
+      type: { in: ['ENTRY', 'EXIT'] },
+      ...wFilter
     },
     select: { type: true, quantity: true, createdAt: true }
   })
@@ -37,13 +41,13 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
     const d = new Date(m.createdAt)
     const dateStr = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}`
     if (!chartDataMap[dateStr]) chartDataMap[dateStr] = { name: dateStr, entradas: 0, saidas: 0 }
-    if (m.type === 'ENTRY') chartDataMap[dateStr].entradas += m.quantity
-    else chartDataMap[dateStr].saidas += m.quantity
+    if (m.type === 'ENTRY') chartDataMap[dateStr].entradas += Math.abs(Number(m.quantity))
+    else chartDataMap[dateStr].saidas += Math.abs(Number(m.quantity))
   })
   const chartData = Object.values(chartDataMap).slice(-7)
 
   const recentMovements = await db.stockMovement.findMany({
-    where: { createdAt: { gte: fromDate, lte: toDate } },
+    where: { createdAt: { gte: fromDate, lte: toDate }, ...wFilter },
     take: 15,
     orderBy: { createdAt: 'desc' },
     include: {
@@ -162,13 +166,8 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
                     </tr>
                   ) : (
                     recentMovements.map((mov) => {
-                      const isPositive = ['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(mov.type)
-                      let typeLabel = mov.type
-                      if (mov.type === 'ENTRY') typeLabel = 'Entrada'
-                      if (mov.type === 'EXIT') typeLabel = 'Saída'
-                      if (mov.type === 'ADJUSTMENT_IN') typeLabel = 'Ajuste In'
-                      if (mov.type === 'ADJUSTMENT_OUT') typeLabel = 'Ajuste Out'
-                      if (mov.type === 'RETURN') typeLabel = 'Devolução'
+                      const isPositive = isInMovement(mov.type)
+                      const typeLabel = getMovementTypeLabel(mov.type, mov.referenceType)
 
                       return (
                         <tr key={mov.id} className="hover:bg-muted/30 transition-colors">
@@ -184,7 +183,7 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
                             {mov.product.code} - {mov.product.name}
                           </td>
                           <td className={`px-4 py-2 text-xs font-bold text-right ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                            {isPositive ? '+' : '-'}{mov.quantity}
+                            {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
                           </td>
                           <td className="px-4 py-2 text-[11px] font-medium text-muted-foreground">
                             {mov.warehouse.name}

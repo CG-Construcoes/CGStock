@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Plus, PackageOpen, Box } from "lucide-react"
 import { db } from "@/lib/db"
 import Link from "next/link"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function WarehousesPage() {
+  await requirePermissionPage('CONFIG_MANAGE')
   const warehouses = await db.warehouse.findMany({
     include: { _count: { select: { locations: true, stocks: true } } },
     orderBy: { code: 'asc' }

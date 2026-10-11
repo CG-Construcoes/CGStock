@@ -5,12 +5,14 @@ import {  Save } from "lucide-react"
 import Link from "next/link"
 import { createCategoryAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewCategoryPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
+  await requirePermissionPage('PRODUCT_CREATE')
   const resolvedSearchParams = await searchParams;
   return (
     <div className="space-y-6 max-w-2xl">

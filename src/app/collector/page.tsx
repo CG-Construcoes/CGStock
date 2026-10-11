@@ -3,13 +3,20 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Smartphone, ChevronRight } from "lucide-react"
 import Link from "next/link"
 
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { hasAnyPermission } from "@/lib/permissions"
 
 export default async function CollectorHomePage() {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) {
     redirect("/login")
+  }
+
+  const isAdmin = session.roles?.includes('ADMIN')
+  const canCount = isAdmin || await hasAnyPermission('INVENTORY_COUNT', 'INVENTORY_CREATE', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
+  if (!canCount) {
+    redirect("/unauthorized")
   }
 
   const isAdminOrManager = session.roles.some(r => ['ADMIN', 'GESTOR'].includes(r))

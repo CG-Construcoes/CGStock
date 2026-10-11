@@ -8,10 +8,11 @@ import {  Clock, Package, FileText, User, Building, MapPin } from "lucide-react"
 import { ConfirmReceiptButton } from "./confirm-button"
 import { BackButton } from "@/components/ui/back-button"
 import { formatCurrency } from "@/lib/utils"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function ReceiptDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('STOCK_ENTRY')
   const session = await getSession()
-  if (!session) redirect("/login")
 
   const { id } = await params
 
@@ -181,7 +182,7 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
                     <Badge variant="outline" className="font-mono bg-muted/50">{item.location.code}</Badge>
                     <span className="text-sm ml-2">{item.location.name}</span>
                   </TableCell>
-                  <TableCell className="text-right font-medium">{item.quantity}</TableCell>
+                  <TableCell className="text-right font-medium">{Number(item.quantity)}</TableCell>
                   <TableCell>{item.product.unit.code}</TableCell>
                   <TableCell className="text-right">{item.unitCost ? formatCurrency(item.unitCost) : '-'}</TableCell>
                   <TableCell className="text-right font-medium pr-6">{item.totalCost ? formatCurrency(item.totalCost) : '-'}</TableCell>

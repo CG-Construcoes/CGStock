@@ -3,27 +3,38 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { BackButton } from "@/components/ui/back-button"
 import { EditUserForm } from "./edit-user-form"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditUserPage(props: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('USER_MANAGE')
   const params = await props.params;
   const user = await db.user.findUnique({
     where: { id: params.id },
-    include: { 
+    include: {
       roles: true,
-      worksiteAccesses: true
+      worksiteAccesses: true,
+      warehouseAccesses: {
+        include: { warehouse: { select: { id: true, name: true, code: true } } }
+      }
     }
   })
 
   if (!user) {
     redirect("/admin/users")
   }
-  
+
   const roles = await db.role.findMany({
     orderBy: { name: 'asc' }
   })
-  
+
   const worksites = await db.worksite.findMany({
     orderBy: { name: 'asc' }
+  })
+
+  const warehouses = await db.warehouse.findMany({
+    where: { status: 'ACTIVE' },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, code: true }
   })
 
   return (
@@ -44,7 +55,7 @@ export default async function EditUserPage(props: { params: Promise<{ id: string
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <EditUserForm user={user} roles={roles} worksites={worksites} />
+          <EditUserForm user={user} roles={roles} worksites={worksites} warehouses={warehouses} />
         </CardContent>
       </Card>
     </div>

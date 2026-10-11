@@ -119,7 +119,7 @@ export async function updateLocationAction(formData: FormData) {
       _sum: { quantity: true }
     })
     
-    if (stock._sum.quantity && stock._sum.quantity > 0) {
+    if (Number(stock._sum.quantity) && Number(stock._sum.quantity) > 0) {
       redirect(`/locations/${id}/edit?error=Não é possível inativar uma localização que possui itens em estoque.`)
     }
   }

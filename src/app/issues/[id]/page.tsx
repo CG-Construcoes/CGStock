@@ -7,8 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {  Package, User, CheckCircle, Clock } from "lucide-react"
 import Link from "next/link"
 import { BackButton } from "@/components/ui/back-button"
+import { requireAnyPermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export default async function IssueDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAnyPermissionPage('STOCK_EXIT', 'REQUEST_FULFILL')
   const { id } = await params
   
   // Detalhes da saída (baseados na requisição que gerou a saída)
@@ -29,6 +33,7 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
   })
 
   if (!req || req.items.length === 0) notFound()
+  await assertWarehouseAccess(req.warehouseId, (await getValidatedSession())!.userId)
 
   // Buscar as movimentações (StockMovement) ligadas a esta requisição
   const movements = await db.stockMovement.findMany({
@@ -127,7 +132,7 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
                     <span className="ml-2 text-sm">{mov.location.name}</span>
                   </TableCell>
                   <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                    -{mov.quantity}
+                    -{Number(mov.quantity)}
                   </TableCell>
                   <TableCell className="pr-6">
                     {mov.performedBy.name}

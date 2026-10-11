@@ -1,18 +1,21 @@
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Package } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function StockReportPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   await requirePermissionPage('REPORT_VIEW')
-
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
   const params = await searchParams
   const page = Number(params.page) || 1
   const pageSize = 50
   
   const stocks = await db.stock.findMany({
+    where: wFilter,
     take: pageSize,
     skip: (page - 1) * pageSize,
     orderBy: [{ product: { name: 'asc' } }, { location: { code: 'asc' } }],
@@ -25,7 +28,7 @@ export default async function StockReportPage({ searchParams }: { searchParams: 
     }
   })
 
-  const total = await db.stock.count()
+  const total = await db.stock.count({ where: wFilter })
   const totalPages = Math.ceil(total / pageSize)
 
   return (
@@ -66,8 +69,8 @@ export default async function StockReportPage({ searchParams }: { searchParams: 
               <TableBody>
                 {stocks.map((stock) => {
                   let status = 'NORMAL'
-                  if (stock.quantity <= 0) status = 'OUT_OF_STOCK'
-                  else if (stock.quantity <= stock.product.minimumStock) status = 'LOW'
+                  if (Number(stock.quantity) <= 0) status = 'OUT_OF_STOCK'
+                  else if (Number(stock.quantity) <= stock.product.minimumStock) status = 'LOW'
 
                   return (
                     <TableRow key={stock.id}>
@@ -77,7 +80,7 @@ export default async function StockReportPage({ searchParams }: { searchParams: 
                       <TableCell className="text-sm">{stock.warehouse.name}</TableCell>
                       <TableCell className="text-sm font-mono bg-muted">{stock.location.code}</TableCell>
                       <TableCell className="text-right font-bold text-foreground">
-                        {stock.quantity} <span className="text-xs text-muted-foreground font-normal">{stock.product.unit.code}</span>
+                        {Number(stock.quantity)} <span className="text-xs text-muted-foreground font-normal">{stock.product.unit.code}</span>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{stock.product.minimumStock}</TableCell>
                       <TableCell className="text-center">

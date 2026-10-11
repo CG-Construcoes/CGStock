@@ -1,8 +1,10 @@
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import FulfillmentForm from "./fulfillment-form"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function FulfillmentPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('REQUEST_FULFILL')
   const { id } = await params
   
   const req = await db.materialRequest.findUnique({

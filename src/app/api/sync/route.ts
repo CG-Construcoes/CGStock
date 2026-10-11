@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 import { hasPermission } from "@/lib/permissions"
 import { logAudit } from "@/lib/audit"
 import { Prisma } from "@prisma/client"
@@ -8,7 +8,7 @@ import { Prisma } from "@prisma/client"
 const MAX_SYNC_ITEMS = 5000
 
 export async function POST(request: Request) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) {
     return NextResponse.json({ success: false, error: "Não autenticado." }, { status: 401 })
   }

@@ -1,4 +1,5 @@
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -6,15 +7,17 @@ import { ClipboardList, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { BackButton } from "@/components/ui/back-button"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function InventoryReportPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   await requirePermissionPage('REPORT_VIEW')
-
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
   const params = await searchParams
   const page = Number(params.page) || 1
   const pageSize = 50
   
   const inventories = await db.inventory.findMany({
+    where: wFilter,
     take: pageSize,
     skip: (page - 1) * pageSize,
     orderBy: { createdAt: 'desc' },
@@ -31,7 +34,7 @@ export default async function InventoryReportPage({ searchParams }: { searchPara
     }
   })
 
-  const total = await db.inventory.count()
+  const total = await db.inventory.count({ where: wFilter })
   const totalPages = Math.ceil(total / pageSize)
 
   return (

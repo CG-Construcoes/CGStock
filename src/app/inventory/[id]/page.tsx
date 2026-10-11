@@ -8,8 +8,10 @@ import Link from "next/link"
 import { finishInventoryAction, deleteInventoryAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { DeleteInventoryButton } from "./delete-button"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function InventoryDashboardPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAnyPermissionPage('INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
   const { id } = await params
   
   const inv = await db.inventory.findUnique({

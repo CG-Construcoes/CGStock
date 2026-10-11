@@ -1,14 +1,18 @@
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function LowStockReportPage() {
   await requirePermissionPage('REPORT_VIEW')
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
 
   const stocks = await db.stock.findMany({
+    where: wFilter,
     orderBy: [{ product: { name: 'asc' } }],
     include: {
       product: {
@@ -19,7 +23,7 @@ export default async function LowStockReportPage() {
     }
   })
 
-  const lowStocks = stocks.filter(s => s.quantity <= s.product.minimumStock)
+  const lowStocks = stocks.filter(s => Number(s.quantity) <= s.product.minimumStock)
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -58,7 +62,7 @@ export default async function LowStockReportPage() {
               <TableBody>
                 {lowStocks.map((stock) => {
                   let status = 'LOW'
-                  if (stock.quantity <= 0) status = 'OUT_OF_STOCK'
+                  if (Number(stock.quantity) <= 0) status = 'OUT_OF_STOCK'
 
                   return (
                     <TableRow key={stock.id}>
@@ -67,7 +71,7 @@ export default async function LowStockReportPage() {
                       <TableCell className="text-sm">{stock.warehouse.name}</TableCell>
                       <TableCell className="text-sm font-mono bg-muted">{stock.location.code}</TableCell>
                       <TableCell className="text-right font-bold text-foreground">
-                        {stock.quantity} <span className="text-xs text-muted-foreground font-normal">{stock.product.unit.code}</span>
+                        {Number(stock.quantity)} <span className="text-xs text-muted-foreground font-normal">{stock.product.unit.code}</span>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{stock.product.minimumStock}</TableCell>
                       <TableCell className="text-center">

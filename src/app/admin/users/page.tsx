@@ -1,7 +1,9 @@
 import { db } from "@/lib/db"
 import { UsersClient } from "./users-client"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireAnyPermissionPage('USER_VIEW', 'USER_MANAGE')
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const users = await db.user.findMany({

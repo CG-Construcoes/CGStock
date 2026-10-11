@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PrintButton from "./print-button";
+import { requireAnyPermissionPage } from "@/lib/permissions";
 
 export const metadata = {
   title: "Imprimir Crachás QR Code - CGStock",
@@ -14,6 +15,7 @@ export default async function PrintBadgesPage({
 }: {
   searchParams: Promise<{ ids?: string }>;
 }) {
+  await requireAnyPermissionPage('USER_VIEW', 'USER_MANAGE')
   const resolvedParams = await searchParams;
   const userIds = resolvedParams?.ids ? resolvedParams.ids.split(',') : [];
 

@@ -59,3 +59,47 @@ export async function logAudit(
     console.error("Failed to write audit log:", error)
   }
 }
+
+/**
+ * Variante estrita: propaga erros. Usar em operações críticas e dentro de
+ * transações, onde a perda do registro de auditoria faria a operação inteira
+ * falhar (e reverter) em vez de seguir sem rastreabilidade.
+ */
+export async function logAuditStrict(
+  action: string,
+  entityType: string,
+  entityId: string,
+  metadata?: Prisma.InputJsonValue,
+  overrideUserId?: string,
+  tx?: AuditTx
+) {
+  let userId = overrideUserId
+  if (!userId) {
+    const session = await getSession()
+    if (session) userId = session.userId
+  }
+  if (!userId) throw new Error(`Auditoria obrigatória sem usuário identificado (${action}).`)
+
+  let ip = ""
+  let userAgent = ""
+  try {
+    const headersList = await headers()
+    ip = headersList.get('x-forwarded-for') || headersList.get('x-real-ip') || ""
+    userAgent = headersList.get('user-agent') || ""
+  } catch {
+    // headers indisponíveis fora de requisição (jobs/scripts)
+  }
+
+  const client = tx || db
+  await client.auditLog.create({
+    data: {
+      userId,
+      action,
+      entityType,
+      entityId,
+      metadata: metadata ? metadata : undefined,
+      ip,
+      userAgent,
+    }
+  })
+}

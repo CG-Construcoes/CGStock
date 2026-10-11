@@ -47,7 +47,7 @@ export function ReturnItemsForm({ products, warehouses }: { products: ReturnProd
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium">Qtd</label>
-              <Input type="number" name="quantity" defaultValue={1} min={1} required />
+              <Input type="number" step="0.0001" name="quantity" defaultValue={1} min={0.0001} required />
             </div>
             <div className="col-span-2 space-y-2">
               <label className="text-xs font-medium">Condição</label>

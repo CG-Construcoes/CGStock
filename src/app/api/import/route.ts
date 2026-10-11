@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/auth'
+import { getValidatedSession } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
 import { Prisma } from '@prisma/client'
 
@@ -17,7 +17,7 @@ type ParsedRow = {
 }
 
 export async function POST(request: Request) {
-  const session = await getSession()
+  const session = await getValidatedSession()
   if (!session) {
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 })
   }
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
 
         const current = stockByProduct.get(productId)
         const currentQty = current?.quantity || 0
-        const difference = r.quantity - currentQty
+        const difference = Number(r.quantity) - Number(currentQty)
 
         if (difference === 0) continue
 

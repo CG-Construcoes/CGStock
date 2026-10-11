@@ -126,7 +126,7 @@ export default function RequestForm({ warehouses, products }: any) {
                       <div className="flex gap-2">
                         <Input 
                           name={`item_quantity_${item.id}`}
-                          type="number" 
+                          type="number" step="0.0001" 
                           min="1" 
                           required 
                           value={item.quantity || ''}

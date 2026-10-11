@@ -7,10 +7,16 @@ import Link from "next/link"
 import { Prisma } from "@prisma/client"
 import { MovementsFilterForm } from "./filter-form"
 import { format } from "date-fns"
+import { getMovementTypeLabel, getMovementBadgeVariant, isInMovement, isManualAdjustment } from "@/lib/movement-labels"
+import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function MovementsPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  await requirePermissionPage('STOCK_VIEW')
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
   const searchParams = await props.searchParams;
   const page = Number(searchParams.page) || 1
   const pageSize = 20
@@ -25,8 +31,18 @@ export default async function MovementsPage(props: {
   const productParam = searchParams.productId as string
   if (productParam) where.productId = productParam
 
+  if (wFilter) {
+    where.warehouseId = wFilter.warehouseId
+  }
+
   const warehouseParam = searchParams.warehouseId as string
-  if (warehouseParam) where.warehouseId = warehouseParam
+  if (warehouseParam) {
+    if (wFilter) {
+      where.AND = [{ warehouseId: wFilter.warehouseId }, { warehouseId: warehouseParam }]
+    } else {
+      where.warehouseId = warehouseParam
+    }
+  }
 
   const refTypeParam = searchParams.referenceType as string
   if (refTypeParam) where.referenceType = refTypeParam
@@ -54,7 +70,11 @@ export default async function MovementsPage(props: {
     }),
     db.stockMovement.count({ where }),
     db.product.findMany({ select: { id: true, code: true, name: true }, orderBy: { name: 'asc' } }),
-    db.warehouse.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } })
+    db.warehouse.findMany({ 
+      where: wFilter ? { id: wFilter.warehouseId } : undefined,
+      select: { id: true, name: true }, 
+      orderBy: { name: 'asc' } 
+    })
   ])
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -71,9 +91,9 @@ export default async function MovementsPage(props: {
     let totalIn = 0
     let totalOut = 0
     agg.forEach(a => {
-      const q = Number(a._sum.quantity || 0)
-      if (['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(a.type)) totalIn += q
-      if (['EXIT', 'ADJUSTMENT_OUT', 'TRANSFER_OUT'].includes(a.type)) totalOut += q
+      const q = Math.abs(Number(a._sum.quantity || 0))
+      if (isInMovement(a.type)) totalIn += q
+      else totalOut += q
     })
     summary = { totalIn, totalOut }
   }
@@ -126,18 +146,10 @@ export default async function MovementsPage(props: {
             </div>
           ) : (
             movements.map((mov) => {
-              const isPositive = ['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(mov.type)
-              let badgeVariant = 'secondary'
-              let typeLabel = mov.type
-              
-              if (mov.type === 'ENTRY') { badgeVariant = 'success'; typeLabel = 'Entrada' }
-              if (mov.type === 'EXIT') { badgeVariant = 'destructive'; typeLabel = 'Saída' }
-              if (mov.type === 'ADJUSTMENT_IN') { badgeVariant = 'outline'; typeLabel = 'Ajuste (+)' }
-              if (mov.type === 'ADJUSTMENT_OUT') { badgeVariant = 'outline'; typeLabel = 'Ajuste (-)' }
-              if (mov.type === 'TRANSFER_IN') { badgeVariant = 'secondary'; typeLabel = 'Transf. (+)' }
-              if (mov.type === 'TRANSFER_OUT') { badgeVariant = 'secondary'; typeLabel = 'Transf. (-)' }
-              if (mov.type === 'RETURN') { badgeVariant = 'default'; typeLabel = 'Devolução' }
-              
+              const isPositive = isInMovement(mov.type)
+              const typeLabel = getMovementTypeLabel(mov.type, mov.referenceType)
+              const badgeVariant = getMovementBadgeVariant(mov.type, isManualAdjustment(mov.referenceType))
+
               return (
                 <div key={mov.id} className="p-4 space-y-3 hover:bg-muted/30 ">
                   <div className="flex justify-between items-start gap-2">
@@ -147,17 +159,16 @@ export default async function MovementsPage(props: {
                         {mov.product.name}
                       </span>
                     </div>
-                    {/* @ts-expect-error: variant string literal mismatch */}
                     <Badge variant={badgeVariant} className="text-[10px] px-2 py-0.5">
                       {typeLabel}
                     </Badge>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-xs text-muted-foreground block">Qtd</span>
                       <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {isPositive ? '+' : '-'}{mov.quantity} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
+                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
                       </span>
                     </div>
                     <div>
@@ -207,19 +218,10 @@ export default async function MovementsPage(props: {
               </TableRow>
             ) : (
               movements.map((mov) => {
-                const isPositive = ['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN', 'RETURN'].includes(mov.type)
-                
-                let badgeVariant = 'secondary'
-                let typeLabel = mov.type
-                
-                if (mov.type === 'ENTRY') { badgeVariant = 'success'; typeLabel = 'Entrada' }
-                if (mov.type === 'EXIT') { badgeVariant = 'destructive'; typeLabel = 'Saída' }
-                if (mov.type === 'ADJUSTMENT_IN') { badgeVariant = 'outline'; typeLabel = 'Ajuste (+)' }
-                if (mov.type === 'ADJUSTMENT_OUT') { badgeVariant = 'outline'; typeLabel = 'Ajuste (-)' }
-                if (mov.type === 'TRANSFER_IN') { badgeVariant = 'secondary'; typeLabel = 'Transf. (+)' }
-                if (mov.type === 'TRANSFER_OUT') { badgeVariant = 'secondary'; typeLabel = 'Transf. (-)' }
-                if (mov.type === 'RETURN') { badgeVariant = 'default'; typeLabel = 'Devolução' }
-                
+                const isPositive = isInMovement(mov.type)
+                const typeLabel = getMovementTypeLabel(mov.type, mov.referenceType)
+                const badgeVariant = getMovementBadgeVariant(mov.type, isManualAdjustment(mov.referenceType))
+
                 return (
                   <TableRow key={mov.id}>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
@@ -230,13 +232,12 @@ export default async function MovementsPage(props: {
                       <div className="text-xs text-muted-foreground font-normal">{mov.product.code}</div>
                     </TableCell>
                     <TableCell>
-                      {/* @ts-expect-error: variant string literal mismatch */}
                       <Badge variant={badgeVariant} className="text-[10px] px-2 py-0.5">
                         {typeLabel}
                       </Badge>
                     </TableCell>
                     <TableCell className={`text-right font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {isPositive ? '+' : '-'}{mov.quantity} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
+                      {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">{mov.location.code}</div>

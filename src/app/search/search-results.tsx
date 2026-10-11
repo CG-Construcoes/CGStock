@@ -2,8 +2,13 @@ import { db } from "@/lib/db"
 import Link from "next/link"
 import { Package, ArrowRightLeft, ClipboardList, MapPin, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { warehouseIdFilter } from "@/lib/dal"
+import { getValidatedSession } from "@/lib/auth"
 
 export async function SearchResults({ query }: { query: string }) {
+  const session = await getValidatedSession()
+  const wFilter = session ? await warehouseIdFilter(session.userId) : undefined
+
   const [products, requests, movements, locations] = await Promise.all([
     db.product.findMany({
       where: {
@@ -19,7 +24,8 @@ export async function SearchResults({ query }: { query: string }) {
     }),
     db.materialRequest.findMany({
       where: {
-        requestNumber: { contains: query, mode: "insensitive" }
+        requestNumber: { contains: query, mode: "insensitive" },
+        ...wFilter
       },
       take: 10,
     }),
@@ -28,7 +34,8 @@ export async function SearchResults({ query }: { query: string }) {
         OR: [
           { documentNumber: { contains: query, mode: "insensitive" } },
           { reason: { contains: query, mode: "insensitive" } },
-        ]
+        ],
+        ...wFilter
       },
       include: {
         product: true
@@ -40,7 +47,8 @@ export async function SearchResults({ query }: { query: string }) {
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { code: { contains: query, mode: "insensitive" } },
-        ]
+        ],
+        ...wFilter
       },
       include: {
         warehouse: true
@@ -120,7 +128,7 @@ export async function SearchResults({ query }: { query: string }) {
                   <p className="text-xs text-muted-foreground mt-1 truncate">{mov.product.name} • {mov.type}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold font-mono">{mov.quantity > 0 ? '+' : ''}{mov.quantity}</p>
+                  <p className="font-bold font-mono">{Number(mov.quantity) > 0 ? '+' : ''}{Number(mov.quantity)}</p>
                 </div>
               </Link>
             ))}

@@ -3,24 +3,25 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { 
-  LayoutDashboard, 
-  Package, 
-  Tags, 
-  MapPin, 
-  ArrowRightLeft, 
-  ArrowDownToLine, 
-  ArrowUpFromLine, 
-  ClipboardList, 
-  RotateCcw, 
-  CheckSquare, 
-  BarChart3, 
-  Users, 
-  Shield, 
+import {
+  LayoutDashboard,
+  Package,
+  Tags,
+  MapPin,
+  ArrowRightLeft,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  ClipboardList,
+  RotateCcw,
+  CheckSquare,
+  BarChart3,
+  Users,
+  Shield,
   Settings,
   FolderSync,
   HelpCircle,
   ChevronDown,
+  Box,
   type LucideIcon
 } from "lucide-react"
 
@@ -43,6 +44,7 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
 
   const estoqueItems = isRequesterOnly ? [] : [
     { name: "Produtos", href: "/products", icon: Package, perm: 'PRODUCT_VIEW' },
+    { name: "Estoque e Saldos", href: "/stock", icon: Box, perm: 'STOCK_VIEW' },
     { name: "Categorias", href: "/categories", icon: Tags, perm: 'PRODUCT_VIEW' },
     { name: "Unidades", href: "/units", icon: Package, perm: 'PRODUCT_VIEW' },
     { name: "Localizações", href: "/locations", icon: MapPin, perm: 'STOCK_VIEW' },
@@ -55,6 +57,7 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
         { name: "Saídas", href: "/issues", icon: ArrowUpFromLine, perm: 'STOCK_EXIT' },
         { name: "Movimentações", href: "/movements", icon: ArrowRightLeft, perm: 'STOCK_VIEW' },
         { name: "Entrega Rápida", href: "/quick-issue", icon: Shield, perm: 'STOCK_EXIT' },
+        { name: "Ajuste Manual", href: "/adjustments/new", icon: ArrowRightLeft, perm: 'STOCK_ENTRY' },
         { name: "Requisições", href: "/requests", icon: ClipboardList, perm: 'REQUEST_CREATE' }, // Also can check APPROVE/FULFILL if needed
         { name: "Devoluções", href: "/returns", icon: RotateCcw, perm: 'STOCK_ENTRY' },
       ]
@@ -65,7 +68,7 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
   ]
 
   const maisItems = isRequesterOnly ? [] : [
-    { name: "Importar", href: "/import", icon: FolderSync, perm: 'REPORT_EXPORT' },
+    { name: "Importar", href: "/import", icon: FolderSync, perm: 'ADMIN_ONLY' },
     { name: "Exportar", href: "/export", icon: FolderSync, perm: 'REPORT_EXPORT' },
     { name: "Relatórios", href: "/reports", icon: BarChart3, perm: 'REPORT_VIEW' },
     { name: "API / Conectores", href: "/api", icon: Settings, perm: 'CONFIG_MANAGE' },

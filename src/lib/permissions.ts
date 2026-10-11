@@ -37,3 +37,21 @@ export async function requirePermissionPage(permissionKey: PermissionKey) {
     redirect("/unauthorized")
   }
 }
+
+export async function hasAnyPermission(...keys: PermissionKey[]): Promise<boolean> {
+  const session = await getValidatedSession()
+  if (!session) return false
+  if (session.roles?.includes('ADMIN')) return true
+
+  const ctx = await getUserSecurityContext(session.userId)
+  if (!ctx) return false
+
+  return keys.some(k => ctx.permissionKeys.has(k))
+}
+
+export async function requireAnyPermissionPage(...keys: PermissionKey[]) {
+  const isAuthorized = await hasAnyPermission(...keys)
+  if (!isAuthorized) {
+    redirect("/unauthorized")
+  }
+}

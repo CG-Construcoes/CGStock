@@ -8,11 +8,13 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { updateCategoryAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditCategoryPage(props: {
   params: Promise<{ id: string }>
   searchParams: Promise<{ error?: string }>
 }) {
+  await requirePermissionPage('PRODUCT_UPDATE')
   const params = await props.params;
   const searchParams = await props.searchParams;
 

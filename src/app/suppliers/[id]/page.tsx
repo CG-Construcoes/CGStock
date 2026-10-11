@@ -6,8 +6,10 @@ import {  Mail, Phone, MapPin, FileText } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
 import { formatCurrency } from "@/lib/utils"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('STOCK_ENTRY')
   const { id } = await params
   
   const supplier = await db.supplier.findUnique({

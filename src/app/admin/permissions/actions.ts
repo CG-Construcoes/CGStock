@@ -1,15 +1,12 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
-import { requirePermission } from "@/lib/permissions"
+import { requireActionPermission } from "@/lib/action-guard"
+import { logAuditStrict } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 
 export async function togglePermission(roleId: string, permissionId: string, enable: boolean) {
-  const session = await getSession()
-  if (!session) throw new Error("Não autenticado")
-
-  await requirePermission("CONFIG_MANAGE")
+  const session = await requireActionPermission("CONFIG_MANAGE")
 
   const role = await db.role.findUnique({ where: { id: roleId } })
   if (!role) throw new Error("Perfil não encontrado")
@@ -40,6 +37,8 @@ export async function togglePermission(roleId: string, permissionId: string, ena
       }
     })
   }
+
+  await logAuditStrict("PERMISSION_CHANGED", "RolePermission", roleId, { permissionId, enable }, session.userId)
 
   revalidatePath("/admin/permissions")
   return { success: true }

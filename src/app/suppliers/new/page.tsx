@@ -5,8 +5,10 @@ import {  Save } from "lucide-react"
 import Link from "next/link"
 import { createSupplierAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
-export default function NewSupplierPage() {
+export default async function NewSupplierPage() {
+  await requirePermissionPage('STOCK_ENTRY')
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center gap-4">

@@ -6,8 +6,10 @@ import Link from "next/link"
 import { db } from "@/lib/db"
 import { SearchInput } from "@/components/ui/search-input"
 import { formatCurrency } from "@/lib/utils"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function ReceiptsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requirePermissionPage('STOCK_ENTRY')
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const receipts = await db.stockReceipt.findMany({

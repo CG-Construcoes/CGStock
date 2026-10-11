@@ -1,12 +1,13 @@
-import { getSession } from "@/lib/auth"
+import { getValidatedSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { Bell } from "lucide-react"
 import { format } from "date-fns"
 import { BackButton } from "@/components/ui/back-button"
+import { redirect } from "next/navigation"
 
 export default async function NotificationsPage() {
-  const session = await getSession()
-  if (!session) return null
+  const session = await getValidatedSession()
+  if (!session) redirect("/login")
 
   const notifications = await db.notification.findMany({
     where: { userId: session.userId },

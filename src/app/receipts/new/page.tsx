@@ -1,11 +1,9 @@
 import { db } from "@/lib/db"
 import ReceiptForm from "./receipt-form"
-import { getSession } from "@/lib/auth"
-import { redirect } from "next/navigation"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewReceiptPage() {
-  const session = await getSession()
-  if (!session) redirect("/login")
+  await requirePermissionPage('STOCK_ENTRY')
 
   const suppliers = await db.supplier.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } })
   const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE' } })

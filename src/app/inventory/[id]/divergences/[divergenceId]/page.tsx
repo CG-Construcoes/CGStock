@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import {  CheckCircle2, AlertTriangle, XCircle, ArrowRight } from "lucide-react"
 import DivergenceForm from "./divergence-form"
 import { BackButton } from "@/components/ui/back-button"
+import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function DivergenceDetailsPage({ params }: { params: Promise<{ id: string, divergenceId: string }> }) {
+  await requireAnyPermissionPage('INVENTORY_REVIEW', 'INVENTORY_APPROVE')
   const { id, divergenceId } = await params
   
   const div = await db.inventoryDivergence.findUnique({
@@ -23,10 +25,10 @@ export default async function DivergenceDetailsPage({ params }: { params: Promis
 
   if (!div || div.inventoryId !== id) notFound()
 
-  const diffColor = div.difference > 0 ? 'text-emerald-600' : 'text-red-600'
-  const diffSignal = div.difference > 0 ? '+' : ''
-  const percentDiff = div.systemQuantity > 0 
-    ? Math.round((Math.abs(div.difference) / div.systemQuantity) * 100) 
+  const diffColor = Number(div.difference) > 0 ? 'text-emerald-600' : 'text-red-600'
+  const diffSignal = Number(div.difference) > 0 ? '+' : ''
+  const percentDiff = Number(div.systemQuantity) > 0 
+    ? Math.round((Math.abs(Number(div.difference)) / Number(div.systemQuantity)) * 100) 
     : 100
 
   return (
@@ -62,21 +64,21 @@ export default async function DivergenceDetailsPage({ params }: { params: Promis
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="p-4 bg-card rounded-lg border">
                   <p className="text-sm text-muted-foreground mb-1">Sistema Esperava</p>
-                  <p className="text-3xl font-bold text-muted-foreground">{div.systemQuantity}</p>
+                  <p className="text-3xl font-bold text-muted-foreground">{Number(div.systemQuantity)}</p>
                 </div>
                 <div className="flex items-center justify-center text-gray-300">
                   <ArrowRight className="h-8 w-8" />
                 </div>
                 <div className="p-4 bg-card rounded-lg border shadow-sm border-primary/10">
                   <p className="text-sm text-primary font-medium mb-1">Total Contado</p>
-                  <p className="text-3xl font-bold text-foreground">{div.countedQuantity}</p>
+                  <p className="text-3xl font-bold text-foreground">{Number(div.countedQuantity)}</p>
                 </div>
               </div>
 
               <div className="flex justify-between items-center p-4 bg-gray-900 text-white rounded-lg">
                 <span className="font-medium text-lg">Diferença Encontrada</span>
                 <div className="text-right">
-                  <span className={`text-3xl font-bold ${diffColor}`}>{diffSignal}{div.difference}</span>
+                  <span className={`text-3xl font-bold ${diffColor}`}>{diffSignal}{Number(div.difference)}</span>
                   <span className="text-muted-foreground text-sm ml-2">({percentDiff}%)</span>
                 </div>
               </div>

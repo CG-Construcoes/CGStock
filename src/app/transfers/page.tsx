@@ -5,8 +5,10 @@ import {  ArrowRightLeft, Plus } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function TransfersPage() {
+  await requirePermissionPage('STOCK_TRANSFER')
   const transfers = await db.stockTransfer.findMany({
     orderBy: { createdAt: 'desc' },
     include: {

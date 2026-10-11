@@ -8,8 +8,10 @@ import Link from "next/link"
 import { createReturnAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { ReturnItemsForm } from "./return-items-form"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewReturnPage() {
+  await requirePermissionPage('STOCK_ENTRY')
   const [warehouses, products, requests] = await Promise.all([
     db.warehouse.findMany({
       where: { status: 'ACTIVE' },

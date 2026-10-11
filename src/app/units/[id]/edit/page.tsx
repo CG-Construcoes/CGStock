@@ -8,6 +8,7 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { updateUnitAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function EditUnitPage({
   params,
@@ -16,6 +17,7 @@ export default async function EditUnitPage({
   params: Promise<{ id: string }>
   searchParams: Promise<{ error?: string }>
 }) {
+  await requirePermissionPage('PRODUCT_UPDATE')
   const resolvedParams = await params
   const resolvedSearchParams = await searchParams
   

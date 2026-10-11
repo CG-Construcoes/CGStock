@@ -101,7 +101,7 @@ export default function FulfillmentForm({ request }: any) {
                           <label className="text-xs font-medium text-muted-foreground">Qtd para Entrega *</label>
                           <Input 
                             name={`delivery_quantity_${item.id}`}
-                            type="number" 
+                            type="number" step="0.0001" 
                             min="0" 
                             max={pending}
                             placeholder={`Máx: ${pending}`}

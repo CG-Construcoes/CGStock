@@ -7,8 +7,14 @@ import {  Box, Package, Info, MapPin } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
+import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
+import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export default async function ProductStockPage({ params }: { params: Promise<{ productId: string }> }) {
+  await requirePermissionPage('STOCK_VIEW')
+  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
   const { productId } = await params
   
   const product = await db.product.findUnique({
@@ -17,9 +23,11 @@ export default async function ProductStockPage({ params }: { params: Promise<{ p
       category: true,
       unit: true,
       stocks: {
+        where: wFilter,
         include: { location: { include: { warehouse: true } } }
       },
       movements: {
+        where: wFilter,
         orderBy: { createdAt: 'desc' },
         take: 5,
         include: { performedBy: true, location: true }
@@ -29,8 +37,8 @@ export default async function ProductStockPage({ params }: { params: Promise<{ p
 
   if (!product) notFound()
 
-  const totalQuantity = product.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
-  const totalReserved = product.stocks.reduce((acc, stock) => acc + stock.reservedQuantity, 0)
+  const totalQuantity = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
+  const totalReserved = product.stocks.reduce((acc, stock) => acc + Number(stock.reservedQuantity), 0)
   const available = totalQuantity - totalReserved
 
   return (
@@ -129,7 +137,7 @@ export default async function ProductStockPage({ params }: { params: Promise<{ p
                         <Badge variant="outline">{stock.location.code}</Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {stock.quantity}
+                        {Number(stock.quantity)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -157,14 +165,11 @@ export default async function ProductStockPage({ params }: { params: Promise<{ p
                   <div key={mov.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge 
-                          variant={
-                            mov.type === 'ENTRY' ? 'success' : 
-                            mov.type === 'EXIT' ? 'destructive' : 'secondary'
-                          } 
+                        <Badge
+                          variant={isInMovement(mov.type) ? 'success' : 'destructive'}
                           className="text-[10px] px-1.5 py-0"
                         >
-                          {mov.type}
+                          {getMovementTypeLabel(mov.type, mov.referenceType)}
                         </Badge>
                         <span className="text-xs font-medium text-muted-foreground">
                           {new Date(mov.createdAt).toLocaleDateString('pt-BR')}
@@ -175,8 +180,8 @@ export default async function ProductStockPage({ params }: { params: Promise<{ p
                       </p>
                       <p className="text-xs text-muted-foreground">Local: {mov.location.code} • Por: {mov.performedBy.name.split(' ')[0]}</p>
                     </div>
-                    <div className={`font-bold text-lg ${['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN'].includes(mov.type) ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {['ENTRY', 'ADJUSTMENT_IN', 'TRANSFER_IN'].includes(mov.type) ? '+' : ''}{mov.quantity}
+                    <div className={`font-bold text-lg ${isInMovement(mov.type) ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {isInMovement(mov.type) ? '+' : '-'}{Math.abs(Number(mov.quantity))}
                     </div>
                   </div>
                 ))}

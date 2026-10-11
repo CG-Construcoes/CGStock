@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import {  Edit, Package, Archive } from "lucide-react"
 import Link from "next/link"
 import { BackButton } from "@/components/ui/back-button"
+import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePermissionPage('PRODUCT_VIEW')
   const { id } = await params
   
   const product = await db.product.findUnique({
@@ -27,7 +29,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   if (!product) notFound()
 
-  const totalQuantity = product.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
+  const totalQuantity = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
 
   return (
     <div className="space-y-6">
@@ -115,7 +117,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 product.stocks.slice(0, 3).map(stock => (
                   <div key={stock.id} className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">{stock.location.code}</span>
-                    <span className="font-medium">{stock.quantity}</span>
+                    <span className="font-medium">{Number(stock.quantity)}</span>
                   </div>
                 ))
               )}
@@ -131,8 +133,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     <span className="text-muted-foreground truncate max-w-[120px]" title={mov.type}>
                       {mov.type === 'ENTRY' ? 'Entrada' : mov.type === 'EXIT' ? 'Saída' : mov.type}
                     </span>
-                    <span className={`font-medium ${mov.quantity > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {mov.quantity > 0 ? '+' : ''}{mov.quantity}
+                    <span className={`font-medium ${Number(mov.quantity) > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {Number(mov.quantity) > 0 ? '+' : ''}{Number(mov.quantity)}
                     </span>
                   </div>
                 ))

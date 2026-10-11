@@ -69,7 +69,7 @@ export default async function ProductsPage({
   let totalItemsInStock = 0
 
   allProductsSlim.forEach(product => {
-    const totalStock = product.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
+    const totalStock = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
     const cost = Number(product.averageCost || 0)
     grandTotalValue += totalStock * cost
     totalItemsInStock += totalStock
@@ -160,7 +160,7 @@ export default async function ProductsPage({
                 </TableRow>
               ) : (
                 productsList.map((product) => {
-                  const totalStock = product.stocks.reduce((acc, stock) => acc + stock.quantity, 0)
+                  const totalStock = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
                   const totalValue = totalStock * Number(product.averageCost || 0)
                   return (
                     <TableRow 

@@ -271,7 +271,7 @@ export default function CollectorForm({
                     </Button>
                     
                     <input 
-                      type="number" 
+                      type="number" step="0.0001" 
                       name={`qty_${item.productId}`}
                       value={item.quantity}
                       onChange={(e) => setExactQuantity(item.productId, e.target.value)}

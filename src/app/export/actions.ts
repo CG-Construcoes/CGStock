@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { requirePermission } from "@/lib/permissions"
 import { format } from "date-fns"
+import { getMovementTypeLabel } from "@/lib/movement-labels"
 import { Prisma } from "@prisma/client"
 
 export async function exportProductsData() {
@@ -50,20 +51,13 @@ export async function exportMovementsData(startDate?: Date, endDate?: Date) {
   })
   
   return movements.map((m) => {
-    let typeLabel = m.type
-    if (m.type === 'ENTRY') typeLabel = 'Entrada'
-    if (m.type === 'EXIT') typeLabel = 'Saída'
-    if (m.type === 'ADJUSTMENT_IN') typeLabel = 'Ajuste In'
-    if (m.type === 'ADJUSTMENT_OUT') typeLabel = 'Ajuste Out'
-    if (m.type === 'RETURN') typeLabel = 'Devolução'
-    if (m.type === 'TRANSFER_IN') typeLabel = 'Transf In'
-    if (m.type === 'TRANSFER_OUT') typeLabel = 'Transf Out'
-    
+    const typeLabel = getMovementTypeLabel(m.type, m.referenceType)
+
     return {
       Data: format(m.createdAt, "dd/MM/yyyy HH:mm"),
       Tipo: typeLabel,
       Produto: m.product.name,
-      Quantidade: m.quantity,
+      Quantidade: Math.abs(Number(m.quantity)),
       Almoxarifado: m.warehouse.name,
       Usuario: m.performedBy.name
     }
@@ -116,9 +110,9 @@ export async function exportInventoryData(inventoryId: string) {
         Local: col.location.code,
         "Cód.Insumo": item.product.code,
         Produto: item.product.name,
-        QtdSistema: expected,
-        QtdContada: item.quantity,
-        Divergencia: item.quantity - expected
+        QtdSistema: Number(expected),
+        QtdContada: Number(item.quantity),
+        Divergencia: Number(item.quantity) - Number(expected)
       })
     })
   })
