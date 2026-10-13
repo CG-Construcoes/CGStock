@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/ui/info-tooltip"
 import { formatCurrency, formatNumber, cn } from "@/lib/utils"
 import { StockFilterForm } from "./stock-filter-form"
+import { StockTransitionProvider, StockContentWrapper } from "./stock-transition-context"
 
 export default async function StockPage({
   searchParams,
@@ -66,24 +67,28 @@ export default async function StockPage({
         </div>
       </div>
 
-      <StockFilterForm
-        q={q}
-        selectedWarehouseId={selectedWarehouseId}
-        warehouses={warehouses}
-        stockFilter={stockFilter}
-      />
-
-      <Suspense fallback={<StockSkeleton />}>
-        <StockContent
+      <StockTransitionProvider>
+        <StockFilterForm
           q={q}
           selectedWarehouseId={selectedWarehouseId}
-          effectiveWarehouseIds={effectiveWarehouseIds}
-          warehouseLabel={warehouseLabel}
+          warehouses={warehouses}
           stockFilter={stockFilter}
-          page={page}
-          pageSize={pageSize}
         />
-      </Suspense>
+
+        <StockContentWrapper>
+          <Suspense key={`${selectedWarehouseId}-${q}-${stockFilter}-${page}`} fallback={<StockSkeleton />}>
+            <StockContent
+              q={q}
+              selectedWarehouseId={selectedWarehouseId}
+              effectiveWarehouseIds={effectiveWarehouseIds}
+              warehouseLabel={warehouseLabel}
+              stockFilter={stockFilter}
+              page={page}
+              pageSize={pageSize}
+            />
+          </Suspense>
+        </StockContentWrapper>
+      </StockTransitionProvider>
     </div>
   )
 }

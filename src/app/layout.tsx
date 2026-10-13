@@ -32,6 +32,7 @@ export const viewport = {
 
 import { Toaster } from "sonner"
 import { headers } from "next/headers"
+import NextTopLoader from "nextjs-toploader"
 
 export default async function RootLayout({
   children,
@@ -50,6 +51,12 @@ export default async function RootLayout({
           disableTransitionOnChange
           nonce={nonce}
         >
+          <NextTopLoader
+            color="#C9832B"
+            showSpinner={false}
+            height={3}
+            shadow="0 0 10px #C9832B,0 0 5px #C9832B"
+          />
           <SyncProvider>
             <AppShell>{children}</AppShell>
           </SyncProvider>
