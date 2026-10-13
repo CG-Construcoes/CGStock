@@ -24,13 +24,15 @@ type ItemData = {
 }
 
 type ReceiptFormProps = {
+  userId: string
+  sessionExpiresAt: string
   suppliers: { id: string; name: string; document: string | null }[]
   warehouses: { id: string; name: string }[]
   products: { id: string; code: string; name: string; averageCost: unknown }[]
   locations: { id: string; code: string; name: string; warehouseId: string }[]
 }
 
-export default function ReceiptForm({ suppliers, warehouses, products, locations }: ReceiptFormProps) {
+export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, warehouses, products, locations }: ReceiptFormProps) {
   const router = useRouter()
   const [warehouseId, setWarehouseId] = useState("")
   const [items, setItems] = useState<ItemData[]>([])
@@ -62,6 +64,10 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
       toast.error("Adicione pelo menos um produto para o recebimento.")
       return
     }
+    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+      toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar a entrada.')
+      return
+    }
 
     const formData = new FormData(e.currentTarget)
     const actionType = (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter instanceof HTMLButtonElement)
@@ -75,9 +81,10 @@ export default function ReceiptForm({ suppliers, warehouses, products, locations
       const payload: Record<string, unknown> = Object.fromEntries(formData.entries())
       payload.items = items
       try {
-        await queueOfflineOperation('CREATE_RECEIPT', payload)
-        toast.success("Salvo localmente (Offline). Será sincronizado automaticamente.")
-        router.push("/receipts")
+        await queueOfflineOperation('CREATE_RECEIPT', payload, userId)
+        toast.success("Entrada salva neste dispositivo. Sincronizaremos ao reconectar.")
+        setItems([])
+        setIsSubmitting(false)
       } catch (err) {
         toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
         setIsSubmitting(false)

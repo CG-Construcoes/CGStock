@@ -10,9 +10,13 @@ import { BackButton } from "@/components/ui/back-button"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { createAdjustmentAction } from "./actions"
+import { queueOfflineOperation } from "@/lib/offline-sync"
 import { Loader2 } from "lucide-react"
 
-export function AdjustmentClient({ warehouses, products }: { warehouses: any[], products: any[] }) {
+type AdjustmentWarehouse = { id: string; name: string; locations: { id: string; code: string; name: string }[] }
+type AdjustmentProduct = { id: string; code: string; name: string; category?: { name: string } | null }
+
+export function AdjustmentClient({ warehouses, products, userId, sessionExpiresAt }: { warehouses: AdjustmentWarehouse[], products: AdjustmentProduct[], userId: string, sessionExpiresAt: string }) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
@@ -32,8 +36,30 @@ export function AdjustmentClient({ warehouses, products }: { warehouses: any[], 
       toast.error("Preencha todos os campos obrigatórios.")
       return
     }
+    if (!Number.isSafeInteger(formData.quantity)) {
+      toast.error("A quantidade deve ser um número inteiro.")
+      return
+    }
+    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+      toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar o ajuste.')
+      return
+    }
 
     setIsSubmitting(true)
+
+    if (!navigator.onLine) {
+      try {
+        await queueOfflineOperation('CREATE_ADJUSTMENT', { ...formData }, userId)
+        toast.success("Ajuste salvo neste dispositivo. Sincronizaremos ao reconectar.")
+        setFormData(f => ({ ...f, productId: '', locationId: '', quantity: 1, reason: '' }))
+      } catch (err) {
+        toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
+
     const result = await createAdjustmentAction(formData)
     setIsSubmitting(false)
 
@@ -102,7 +128,7 @@ export function AdjustmentClient({ warehouses, products }: { warehouses: any[], 
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="">Selecione...</option>
-                  {selectedWarehouse?.locations.map((l: any) => (
+                  {selectedWarehouse?.locations.map((l) => (
                     <option key={l.id} value={l.id}>{l.name}</option>
                   ))}
                 </select>
@@ -114,7 +140,7 @@ export function AdjustmentClient({ warehouses, products }: { warehouses: any[], 
                 <Label>Tipo de Ajuste *</Label>
                 <select 
                   value={formData.type} 
-                  onChange={(e: any) => setFormData(f => ({ ...f, type: e.target.value }))}
+                  onChange={(e) => setFormData(f => ({ ...f, type: e.target.value as 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT' }))}
                   className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${formData.type === 'ADJUSTMENT_IN' ? 'text-success font-semibold' : 'text-destructive font-semibold'}`}
                 >
                   <option value="ADJUSTMENT_IN" className="text-success font-semibold">Entrada (Adicionar)</option>

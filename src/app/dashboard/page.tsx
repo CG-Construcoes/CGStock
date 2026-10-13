@@ -271,8 +271,8 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-7">
         <Card className="lg:col-span-4 rounded-md border border-border shadow-sm bg-card flex flex-col min-w-0">
-          <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-border/40">
-            <div className="flex items-center gap-6">
+          <div className="px-4 sm:px-5 pt-5 pb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/40">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-6">
               <h2 className="text-sm font-semibold text-foreground">Entradas vs Saídas</h2>
               <div className="flex items-center gap-3 text-[11px] font-medium text-muted-foreground">
                 <div className="flex items-center gap-1.5">
@@ -311,19 +311,19 @@ export default async function DashboardPage() {
                   const Icon = mov.type === 'RETURN' ? RotateCcw : ArrowRightLeft
 
                   return (
-                    <div key={mov.id} className="flex items-center justify-between border-b border-border pb-4 last:border-0 last:pb-0  hover:bg-muted/20 -mx-2 px-2 rounded-lg py-2">
-                      <div className="flex items-center space-x-4">
+                    <div key={mov.id} className="flex min-w-0 items-center justify-between gap-2 border-b border-border pb-4 last:border-0 last:pb-0 hover:bg-muted/20 -mx-2 px-2 rounded-lg py-2">
+                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                         <div className={`flex h-10 w-10 items-center justify-center rounded-md shadow-inner ${
                           isPositive ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
                         }`}>
                           <Icon className="h-4 w-4" />
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-foreground">{mov.product.name}</span>
+                        <div className="flex min-w-0 flex-col">
+                          <span className="break-words text-sm font-bold text-foreground">{mov.product.name}</span>
                           <span className="text-xs font-medium text-muted-foreground mt-0.5">{typeStr} • {new Date(mov.createdAt).toLocaleDateString('pt-BR')}</span>
                         </div>
                       </div>
-                      <div className={`font-black text-lg ${
+                      <div className={`shrink-0 font-black text-lg ${
                         isPositive ? 'text-success' : 'text-destructive'
                       }`}>
                         {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}

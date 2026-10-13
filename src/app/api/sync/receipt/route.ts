@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/permissions"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 import { assertWarehouseAccess } from "@/lib/dal"
+import { checkSyncReplay, isSyncKey, isUniqueConflict, payloadHash } from "@/lib/sync-idempotency"
 
 export async function POST(req: NextRequest) {
   const session = await getValidatedSession()
@@ -16,10 +17,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { payload, idempotencyKey } = await req.json()
-    
+    const { payload, idempotencyKey, userId } = await req.json()
+    if (userId && userId !== session.userId) {
+      return NextResponse.json({ error: "Operação pertence a outro usuário." }, { status: 403 })
+    }
+
     // Check for duplicate submission using idempotency pattern or existing document
     // We'll use a transaction
+    if (!payload || typeof payload.warehouseId !== 'string') {
+      return NextResponse.json({ error: "Dados de sincronização inválidos." }, { status: 400 })
+    }
     const supplierId = payload.supplierId
     const warehouseId = payload.warehouseId
     try {
@@ -27,13 +34,21 @@ export async function POST(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: "Sem acesso a este almoxarifado." }, { status: 403 })
     }
+    if (!isSyncKey(idempotencyKey) || !Array.isArray(payload.items)) {
+      return NextResponse.json({ error: "Dados de sincronização inválidos." }, { status: 400 })
+    }
+    const hash = payloadHash(payload)
+    const replay = await checkSyncReplay(session.userId, 'CREATE_RECEIPT', idempotencyKey, hash)
+    if (replay === 'replayed') return NextResponse.json({ success: true, alreadyProcessed: true })
+    if (replay === 'conflict') return NextResponse.json({ error: "Esta operação foi alterada. Revise antes de sincronizar." }, { status: 409 })
     const documentNumber = payload.documentNumber || null
     const documentDate = payload.documentDate ? new Date(payload.documentDate) : null
     const actionType = payload.actionType || "DRAFT"
     const items = payload.items as { productId: string, locationId: string, quantity: number, unitCost: number }[]
 
-    if (!items || items.length === 0) {
-      return NextResponse.json({ error: "No items provided" }, { status: 400 })
+    if (!items.length || items.length > 5000 || !['DRAFT', 'COMPLETED'].includes(actionType) ||
+      items.some(item => !item || !item.productId || !item.locationId || !Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) <= 0 || !Number.isFinite(Number(item.unitCost)) || Number(item.unitCost) < 0)) {
+      return NextResponse.json({ error: "Itens de recebimento inválidos." }, { status: 400 })
     }
 
     let subtotal = 0
@@ -53,31 +68,19 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    if (actionType === "DRAFT") {
-      const receipt = await db.stockReceipt.create({
-        data: {
-          supplierId,
-          warehouseId,
-          documentNumber,
-          documentDate,
-          status: 'DRAFT',
-          createdById: session.userId,
-          subtotal,
-          total: subtotal,
-          items: { create: itemsData }
-        }
-      })
-      await logAudit("RECEIPT_CREATED_OFFLINE", "StockReceipt", receipt.id, { status: "DRAFT", idempotencyKey })
-    } else {
-      await db.$transaction(async (tx) => {
+    try {
+      const receiptId = await db.$transaction(async tx => {
+        const operation = await tx.offlineSyncOperation.create({
+          data: { userId: session.userId, operation: 'CREATE_RECEIPT', idempotencyKey, entityKey: idempotencyKey, payloadHash: hash }
+        })
         const receipt = await tx.stockReceipt.create({
           data: {
             supplierId,
             warehouseId,
             documentNumber,
             documentDate,
-            receivedAt: new Date(),
-            status: 'COMPLETED',
+            receivedAt: actionType === 'COMPLETED' ? new Date() : null,
+            status: actionType,
             createdById: session.userId,
             subtotal,
             total: subtotal,
@@ -86,26 +89,36 @@ export async function POST(req: NextRequest) {
           include: { items: true }
         })
 
-        for (const item of receipt.items) {
-          await createStockMovement({
-            productId: item.productId,
-            warehouseId: receipt.warehouseId,
-            locationId: item.locationId,
-            type: 'ENTRY',
-            quantity: Number(item.quantity),
-            unitCost: Number(item.unitCost),
-            totalCost: Number(item.totalCost),
-            referenceType: 'RECEIPT',
-            referenceId: receipt.id,
-            documentNumber: receipt.documentNumber,
-            performedById: session.userId
-          }, tx)
+        if (actionType === 'COMPLETED') {
+          for (const item of receipt.items) {
+            await createStockMovement({
+              productId: item.productId,
+              warehouseId: receipt.warehouseId,
+              locationId: item.locationId,
+              type: 'ENTRY',
+              quantity: Number(item.quantity),
+              unitCost: Number(item.unitCost),
+              totalCost: Number(item.totalCost),
+              referenceType: 'RECEIPT',
+              referenceId: receipt.id,
+              documentNumber: receipt.documentNumber,
+              performedById: session.userId
+            }, tx)
+          }
         }
-        await logAudit("RECEIPT_CREATED_OFFLINE", "StockReceipt", receipt.id, { status: "COMPLETED", idempotencyKey })
+        await tx.offlineSyncOperation.update({ where: { id: operation.id }, data: { resultId: receipt.id } })
+        await logAudit("RECEIPT_CREATED_OFFLINE", "StockReceipt", receipt.id, { status: actionType, idempotencyKey }, session.userId, tx)
+        return receipt.id
       })
+      return NextResponse.json({ success: true, receiptId })
+    } catch (error) {
+      if (isUniqueConflict(error)) {
+        const result = await checkSyncReplay(session.userId, 'CREATE_RECEIPT', idempotencyKey, hash)
+        if (result === 'replayed') return NextResponse.json({ success: true, alreadyProcessed: true })
+        return NextResponse.json({ error: "Recebimento duplicado ou alterado. Revise antes de sincronizar." }, { status: 409 })
+      }
+      throw error
     }
-
-    return NextResponse.json({ success: true })
   } catch (err) {
     console.error("Offline sync error (receipt):", err)
     return NextResponse.json({ error: "Erro interno ao processar o recebimento." }, { status: 500 })

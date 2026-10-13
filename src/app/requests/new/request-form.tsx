@@ -12,6 +12,8 @@ import { createRequestAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { handleAction } from "@/lib/handle-action"
+import { queueOfflineOperation } from "@/lib/offline-sync"
+import { toast } from "sonner"
 
 type RequestItemData = {
   id: string
@@ -20,8 +22,53 @@ type RequestItemData = {
   unitId: string
 }
 
-export default function RequestForm({ warehouses, products }: any) {
+export default function RequestForm({ warehouses, products, userId, sessionExpiresAt }: any) {
   const [items, setItems] = useState<RequestItemData[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (items.length === 0) {
+      toast.error("A requisição deve ter pelo menos um item.")
+      return
+    }
+    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+      toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar a requisição.')
+      return
+    }
+    const formData = new FormData(e.currentTarget)
+    const actionType = (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter instanceof HTMLButtonElement)
+      ? e.nativeEvent.submitter.value || 'DRAFT'
+      : 'DRAFT'
+    formData.set('actionType', actionType)
+    setIsSubmitting(true)
+
+    if (!navigator.onLine) {
+      const payload: Record<string, unknown> = {
+        warehouseId: formData.get('warehouseId'),
+        priority: formData.get('priority'),
+        notes: formData.get('notes'),
+        actionType,
+        items: items.map(i => ({ productId: i.productId, unitId: i.unitId, requestedQuantity: i.quantity }))
+      }
+      try {
+        await queueOfflineOperation('CREATE_REQUEST', payload, userId)
+        toast.success("Requisição salva neste dispositivo. Sincronizaremos ao reconectar.")
+        setItems([])
+      } catch (err) {
+        toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
+      } finally {
+        setIsSubmitting(false)
+      }
+      return
+    }
+
+    try {
+      await handleAction(createRequestAction)(formData)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const addItem = () => {
     setItems([...items, { id: crypto.randomUUID(), productId: "", quantity: 1, unitId: "" }])
@@ -58,7 +105,7 @@ export default function RequestForm({ warehouses, products }: any) {
 
       <Card>
         <CardContent className="p-6">
-          <form action={handleAction(createRequestAction)} className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-8">
             {/* Cabeçalho */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">Dados da Requisição</h3>
@@ -164,12 +211,12 @@ export default function RequestForm({ warehouses, products }: any) {
                 <Button type="button" variant="outline">Cancelar</Button>
               </Link>
               
-              <Button type="submit" name="actionType" value="DRAFT" variant="secondary" className="flex items-center gap-2">
+              <Button type="submit" name="actionType" value="DRAFT" variant="secondary" disabled={isSubmitting} className="flex items-center gap-2">
                 <Save className="h-4 w-4" />
                 Salvar Rascunho
               </Button>
 
-              <Button type="submit" name="actionType" value="PENDING_APPROVAL" className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button type="submit" name="actionType" value="PENDING_APPROVAL" disabled={isSubmitting} className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                 <Send className="h-4 w-4" />
                 Enviar Requisição
               </Button>

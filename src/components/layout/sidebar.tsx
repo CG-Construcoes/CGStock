@@ -3,6 +3,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { logoutAction } from "@/app/auth-actions"
+import { clearOfflineSnapshots } from "@/lib/offline-snapshot"
 import {
   LayoutDashboard,
   Package,
@@ -22,10 +24,11 @@ import {
   HelpCircle,
   ChevronDown,
   Box,
+  LogOut,
   type LucideIcon
 } from "lucide-react"
 
-export function Sidebar({ user }: { user?: { name: string; email: string; roles: string[]; permissions?: string[] } | null }) {
+export function Sidebar({ user }: { user?: { userId: string; name: string; email: string; roles: string[]; permissions?: string[] } | null }) {
   const pathname = usePathname()
   const [isMoreOpen, setIsMoreOpen] = useState(false)
 
@@ -175,6 +178,9 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
 
         </nav>
       </div>
+      <button type="button" onClick={() => void (async () => { if (user?.userId) await clearOfflineSnapshots(user.userId).catch(() => undefined); await logoutAction() })()} className="flex items-center gap-3 border-t border-[#5e2750] px-5 py-4 text-sm text-white lg:hidden">
+        <LogOut className="size-4" /> Sair
+      </button>
     </aside>
   )
 }

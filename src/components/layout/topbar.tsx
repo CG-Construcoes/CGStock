@@ -1,17 +1,28 @@
 "use client"
 import { useState } from "react"
 import { createPortal } from "react-dom"
-import { Bell, Menu, Search } from "lucide-react"
+import { Bell, Download, Menu, Search } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { logoutAction } from "@/app/auth-actions"
+import { clearOfflineSnapshots } from "@/lib/offline-snapshot"
+import { toast } from "sonner"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
 import { Sidebar } from "./sidebar"
 
-export function Topbar({ user }: { user?: { name: string; email: string; roles: string[] } | null }) {
+export function Topbar({ user }: { user?: { userId: string; name: string; email: string; roles: string[]; permissions?: string[] } | null }) {
   const pathname = usePathname()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const logout = async () => {
+    if (!user) return
+    try {
+      await clearOfflineSnapshots(user.userId)
+    } catch {
+      toast.warning('Dados locais não puderam ser limpos neste aparelho.')
+    }
+    await logoutAction()
+  }
 
   // Fecha o menu mobile ao navegar (ajuste de estado durante render, padrão recomendado)
   const [prevPathname, setPrevPathname] = useState(pathname)
@@ -68,7 +79,7 @@ export function Topbar({ user }: { user?: { name: string; email: string; roles: 
       
       {/* Left side: Hamburger and Title */}
       {!isMobileSearchOpen && (
-        <div className="flex items-center gap-3 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden sm:gap-3">
           <button 
             className="lg:hidden p-2 -ml-2 text-muted-foreground hover:bg-accent rounded-md shrink-0"
             onClick={() => setIsMobileMenuOpen(true)}
@@ -148,12 +159,15 @@ export function Topbar({ user }: { user?: { name: string; email: string; roles: 
             <ThemeToggle />
           </div>
           
-          <Link href="/notifications" className="relative p-2 text-foreground hover:bg-muted rounded-md transition-colors">
+          <button type="button" onClick={() => window.dispatchEvent(new Event("cgstock:install-help"))} className="p-2 text-foreground hover:bg-muted rounded-md transition-colors" aria-label="Como instalar o aplicativo" title="Instalar aplicativo">
+            <Download className="h-5 w-5" />
+          </button>
+          <Link href="/notifications" aria-label="Notificações" className="relative hidden sm:block p-2 text-foreground hover:bg-muted rounded-md transition-colors">
             <Bell className="h-5 w-5" />
           </Link>
 
           {user && (
-            <div className="flex items-center gap-2 sm:gap-3 sm:ml-2 sm:border-l sm:border-border sm:pl-4 pl-1">
+            <div className="hidden sm:flex items-center gap-2 sm:gap-3 sm:ml-2 sm:border-l sm:border-border sm:pl-4 pl-1">
               <div className="text-right hidden md:block">
                 <p className="text-sm font-bold text-foreground leading-none">{user.name.split(' ').slice(0, 2).join(' ')}</p>
                 <p className="text-xs text-muted-foreground mt-1 tracking-wide uppercase truncate max-w-[120px]">{user.roles[0] || 'Usuário'}</p>
@@ -162,7 +176,7 @@ export function Topbar({ user }: { user?: { name: string; email: string; roles: 
                 {user.name.charAt(0)}
               </div>
               <button 
-                onClick={() => logoutAction()}
+                onClick={() => void logout()}
                 className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline ml-1 sm:ml-2"
               >
                 Sair

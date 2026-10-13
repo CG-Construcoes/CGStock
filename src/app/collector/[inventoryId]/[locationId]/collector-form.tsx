@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { localDb, type LocalProduct } from "@/lib/localdb"
 import { Html5Qrcode } from "html5-qrcode"
 import { BackButton } from "@/components/ui/back-button"
+import { toast } from "sonner"
 
 type CollectedItem = {
   productId: string
@@ -17,21 +18,28 @@ type CollectedItem = {
 }
 
 export default function CollectorForm({
+  userId,
+  sessionExpiresAt,
   inventoryId,
   locationId,
   locationCode,
-  products
+  products,
+  onBack
 }: {
+  userId: string
+  sessionExpiresAt: string
   inventoryId: string
   locationId: string
   locationCode: string
   products: LocalProduct[]
+  onBack?: () => void
 }) {
   const router = useRouter()
   const [items, setItems] = useState<CollectedItem[]>([])
   const [searchInput, setSearchInput] = useState("")
   const [showScanner, setShowScanner] = useState(false)
   const [cameraError, setCameraError] = useState("")
+  const [isSaving, setIsSaving] = useState(false)
 
   const processSearch = useCallback((term: string) => {
     if (!term.trim()) return
@@ -117,7 +125,12 @@ export default function CollectorForm({
   }
 
   const handleFinish = async () => {
-    if (items.length === 0) return
+    if (items.length === 0 || isSaving) return
+    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+      toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar a coleta.')
+      return
+    }
+    setIsSaving(true)
 
     const payload = {
       inventoryId,
@@ -125,37 +138,49 @@ export default function CollectorForm({
       items: items.map(i => ({ productId: i.productId, quantity: i.quantity }))
     }
 
-    if (localDb) {
-      // Salva offline no Dexie na fila de sincronização
-      await localDb.syncQueue.add({
-        operation: 'SUBMIT_COLLECTION',
-        entityId: `${inventoryId}_${locationId}`,
-        payload,
-        status: 'PENDING',
-        attempts: 0,
-        createdAt: new Date()
-      })
+    try {
+      if (localDb) {
+        // Salva offline no Dexie na fila de sincronização
+        await localDb.syncQueue.add({
+          operation: 'SUBMIT_COLLECTION',
+          entityId: `${inventoryId}_${locationId}`,
+          userId,
+          payload,
+          status: 'PENDING',
+          attempts: 0,
+          createdAt: new Date()
+        })
 
-      // Redireciona para a tela de sync que tentará processar
-      router.push('/collector/sync')
-    } else {
-      // Fallback pra envio normal se IndexedDB não rolar (improvável em PWA)
-      fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operation: 'SUBMIT_COLLECTION', payload })
-      }).then(() => {
+        // Redireciona para a tela de sync que tentará processar
+        setItems([])
+        toast.success('Coleta salva neste dispositivo. Sincronizaremos ao reconectar.')
+        if (navigator.onLine) {
+          window.dispatchEvent(new Event('cgstock:sync'))
+          router.push('/collector/sync')
+        }
+      } else {
+        // Fallback pra envio normal se IndexedDB não rolar (improvável em PWA)
+        const response = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operation: 'SUBMIT_COLLECTION', payload, userId, idempotencyKey: crypto.randomUUID() })
+        })
+        if (!response.ok) throw new Error('Não foi possível enviar a coleta.')
         router.push('/collector')
-      })
+      }
+    } catch {
+      alert('Não foi possível salvar a coleta. Confira o armazenamento ou a conexão e tente novamente.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   return (
-    <div className="flex flex-col h-screen relative">
+    <div className="flex min-h-[calc(100dvh-7rem)] flex-col relative">
       {/* Header */}
       <div className="bg-primary/95  text-primary-foreground p-4 flex items-center justify-between shadow-sm z-20">
         <div className="flex items-center gap-3">
-          <BackButton />
+          <BackButton onClick={onBack} />
           <div>
             <h1 className="text-xl font-black tracking-tight">{locationCode}</h1>
             <p className="text-primary-foreground/80 text-xs font-medium">Coleta em Andamento</p>
@@ -240,7 +265,7 @@ export default function CollectorForm({
             <p className="text-lg font-medium text-center">Bipe um produto ou<br/>leia com a câmera</p>
           </div>
         ) : (
-          <div className="space-y-3 pb-24">
+          <div className="space-y-3 pb-4">
             {items.map((item) => (
               <div key={item.productId} className="bg-card p-4 rounded-md shadow-sm border border-border">
                 <div className="flex justify-between items-start mb-3">
@@ -295,11 +320,11 @@ export default function CollectorForm({
       </div>
 
       {/* Footer / Send */}
-      <div className="bg-card p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10 absolute bottom-0 left-0 right-0">
+      <div className="bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10 sticky bottom-0">
         <Button 
           type="button" 
           onClick={handleFinish}
-          disabled={items.length === 0}
+          disabled={items.length === 0 || isSaving}
           className="w-full h-14 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md flex items-center justify-center gap-2"
         >
           <Send className="h-6 w-6" />

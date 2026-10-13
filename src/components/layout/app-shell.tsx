@@ -1,6 +1,7 @@
 import { getValidatedSession } from "@/lib/auth"
 import { getUserSecurityContext } from "@/lib/user-context"
 import { AppShellClient } from "./app-shell-client"
+import { SyncProvider } from "@/components/sync-provider"
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await getValidatedSession()
@@ -17,5 +18,6 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     }
   }
 
-  return <AppShellClient user={session ? { ...session, permissions } : null}>{children}</AppShellClient>
+  const shell = <AppShellClient user={session ? { ...session, permissions } : null}>{children}</AppShellClient>
+  return session ? <SyncProvider userId={session.userId}>{shell}</SyncProvider> : shell
 }

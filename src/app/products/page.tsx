@@ -86,7 +86,7 @@ export default async function ProductsPage({
           <h2 className="text-xl font-bold tracking-tight text-foreground">Produtos</h2>
         </div>
         
-        <form method="GET" className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
+        <form method="GET" className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-stretch sm:items-center">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input name="q" defaultValue={search || ""} placeholder="Buscar por Cód.Insumo ou descrição..." className="pl-9 h-9 text-sm" />
@@ -121,16 +121,16 @@ export default async function ProductsPage({
       </div>
 
       {/* KPI Stats (Compact) */}
-      <div className="flex flex-row divide-x divide-border bg-card border border-border shadow-sm">
-        <div className="flex-1 p-3 flex flex-col">
+      <div className="grid grid-cols-2 sm:grid-cols-3 divide-x divide-border bg-card border border-border shadow-sm">
+        <div className="min-w-0 p-3 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total (Tipos)</span>
           <span className="text-lg font-bold text-foreground leading-none mt-1">{totalCount}</span>
         </div>
-        <div className="flex-1 p-3 flex flex-col">
+        <div className="min-w-0 p-3 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Estoque (Unidades)</span>
           <span className="text-lg font-bold text-foreground leading-none mt-1">{new Intl.NumberFormat('pt-BR').format(totalItemsInStock)}</span>
         </div>
-        <div className="flex-1 p-3 flex flex-col">
+        <div className="col-span-2 sm:col-span-1 min-w-0 p-3 flex flex-col border-t sm:border-t-0">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Valor Total em Estoque</span>
           <span className="text-lg font-bold text-primary leading-none mt-1">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalValue)}</span>
         </div>
@@ -138,7 +138,27 @@ export default async function ProductsPage({
 
       {/* Main Data Table */}
       <div className="flex-1 bg-card border border-border overflow-hidden flex flex-col shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-border md:hidden">
+          {productsList.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Nenhum produto encontrado com os filtros atuais.</p> : productsList.map(product => {
+            const quantity = product.stocks.reduce((sum, stock) => sum + Number(stock.quantity), 0)
+            return (
+              <div key={product.id} className="space-y-3 p-4">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link href={`/products/${product.id}`} className="block break-words font-semibold text-foreground hover:underline">{product.name}</Link>
+                    <p className="mt-1 break-all text-xs text-muted-foreground">{product.code} · {product.category.name}</p>
+                  </div>
+                  <ProductActions productId={product.id} productCode={product.code} productName={product.name} hasUpdate={hasUpdate} hasDelete={hasDelete} />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>{quantity} {product.unit.code} em estoque</span>
+                  <span className={product.status === 'ACTIVE' ? 'text-emerald-600' : 'text-muted-foreground'}>{product.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="hidden md:block overflow-x-auto">
           <Table className="w-full text-sm">
             <TableHeader className="bg-muted/50">
               <TableRow className="border-b border-border">

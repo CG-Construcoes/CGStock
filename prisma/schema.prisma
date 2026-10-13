@@ -34,6 +34,7 @@ model User {
   inventoriesFinished  Inventory[]           @relation("InventoryFinisher")
   inventoryOperations  InventoryOperator[]
   inventoryCollections InventoryCollection[]
+  offlineSyncOperations OfflineSyncOperation[]
   
   divergencesReviewed  InventoryDivergence[] @relation("DivergenceReviewer")
   divergencesApproved  InventoryDivergence[] @relation("DivergenceApprover")
@@ -273,6 +274,21 @@ model Supplier {
   receipts  StockReceipt[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+}
+
+model OfflineSyncOperation {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  operation      String
+  idempotencyKey String
+  entityKey      String
+  payloadHash    String
+  resultId       String?
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, operation, idempotencyKey])
+  @@unique([userId, operation, entityKey])
 }
 
 model StockReceipt {

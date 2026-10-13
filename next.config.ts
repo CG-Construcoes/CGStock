@@ -8,6 +8,11 @@ const withPWA = withPWAInit({
   // Páginas HTML são por-usuário (CSP com nonce) e não podem ser cacheadas
   cacheStartUrl: false,
   dynamicStartUrl: false,
+  // Fallback offline: página estática em public/offline.html (sem dados de
+  // usuário; lê IndexedDB local) servida quando a navegação falha sem rede.
+  fallbacks: {
+    document: "/offline.html",
+  },
   workboxOptions: {
     disableDevLogs: true,
     // Segurança: nunca cachear páginas HTML autenticadas nem chamadas de API
@@ -16,10 +21,14 @@ const withPWA = withPWAInit({
       {
         urlPattern: ({ request }: { request: Request }) => request.destination === "document",
         handler: "NetworkOnly",
+        // options precisa existir para que o plugin anexe o fallback offline
+        // (handlerDidError -> /offline.html) a esta regra.
+        options: {},
       },
       {
         urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
         handler: "NetworkOnly",
+        options: {},
       },
     ],
   }

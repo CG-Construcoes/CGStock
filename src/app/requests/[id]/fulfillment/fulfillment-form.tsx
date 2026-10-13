@@ -10,8 +10,10 @@ import Link from "next/link"
 import { fulfillRequestAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { handleAction } from "@/lib/handle-action"
+import { queueOfflineOperation } from "@/lib/offline-sync"
+import { toast } from "sonner"
 
-export default function FulfillmentForm({ request }: any) {
+export default function FulfillmentForm({ request, userId, sessionExpiresAt }: any) {
   const hasPendingItems = request.items.some((item: any) => (item.approvedQuantity - item.deliveredQuantity) > 0)
 
   if (!hasPendingItems || request.status === 'FULFILLED') {
@@ -39,29 +41,45 @@ export default function FulfillmentForm({ request }: any) {
 
       <Card>
         <CardContent className="p-6">
-          <form 
-            action={handleAction(fulfillRequestAction)} 
+          <form
             className="space-y-8"
-            onSubmit={(e) => {
-              const formData = new FormData(e.currentTarget)
-              let hasValidItem = false
-              
-              for (const key of Array.from(formData.keys())) {
-                if (key.startsWith('delivery_quantity_')) {
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const form = e.currentTarget
+              const formData = new FormData(form)
+              const items = Array.from(formData.keys())
+                .filter(k => k.startsWith('delivery_quantity_'))
+                .map(key => {
                   const suffix = key.replace('delivery_quantity_', '')
-                  const qty = Number(formData.get(key))
-                  const loc = formData.get(`delivery_location_${suffix}`)
-                  if (qty > 0 && loc) {
-                    hasValidItem = true
-                    break
+                  return {
+                    itemId: suffix,
+                    locationId: String(formData.get(`delivery_location_${suffix}`) || ''),
+                    quantity: Number(formData.get(key))
                   }
-                }
+                })
+                .filter(d => d.quantity > 0 && d.locationId)
+
+              if (!items.length) {
+                toast.error("Por favor, preencha a quantidade e selecione o local de retirada de pelo menos um item.")
+                return
               }
 
-              if (!hasValidItem) {
-                e.preventDefault()
-                alert("Por favor, preencha a quantidade e selecione o local de retirada de pelo menos um item.")
+              if (!navigator.onLine) {
+                if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+                  toast.error('Sessão expirada. Conecte-se e entre novamente antes de atender a requisição.')
+                  return
+                }
+                try {
+                  await queueOfflineOperation('FULFILL_REQUEST', { requestId: request.id, items }, userId)
+                  toast.success("Atendimento salvo neste dispositivo. Sincronizaremos ao reconectar.")
+                  form.reset()
+                } catch (err) {
+                  toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
+                }
+                return
               }
+
+              await handleAction(fulfillRequestAction)(formData)
             }}
           >
             <input type="hidden" name="requestId" value={request.id} />

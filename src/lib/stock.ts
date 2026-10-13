@@ -150,8 +150,8 @@ export interface DeliveryItemInput {
   quantity: number
 }
 
-export async function deliverMaterialRequest(requestId: string, userId: string, deliveredItems: DeliveryItemInput[]) {
-  return await db.$transaction(async (tx) => {
+export async function deliverMaterialRequest(requestId: string, userId: string, deliveredItems: DeliveryItemInput[], outerTx?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) {
+  const run = async (tx: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
     const request = await tx.materialRequest.findUnique({
       where: { id: requestId },
       include: { items: true }
@@ -214,7 +214,9 @@ export async function deliverMaterialRequest(requestId: string, userId: string, 
     await logAudit("REQUEST_FULFILLED", "MaterialRequest", requestId, { status: newStatus }, userId, tx)
 
     return updatedRequest
-  })
+  }
+  if (outerTx) return run(outerTx)
+  return db.$transaction(run)
 }
 
 export async function consolidateInventory(inventoryId: string, userId: string) {
@@ -347,8 +349,8 @@ export interface ReturnItemInput {
   notes?: string
 }
 
-export async function receiveMaterialReturn(returnId: string, userId: string, items: ReturnItemInput[]) {
-  return await db.$transaction(async (tx) => {
+export async function receiveMaterialReturn(returnId: string, userId: string, items: ReturnItemInput[], outerTx?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) {
+  const run = async (tx: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
     const ret = await tx.materialReturn.findUnique({
       where: { id: returnId },
       include: { items: true }
@@ -398,7 +400,8 @@ export async function receiveMaterialReturn(returnId: string, userId: string, it
         updatedAt: new Date()
       }
     })
-  })
+  }
+  return outerTx ? run(outerTx) : db.$transaction(run)
 }
 
 export interface TransferItemInput {
@@ -411,9 +414,10 @@ export interface TransferItemInput {
 export async function executeStockTransfer(
   transferId: string, 
   userId: string,
-  items: TransferItemInput[]
+  items: TransferItemInput[],
+  outerTx?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
 ) {
-  return await db.$transaction(async (tx) => {
+  const run = async (tx: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
     const transfer = await tx.stockTransfer.findUnique({
       where: { id: transferId }
     })
@@ -474,5 +478,6 @@ export async function executeStockTransfer(
         updatedAt: new Date()
       }
     })
-  })
+  }
+  return outerTx ? run(outerTx) : db.$transaction(run)
 }

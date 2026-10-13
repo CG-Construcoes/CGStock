@@ -4,15 +4,20 @@ import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {  CheckCircle, XCircle, Package, Play } from "lucide-react"
+import {  Package } from "lucide-react"
 import Link from "next/link"
 import { approveRequestAction, rejectRequestAction, startSeparationAction, cancelRequestAction } from "../actions"
 import { CancelRequestButton } from "./cancel-button"
+import { RequestActionButtons } from "./request-actions"
 import { BackButton } from "@/components/ui/back-button"
 import { requireAnyPermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAnyPermissionPage('REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL')
+  const session = await getValidatedSession()
+  if (!session) redirect("/login")
   const { id } = await params
   
   const req = await db.materialRequest.findFirst({
@@ -64,30 +69,15 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
         <div className="flex gap-2">
-          {req.status === 'PENDING_APPROVAL' && (
-            <>
-              <form action={rejectAction}>
-                <Button variant="destructive" className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4" />
-                  Rejeitar
-                </Button>
-              </form>
-              <form action={approveAction}>
-                <Button className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <CheckCircle className="h-4 w-4" />
-                  Aprovar
-                </Button>
-              </form>
-            </>
-          )}
-          {req.status === 'APPROVED' && (
-            <form action={separationAction}>
-              <Button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Play className="h-4 w-4" />
-                Iniciar Separação
-              </Button>
-            </form>
-          )}
+          <RequestActionButtons
+            requestId={req.id}
+            status={req.status}
+            userId={session.userId}
+            sessionExpiresAt={new Date(session.expiresAt).toISOString()}
+            approveAction={approveAction}
+            rejectAction={rejectAction}
+            separationAction={separationAction}
+          />
           {['IN_SEPARATION', 'PARTIALLY_FULFILLED'].includes(req.status) && (
             <Link href={`/requests/${req.id}/fulfillment`}>
               <Button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -97,7 +87,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
             </Link>
           )}
           {['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'IN_SEPARATION'].includes(req.status) && (
-            <CancelRequestButton cancelAction={cancelAction} />
+            <CancelRequestButton requestId={req.id} cancelAction={cancelAction} userId={session.userId} sessionExpiresAt={new Date(session.expiresAt).toISOString()} />
           )}
         </div>
       </div>

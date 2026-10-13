@@ -1,90 +1,116 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react"
 import { localDb } from "@/lib/localdb"
 import { useOnlineStatus } from "@/lib/use-online-status"
 import { toast } from "sonner"
 import { WifiOff, Loader2 } from "lucide-react"
 
-export function SyncProvider({ children }: { children: React.ReactNode }) {
+const SyncUserContext = createContext<string | null>(null)
+
+export function useSyncUserId() { return useContext(SyncUserContext) }
+
+export function SyncProvider({ children, userId }: { children: React.ReactNode; userId: string }) {
   const isOnline = useOnlineStatus()
   const [isSyncing, setIsSyncing] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
+  const syncing = useRef(false)
 
   const updatePendingCount = useCallback(async () => {
     if (!localDb) return
-    const count = await localDb.syncQueue.where('status').equals('PENDING').count()
-    const errorCount = await localDb.syncQueue.where('status').equals('ERROR').count()
-    setPendingCount(count + errorCount)
-  }, [])
+    const count = await localDb.syncQueue.where('userId').equals(userId).filter(task => task.status === 'PENDING' || task.status === 'ERROR' || task.status === 'CONFLICT').count()
+    setPendingCount(count)
+  }, [userId])
 
   const syncNow = useCallback(async () => {
-    if (!isOnline || !localDb) return
-    
-    const pendingTasks = await localDb.syncQueue
-      .where('status').anyOf(['PENDING', 'ERROR'])
-      .toArray()
-      
-    if (pendingTasks.length === 0) return
-
-    setIsSyncing(true)
+    if (!isOnline || !localDb || syncing.current) return
+    syncing.current = true
     let successCount = 0
+    try {
+      await localDb.syncQueue.where('userId').equals(userId)
+        .filter(task => task.status === 'SYNCING' && (!task.lastAttemptAt || Date.now() - new Date(task.lastAttemptAt).getTime() > 120000))
+        .modify({ status: 'PENDING' })
+      const pendingTasks = (await localDb.syncQueue
+        .where('userId').equals(userId)
+        .filter(task => task.status === 'PENDING' || task.status === 'ERROR')
+        .toArray()).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      if (pendingTasks.length > 0) setIsSyncing(true)
 
-    for (const task of pendingTasks) {
-      try {
-        await localDb.syncQueue.update(task.id!, { status: 'SYNCING' })
-        
-        // Dynamic API call based on operation type
-        const endpointMap: Record<string, string> = {
-          'CREATE_RECEIPT': '/api/sync/receipt',
-          'SUBMIT_COLLECTION': '/api/sync'
+      for (const task of pendingTasks) {
+        let unauthorized = false
+        let conflict = false
+        try {
+          await localDb.syncQueue.update(task.id!, { status: 'SYNCING', lastAttemptAt: new Date() })
+
+          // Dynamic API call based on operation type
+          const endpointMap: Record<string, string> = {
+            'CREATE_RECEIPT': '/api/sync/receipt',
+            'CREATE_REQUEST': '/api/sync/request',
+            'CREATE_ADJUSTMENT': '/api/sync/adjustment',
+            'CREATE_TRANSFER': '/api/sync/transfer',
+            'CREATE_RETURN': '/api/sync/return',
+            'CREATE_QUICK_ISSUE': '/api/sync/quick-issue',
+            'FULFILL_REQUEST': '/api/sync/fulfill',
+            'REQUEST_STATUS': '/api/sync/request-status',
+            'SUBMIT_COLLECTION': '/api/sync'
+          }
+          const endpoint = endpointMap[task.operation]
+          if (!endpoint) throw new Error("Operação de sincronização desconhecida")
+
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operation: task.operation, payload: task.payload, idempotencyKey: task.entityId, userId: task.userId })
+          })
+          unauthorized = res.status === 401 || res.status === 403
+          conflict = res.status === 409
+          if (unauthorized) throw new Error("Sessão ou permissão inválida. Faça login novamente para sincronizar.")
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            throw new Error(err.error || "Falha na sincronização")
+          }
+
+          await localDb.syncQueue.delete(task.id!)
+          successCount++
+        } catch (err) {
+          console.error("Sync error:", err)
+          await localDb.syncQueue.update(task.id!, {
+            status: conflict ? 'CONFLICT' : 'ERROR',
+            error: err instanceof Error ? err.message : "Falha na sincronização",
+            attempts: task.attempts + 1,
+            lastAttemptAt: new Date()
+          })
+          if (unauthorized) break
         }
-
-        const endpoint = endpointMap[task.operation]
-        if (!endpoint) throw new Error("Operação de sincronização desconhecida")
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operation: task.operation, payload: task.payload, idempotencyKey: task.entityId })
-        })
-
-        if (res.status === 401) {
-          throw new Error("Sessão expirada. Faça login novamente para sincronizar.")
-        }
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err.error || "Falha na sincronização")
-        }
-
-        await localDb.syncQueue.delete(task.id!)
-        successCount++
-      } catch (err) {
-        console.error("Sync error:", err)
-        await localDb.syncQueue.update(task.id!, {
-          status: 'ERROR',
-          error: err instanceof Error ? err.message : "Falha na sincronização",
-          attempts: task.attempts + 1,
-          lastAttemptAt: new Date()
-        })
       }
+      if (successCount > 0) toast.success(`${successCount} operações sincronizadas com o servidor.`)
+    } catch {
+      toast.error("Não foi possível acessar a fila local. Verifique o armazenamento do dispositivo.")
+    } finally {
+      syncing.current = false
+      setIsSyncing(false)
+      void updatePendingCount()
+      window.dispatchEvent(new Event('cgstock:sync-finished'))
     }
+  }, [isOnline, updatePendingCount, userId])
 
-    setIsSyncing(false)
-    updatePendingCount()
-    
-    if (successCount > 0) {
-      toast.success(`${successCount} operações sincronizadas com o servidor.`)
-    }
-  }, [isOnline, updatePendingCount])
+  useEffect(() => {
+    const requestSync = () => { void syncNow() }
+    window.addEventListener('cgstock:sync', requestSync)
+    return () => window.removeEventListener('cgstock:sync', requestSync)
+  }, [syncNow])
+
+  useEffect(() => {
+    if (!isOnline) return
+    const timer = window.setTimeout(() => { void syncNow() }, 0)
+    return () => window.clearTimeout(timer)
+  }, [isOnline, syncNow])
 
   useEffect(() => {
     const loadInitialCount = async () => {
       if (!localDb) return
-      const count = await localDb.syncQueue.where('status').equals('PENDING').count()
-      const errorCount = await localDb.syncQueue.where('status').equals('ERROR').count()
-      setPendingCount(count + errorCount)
+      const count = await localDb.syncQueue.where('userId').equals(userId).filter(task => task.status === 'PENDING' || task.status === 'ERROR' || task.status === 'CONFLICT').count()
+      setPendingCount(count)
     }
     void loadInitialCount()
 
@@ -93,7 +119,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       syncNow()
     }
     const handleOffline = () => {
-      toast.error("Sem conexão. O sistema operará em modo offline.")
+      toast.error("Sem conexão. Entradas e coletas já abertas podem ser salvas; as demais telas exigem internet.")
     }
 
     window.addEventListener("online", handleOnline)
@@ -107,10 +133,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("offline", handleOffline)
       clearInterval(interval)
     }
-  }, [syncNow, updatePendingCount])
+  }, [syncNow, updatePendingCount, userId])
 
   return (
-    <>
+    <SyncUserContext.Provider value={userId}>
       {/* Global Indicator */}
       <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2">
         {!isOnline && (
@@ -129,6 +155,6 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         )}
       </div>
       {children}
-    </>
+    </SyncUserContext.Provider>
   )
 }

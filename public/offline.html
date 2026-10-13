@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#2c001e">
+<title>CGStock — Sem conexão</title>
+<style>
+  :root { color-scheme: light; --primary:#2c001e; --accent:#f5f3f5; --border:#e5e0e5; --muted:#6b636b; --card:#ffffff; --danger:#b91c1c; --amber:#92400e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--accent); color:#1c1917; }
+  main { max-width:32rem; margin:0 auto; padding:1rem; padding-bottom:calc(1rem + env(safe-area-inset-bottom)); }
+  header { background:var(--primary); color:#fff; border-radius:.5rem; padding:1rem; margin-bottom:1rem; }
+  header h1 { margin:0; font-size:1.125rem; }
+  header p { margin:.375rem 0 0; font-size:.8125rem; opacity:.9; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:.5rem; padding:1rem; margin-bottom:1rem; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; }
+  .muted { color:var(--muted); font-size:.8125rem; }
+  .expired { color:var(--danger); font-size:.75rem; }
+  .warn { color:var(--amber); font-size:.8125rem; background:#fef3c7; border:1px solid #fbbf24; border-radius:.375rem; padding:.625rem; }
+  .ok { color:#065f46; font-size:.8125rem; background:#d1fae5; border:1px solid #34d399; border-radius:.375rem; padding:.625rem; }
+  button { font-family: inherit; }
+  .btn { width:100%; padding:.75rem; border:0; border-radius:.5rem; background:var(--primary); color:#fff; font-weight:600; font-size:.9375rem; cursor:pointer; }
+  .btn[disabled] { opacity:.5; }
+  .btn.small { width:auto; padding:.5rem 1rem; }
+  .btn.ghost { background:var(--card); color:#1c1917; border:1px solid var(--border); }
+  .btn.danger { background:var(--danger); }
+  nav.tabs { display:flex; gap:.375rem; flex-wrap:wrap; margin-bottom:1rem; }
+  nav.tabs button { flex:1 1 auto; min-width:6rem; padding:.5rem .625rem; border:1px solid var(--border); border-radius:.375rem; background:var(--card); font-size:.8125rem; font-weight:600; cursor:pointer; }
+  nav.tabs button[aria-selected="true"] { background:var(--primary); color:#fff; border-color:var(--primary); }
+  input[type=search], input[type=number], input[type=text] { width:100%; padding:.625rem; border:1px solid var(--border); border-radius:.375rem; font-size:1rem; }
+  ul.list { list-style:none; margin:0; padding:0; }
+  ul.list li { padding:.625rem 0; border-bottom:1px solid var(--border); }
+  ul.list li:last-child { border-bottom:0; }
+  button.pick { display:block; width:100%; text-align:left; padding:.75rem; border:1px solid var(--border); border-radius:.375rem; background:var(--card); font-size:.875rem; font-weight:600; cursor:pointer; margin-bottom:.5rem; }
+  .code { font-weight:700; font-size:.8125rem; }
+  .name { font-size:.875rem; }
+  .qty { font-weight:800; }
+  .qtyctl { display:flex; align-items:center; gap:.5rem; }
+  .qtyctl button { width:2.5rem; height:2.5rem; border:1px solid var(--border); border-radius:.375rem; background:var(--accent); font-size:1.125rem; font-weight:700; cursor:pointer; }
+  .qtyctl input { width:4.5rem; text-align:center; font-weight:700; }
+  .itemcard { border:1px solid var(--border); border-radius:.375rem; padding:.625rem; margin-bottom:.5rem; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>CGStock — modo offline</h1>
+    <p id="status">Você está sem conexão. Os dados abaixo foram preparados neste aparelho.</p>
+  </header>
+
+  <div class="card">
+    <div class="row">
+      <strong>Dados preparados</strong>
+      <button class="btn small" id="retry" type="button">Recarregar</button>
+    </div>
+    <ul class="list" id="modules"></ul>
+    <p id="empty" class="muted" hidden>Nenhum dado preparado neste aparelho. Conecte-se, entre no sistema e use "Preparar dados" na tela de Sincronização.</p>
+    <p id="pending" class="warn" hidden></p>
+    <p id="savedmsg" class="ok" hidden></p>
+  </div>
+
+  <div id="viewer" hidden>
+    <nav class="tabs" aria-label="Dados offline">
+      <button type="button" data-tab="products" aria-selected="false">Produtos</button>
+      <button type="button" data-tab="stock" aria-selected="false">Estoque</button>
+      <button type="button" data-tab="requests" aria-selected="false">Requisições</button>
+      <button type="button" data-tab="collector" aria-selected="false">Coletor</button>
+    </nav>
+    <section class="card" id="tab-products" hidden>
+      <input type="search" id="search" placeholder="Buscar por código, nome ou código de barras" aria-label="Buscar produto" style="margin-bottom:.625rem">
+      <ul class="list" id="products"></ul>
+    </section>
+    <section class="card" id="tab-stock" hidden><ul class="list" id="stock"></ul></section>
+    <section class="card" id="tab-requests" hidden><ul class="list" id="requests"></ul></section>
+    <section class="card" id="tab-collector" hidden>
+      <div id="collector-list"></div>
+      <div id="collector-form" hidden>
+        <div class="row" style="margin-bottom:.75rem">
+          <button class="btn small ghost" id="collector-back" type="button">← Locais</button>
+          <span class="code" id="collector-loc"></span>
+        </div>
+        <form id="collector-search" class="row" style="flex-wrap:nowrap;margin-bottom:.75rem">
+          <input type="text" id="collector-code" placeholder="Código ou código de barras" aria-label="Código do produto" autocomplete="off" style="text-transform:uppercase">
+          <button class="btn small" type="submit" style="width:3rem;padding:.625rem">＋</button>
+        </form>
+        <div id="collector-items"></div>
+        <button class="btn" id="collector-finish" type="button" disabled style="background:#047857">Finalizar coleta</button>
+      </div>
+    </section>
+  </div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var MODULE_LABELS = {
+    catalog: "Catálogo (produtos, locais, fornecedores)",
+    stock: "Saldo de estoque",
+    requests: "Requisições",
+    collector: "Coletor"
+  };
+  var STATUS_LABELS = {
+    DRAFT: "Rascunho", PENDING_APPROVAL: "Aguardando aprovação", APPROVED: "Aprovada",
+    REJECTED: "Rejeitada", IN_SEPARATION: "Em separação", PARTIALLY_FULFILLED: "Parcialmente atendida",
+    FULFILLED: "Atendida", CANCELLED: "Cancelada"
+  };
+  var DB_NAME = "EstokaLocalDB";
+  var state = {
+    snapshots: [], queue: [], tab: null, userId: null,
+    collect: null // { inventoryId, locationId, code, items: [{productId, code, name, quantity}] }
+  };
+
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+  function $(id) { return document.getElementById(id); }
+
+  function openDb() {
+    return new Promise(function (resolve, reject) {
+      if (!("indexedDB" in window)) { resolve(null); return; }
+      var req = indexedDB.open(DB_NAME);
+      req.onerror = function () { reject(req.error); };
+      req.onsuccess = function () { resolve(req.result); };
+    });
+  }
+
+  function getAll(db, store) {
+    return new Promise(function (resolve) {
+      if (!db.objectStoreNames.contains(store)) { resolve([]); return; }
+      var req = db.transaction(store, "readonly").objectStore(store).getAll();
+      req.onsuccess = function () { resolve(req.result || []); };
+      req.onerror = function () { resolve([]); };
+    });
+  }
+
+  function enqueueCollection(record) {
+    return openDb().then(function (db) {
+      if (!db || !db.objectStoreNames.contains("syncQueue")) throw new Error("Fila local indisponível.");
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction("syncQueue", "readwrite");
+        tx.objectStore("syncQueue").add(record);
+        tx.oncomplete = function () { db.close(); resolve(); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      });
+    });
+  }
+
+  function pickCurrentUser() {
+    var latest = null;
+    state.snapshots.concat(state.queue).forEach(function (row) {
+      var t = new Date(row.downloadedAt || row.createdAt || 0).getTime();
+      if (row.userId && (!latest || t > latest.t)) latest = { userId: row.userId, t: t };
+    });
+    return latest ? latest.userId : null;
+  }
+
+  function activeSnapshots(now) {
+    return state.snapshots.filter(function (s) {
+      return s.userId === state.userId && new Date(s.expiresAt).getTime() > now;
+    });
+  }
+
+  function getModule(mine, name) {
+    for (var i = 0; i < mine.length; i++) if (mine[i].module === name) return mine[i].data;
+    return null;
+  }
+
+  function renderModules(now) {
+    var list = $("modules");
+    list.textContent = "";
+    var all = state.snapshots.filter(function (s) { return s.userId === state.userId; });
+    $("empty").hidden = all.length > 0;
+    all.forEach(function (s) {
+      var li = el("li");
+      var left = el("div");
+      left.appendChild(el("div", "name", MODULE_LABELS[s.module] || s.module));
+      left.appendChild(el("div", "muted", "Baixado em " + new Date(s.downloadedAt).toLocaleString("pt-BR")));
+      var expires = new Date(s.expiresAt).getTime();
+      li.appendChild(left);
+      li.appendChild(expires <= now ? el("span", "expired", "Expirado") : el("span", "muted", "Até " + new Date(s.expiresAt).toLocaleString("pt-BR")));
+      list.appendChild(li);
+    });
+    var pending = state.queue.filter(function (t) { return t.userId === state.userId && (t.status === "PENDING" || t.status === "ERROR" || t.status === "SYNCING"); }).length;
+    var conflicts = state.queue.filter(function (t) { return t.userId === state.userId && t.status === "CONFLICT"; }).length;
+    var p = $("pending");
+    if (pending || conflicts) {
+      p.hidden = false;
+      p.textContent = pending + " operação(ões) aguardando sincronização" + (conflicts ? " e " + conflicts + " em revisão" : "") + ". Reconecte e abra o app para enviar.";
+    }
+  }
+
+  function showTab(name) {
+    state.tab = name;
+    document.querySelectorAll("nav.tabs button").forEach(function (b) {
+      b.setAttribute("aria-selected", String(b.dataset.tab === name));
+    });
+    ["products", "stock", "requests", "collector"].forEach(function (t) {
+      $("tab-" + t).hidden = t !== name;
+    });
+  }
+
+  function renderProducts(catalog, collector) {
+    var products = (catalog && catalog.products) || (collector && collector.products) || [];
+    var q = ($("search").value || "").toLowerCase();
+    var list = $("products");
+    list.textContent = "";
+    var shown = 0;
+    products.forEach(function (p) {
+      if (shown >= 100) return;
+      var hay = (p.code + " " + p.name + " " + (p.barcode || "")).toLowerCase();
+      if (q && hay.indexOf(q) === -1) return;
+      var li = el("li");
+      var top = el("div", "row");
+      top.appendChild(el("span", "code", p.code));
+      if (p.unitCode) top.appendChild(el("span", "muted", p.unitCode));
+      li.appendChild(top);
+      li.appendChild(el("div", "name", p.name));
+      if (p.categoryName) li.appendChild(el("div", "muted", p.categoryName));
+      list.appendChild(li);
+      shown++;
+    });
+    if (!shown) list.appendChild(el("li", "muted", q ? "Nenhum produto encontrado." : "Catálogo não preparado."));
+  }
+
+  function renderStock(stock, catalog) {
+    var list = $("stock");
+    list.textContent = "";
+    var items = (stock && stock.items) || [];
+    if (!items.length) { list.appendChild(el("li", "muted", "Saldo de estoque não preparado.")); return; }
+    var byId = {};
+    ((catalog && catalog.products) || []).forEach(function (p) { byId[p.id] = p; });
+    var locById = {};
+    ((catalog && catalog.locations) || []).forEach(function (l) { locById[l.id] = l; });
+    items.slice(0, 200).forEach(function (s) {
+      var p = byId[s.productId];
+      var loc = locById[s.locationId];
+      var li = el("li");
+      var top = el("div", "row");
+      top.appendChild(el("span", "name", p ? p.name : s.productId));
+      top.appendChild(el("span", "qty", String(s.quantity)));
+      li.appendChild(top);
+      li.appendChild(el("div", "muted", (p ? p.code : "") + (loc ? " · " + loc.code : "")));
+      list.appendChild(li);
+    });
+    if (items.length > 200) list.appendChild(el("li", "muted", "Exibindo 200 de " + items.length + " itens."));
+  }
+
+  function renderRequests(requests) {
+    var list = $("requests");
+    list.textContent = "";
+    var items = (requests && requests.items) || [];
+    if (!items.length) { list.appendChild(el("li", "muted", "Nenhuma requisição preparada.")); return; }
+    items.forEach(function (r) {
+      var li = el("li");
+      var top = el("div", "row");
+      top.appendChild(el("span", "code", r.requestNumber));
+      top.appendChild(el("span", "muted", STATUS_LABELS[r.status] || r.status));
+      li.appendChild(top);
+      li.appendChild(el("div", "muted", r.itemCount + " item(ns) · " + new Date(r.createdAt).toLocaleDateString("pt-BR")));
+      list.appendChild(li);
+    });
+  }
+
+  // ---------- Coletor ----------
+
+  function renderCollectorList(collector) {
+    var box = $("collector-list");
+    box.textContent = "";
+    $("collector-form").hidden = true;
+    box.hidden = false;
+    var inventories = (collector && collector.inventories) || [];
+    if (!inventories.length) { box.appendChild(el("p", "muted", "Coletor não preparado neste aparelho.")); return; }
+    inventories.forEach(function (inv) {
+      var title = el("p", "name", inv.name + " (" + inv.code + ")");
+      title.style.fontWeight = "700";
+      box.appendChild(title);
+      (inv.locations || []).forEach(function (loc) {
+        var b = el("button", "pick", loc.code);
+        b.type = "button";
+        b.addEventListener("click", function () {
+          state.collect = { inventoryId: inv.id, locationId: loc.id, code: loc.code, items: [] };
+          renderCollectorForm();
+        });
+        box.appendChild(b);
+      });
+    });
+  }
+
+  function findProduct(products, term) {
+    var up = term.trim().toUpperCase();
+    if (!up) return null;
+    var exact = null, partial = null;
+    for (var i = 0; i < products.length; i++) {
+      var p = products[i];
+      if (p.barcode && p.barcode.toUpperCase() === up) return p;
+      if (p.code.toUpperCase() === up) exact = p;
+      if (!partial && (p.code.toUpperCase().indexOf(up) !== -1 || p.name.toUpperCase().indexOf(up) !== -1)) partial = p;
+    }
+    return exact || partial;
+  }
+
+  function renderCollectorItems() {
+    var box = $("collector-items");
+    box.textContent = "";
+    var c = state.collect;
+    $("collector-finish").disabled = !c || c.items.length === 0;
+    if (!c) return;
+    if (!c.items.length) { box.appendChild(el("p", "muted", "Digite o código do produto para adicionar.")); return; }
+    c.items.forEach(function (item, idx) {
+      var card = el("div", "itemcard");
+      var top = el("div", "row");
+      top.appendChild(el("span", "code", item.code));
+      var rm = el("button", "btn small ghost", "Remover");
+      rm.type = "button";
+      rm.style.color = "var(--danger)";
+      rm.addEventListener("click", function () { c.items.splice(idx, 1); renderCollectorItems(); });
+      top.appendChild(rm);
+      card.appendChild(top);
+      card.appendChild(el("div", "muted", item.name));
+      var ctl = el("div", "qtyctl");
+      var minus = el("button", null, "−");
+      minus.type = "button";
+      minus.addEventListener("click", function () { item.quantity = Math.max(1, item.quantity - 1); qty.value = item.quantity; });
+      var qty = el("input");
+      qty.type = "number"; qty.min = "1"; qty.step = "1"; qty.value = item.quantity;
+      qty.setAttribute("aria-label", "Quantidade de " + item.code);
+      qty.addEventListener("change", function () {
+        var n = parseInt(qty.value, 10);
+        item.quantity = Number.isFinite(n) && n > 0 ? n : 1;
+        qty.value = item.quantity;
+      });
+      var plus = el("button", null, "+");
+      plus.type = "button";
+      plus.addEventListener("click", function () { item.quantity += 1; qty.value = item.quantity; });
+      ctl.appendChild(minus); ctl.appendChild(qty); ctl.appendChild(plus);
+      card.appendChild(ctl);
+      box.appendChild(card);
+    });
+  }
+
+  function renderCollectorForm() {
+    var c = state.collect;
+    $("collector-list").hidden = true;
+    var form = $("collector-form");
+    form.hidden = false;
+    $("collector-loc").textContent = c ? c.code : "";
+    renderCollectorItems();
+  }
+
+  function renderCollector(collector, catalog, snapshotExpires) {
+    renderCollectorList(collector);
+    var form = $("collector-search");
+    if (form.dataset.bound) return;
+    form.dataset.bound = "1";
+    var products = (collector && collector.products && collector.products.length ? collector.products : (catalog && catalog.products)) || [];
+
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var input = $("collector-code");
+      var found = findProduct(products, input.value);
+      if (!found) { input.value = ""; input.placeholder = "Não encontrado — tente de novo"; return; }
+      var c = state.collect;
+      if (!c) return;
+      var existing = c.items.filter(function (i) { return i.productId === found.id; })[0];
+      if (existing) existing.quantity += 1;
+      else c.items.unshift({ productId: found.id, code: found.code, name: found.name, quantity: 1 });
+      input.value = "";
+      renderCollectorItems();
+    });
+
+    $("collector-back").addEventListener("click", function () {
+      state.collect = null;
+      renderCollectorList(state._collectorData);
+    });
+
+    $("collector-finish").addEventListener("click", function () {
+      var c = state.collect;
+      if (!c || !c.items.length || !state.userId) return;
+      var expires = state._collectorExpires || 0;
+      if (Date.now() >= expires) { alert("Os dados preparados expiraram. Conecte-se e prepare novamente."); return; }
+      var items = c.items.filter(function (i) { return Number.isSafeInteger(i.quantity) && i.quantity > 0; })
+        .map(function (i) { return { productId: i.productId, quantity: i.quantity }; });
+      if (!items.length) { alert("Quantidades inválidas."); return; }
+      enqueueCollection({
+        operation: "SUBMIT_COLLECTION",
+        entityId: c.inventoryId + "_" + c.locationId,
+        userId: state.userId,
+        payload: { inventoryId: c.inventoryId, locationId: c.locationId, items: items },
+        status: "PENDING",
+        attempts: 0,
+        createdAt: new Date()
+      }).then(function () {
+        state.queue.push({ userId: state.userId, status: "PENDING", createdAt: new Date() });
+        var msg = $("savedmsg");
+        msg.hidden = false;
+        msg.textContent = "Coleta salva neste aparelho (" + items.length + " item(ns)). Ela será enviada quando o app reconectar.";
+        state.collect = null;
+        renderModules(Date.now());
+        renderCollectorList(state._collectorData);
+      }).catch(function () {
+        alert("Não foi possível salvar a coleta neste aparelho. Verifique o armazenamento e tente novamente.");
+      });
+    });
+  }
+
+  function renderAll() {
+    var now = Date.now();
+    state.userId = pickCurrentUser();
+    renderModules(now);
+    var mine = state.userId ? activeSnapshots(now) : [];
+    var hasData = mine.length > 0;
+    $("viewer").hidden = !hasData;
+    if (!hasData) return;
+    var catalog = getModule(mine, "catalog");
+    var collector = getModule(mine, "collector");
+    var stock = getModule(mine, "stock");
+    var requests = getModule(mine, "requests");
+    state._collectorData = collector;
+    var colSnap = mine.filter(function (s) { return s.module === "collector"; })[0];
+    state._collectorExpires = colSnap ? new Date(colSnap.expiresAt).getTime() : 0;
+    document.querySelectorAll("nav.tabs button").forEach(function (b) {
+      var name = b.dataset.tab;
+      var available =
+        (name === "products" && !!(catalog || (collector && collector.products && collector.products.length))) ||
+        (name === "stock" && !!stock) ||
+        (name === "requests" && !!requests) ||
+        (name === "collector" && !!(collector && collector.inventories && collector.inventories.length));
+      b.disabled = !available;
+      b.style.opacity = available ? "1" : ".45";
+    });
+    if (!state.tab || document.querySelector('nav.tabs button[data-tab="' + state.tab + '"]').disabled) {
+      var first = catalog || (collector && collector.products) ? "products" : (stock ? "stock" : (requests ? "requests" : "collector"));
+      showTab(first);
+    }
+    renderProducts(catalog, collector);
+    renderStock(stock, catalog);
+    renderRequests(requests);
+    renderCollector(collector, catalog);
+  }
+
+  $("search").addEventListener("input", function () {
+    var now = Date.now();
+    var mine = state.userId ? activeSnapshots(now) : [];
+    renderProducts(getModule(mine, "catalog"), getModule(mine, "collector"));
+  });
+  document.querySelectorAll("nav.tabs button").forEach(function (b) {
+    b.addEventListener("click", function () { showTab(b.dataset.tab); });
+  });
+  $("retry").addEventListener("click", function () {
+    if (navigator.onLine) location.reload();
+  });
+  window.addEventListener("online", function () { location.reload(); });
+
+  openDb().then(function (db) {
+    if (!db) { $("empty").hidden = false; return; }
+    return Promise.all([getAll(db, "snapshots"), getAll(db, "syncQueue")]).then(function (res) {
+      db.close();
+      state.snapshots = res[0];
+      state.queue = res[1];
+      renderAll();
+    });
+  }).catch(function () {
+    $("empty").hidden = false;
+  });
+})();
+</script>
+</body>
+</html>

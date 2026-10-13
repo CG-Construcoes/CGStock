@@ -2,9 +2,11 @@ import { db } from "@/lib/db"
 import { warehouseIdFilter, warehouseScopeIds } from "@/lib/dal"
 import ReceiptForm from "./receipt-form"
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
 
 export default async function NewReceiptPage() {
   await requirePermissionPage('STOCK_ENTRY')
+  const session = (await getValidatedSession())!
 
   const scope = await warehouseScopeIds()
   const suppliers = await db.supplier.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } })
@@ -15,6 +17,8 @@ export default async function NewReceiptPage() {
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <ReceiptForm 
+        userId={session.userId}
+        sessionExpiresAt={new Date(session.expiresAt).toISOString()}
         suppliers={suppliers} 
         warehouses={warehouses} 
         products={products.map(p => ({ ...p, averageCost: p.averageCost ? Number(p.averageCost) : null }))}

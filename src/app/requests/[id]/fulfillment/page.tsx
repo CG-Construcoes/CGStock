@@ -3,9 +3,13 @@ import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import FulfillmentForm from "./fulfillment-form"
 import { requirePermissionPage } from "@/lib/permissions"
+import { getValidatedSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
 
 export default async function FulfillmentPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('REQUEST_FULFILL')
+  const session = await getValidatedSession()
+  if (!session) redirect("/login")
   const { id } = await params
   
   const req = await db.materialRequest.findFirst({
@@ -37,7 +41,7 @@ export default async function FulfillmentPage({ params }: { params: Promise<{ id
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <FulfillmentForm request={serializedReq} />
+      <FulfillmentForm request={serializedReq} userId={session.userId} sessionExpiresAt={new Date(session.expiresAt).toISOString()} />
     </div>
   )
 }

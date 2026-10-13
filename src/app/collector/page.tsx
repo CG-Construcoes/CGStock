@@ -6,7 +6,8 @@ import Link from "next/link"
 
 import { getValidatedSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { hasAnyPermission } from "@/lib/permissions"
+import { hasAnyPermission, hasPermission } from "@/lib/permissions"
+import { CollectorOffline } from "./collector-offline"
 
 export default async function CollectorHomePage() {
   const session = await getValidatedSession()
@@ -42,7 +43,8 @@ export default async function CollectorHomePage() {
   })
 
   return (
-    <div className="min-h-screen bg-accent p-4 font-sans max-w-lg mx-auto">
+    <CollectorOffline userId={session.userId} sessionExpiresAt={new Date(session.expiresAt).toISOString()} canPrepare={await hasPermission('INVENTORY_COUNT')}>
+    <div>
       <div className="bg-primary text-primary-foreground p-4 rounded-md shadow-sm mb-6 flex items-center gap-3">
         <Smartphone className="h-8 w-8" />
         <div>
@@ -89,5 +91,6 @@ export default async function CollectorHomePage() {
         </div>
       )}
     </div>
+    </CollectorOffline>
   )
 }

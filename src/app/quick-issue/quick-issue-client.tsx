@@ -7,11 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { QrCode, User, Building, Package, Plus, Minus, CheckCircle2, Loader2, ArrowLeft } from "lucide-react"
+import { queueOfflineOperation } from "@/lib/offline-sync"
+import { getOfflineSnapshot, isSnapshotUsable } from "@/lib/offline-snapshot"
+import type { CatalogSnapshotData } from "@/lib/localdb"
 
 type EmployeeContext = {
   employee: { id: string, name: string, email: string }
   worksite: { id: string, name: string }
   warehouse: { id: string, name: string }
+  qrToken?: string
+  offline?: boolean
 }
 
 type CartItem = {
@@ -20,10 +25,10 @@ type CartItem = {
   name: string
   unit: string
   requestedQuantity: number
-  availableQuantity: number
+  availableQuantity: number | null
 }
 
-export function QuickIssueClient() {
+export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string, sessionExpiresAt: string }) {
   const [context, setContext] = useState<EmployeeContext | null>(null)
   
   // Scanners
@@ -55,6 +60,23 @@ export function QuickIssueClient() {
     if (!employeeQr) return
     
     setIsScanningEmployee(true)
+    if (!navigator.onLine) {
+      setIsScanningEmployee(false)
+      if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+        toast.error('Sessão expirada. Conecte-se e entre novamente para registrar entregas.')
+        return
+      }
+      setContext({
+        employee: { id: '', name: 'Não verificado (offline)', email: '' },
+        worksite: { id: '', name: 'Definida na sincronização' },
+        warehouse: { id: '', name: 'Definido na sincronização' },
+        qrToken: employeeQr,
+        offline: true
+      })
+      setEmployeeQr("")
+      toast.info("Sem conexão: o funcionário será validado quando a entrega sincronizar.")
+      return
+    }
     const result = await verifyEmployeeQR(employeeQr)
     setIsScanningEmployee(false)
     
@@ -85,6 +107,33 @@ export function QuickIssueClient() {
     }
 
     setIsScanningProduct(true)
+    if (context.offline) {
+      const snapshot = await getOfflineSnapshot<CatalogSnapshotData>('catalog', userId)
+      setIsScanningProduct(false)
+      if (!isSnapshotUsable(snapshot, userId, sessionExpiresAt)) {
+        toast.error("Catálogo offline não preparado ou expirado. Conecte-se e baixe os dados na tela de sincronização.")
+        setProductQr("")
+        return
+      }
+      const product = snapshot!.data.products.find(p => p.code === productQr || p.barcode === productQr)
+      if (!product) {
+        toast.error("Produto não encontrado no catálogo offline.")
+        setProductQr("")
+        return
+      }
+      setCart(prev => [...prev, {
+        productId: product.id,
+        code: product.code,
+        name: product.name,
+        unit: product.unitCode ?? '',
+        availableQuantity: null,
+        requestedQuantity: 1
+      }])
+      setProductQr("")
+      toast.success(`${product.name} adicionado.`)
+      if (productInputRef.current) productInputRef.current.focus()
+      return
+    }
     const result = await getProductStockForQuickIssue(context.worksite.id, context.warehouse.id, productQr)
     setIsScanningProduct(false)
     
@@ -116,7 +165,7 @@ export function QuickIssueClient() {
       if (item.productId === productId) {
         const newQty = item.requestedQuantity + delta
         if (newQty < 1) return item
-        if (newQty > item.availableQuantity) {
+        if (item.availableQuantity !== null && newQty > item.availableQuantity) {
           toast.error("Quantidade superior ao estoque disponível.")
           return item
         }
@@ -134,6 +183,27 @@ export function QuickIssueClient() {
     if (!context || cart.length === 0) return
     
     setIsConfirming(true)
+    if (context.offline) {
+      try {
+        await queueOfflineOperation('CREATE_QUICK_ISSUE', {
+          qrToken: context.qrToken,
+          items: cart.map(c => ({ productCode: c.code, quantity: c.requestedQuantity }))
+        }, userId)
+        toast.success("Entrega salva neste dispositivo. Funcionário e estoque serão validados ao sincronizar.")
+        setContext(null)
+        setCart([])
+      } catch (err) {
+        toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
+      } finally {
+        setIsConfirming(false)
+      }
+      return
+    }
+    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+      setIsConfirming(false)
+      toast.error('Sessão expirada. Conecte-se e entre novamente para confirmar a entrega.')
+      return
+    }
     const payload = {
       employeeId: context.employee.id,
       worksiteId: context.worksite.id,
@@ -273,7 +343,7 @@ export function QuickIssueClient() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.code} • Disp: {item.availableQuantity} {item.unit}</p>
+                    <p className="text-xs text-muted-foreground">{item.code} • Disp: {item.availableQuantity === null ? '—' : item.availableQuantity} {item.unit}</p>
                   </div>
                   <button onClick={() => removeItem(item.productId)} className="text-red-400 hover:text-red-600 text-xs font-medium">
                     Remover

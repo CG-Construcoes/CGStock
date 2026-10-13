@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/theme-provider";
-import { SyncProvider } from "@/components/sync-provider";
+import { InstallGuide } from "@/components/install-guide";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,7 +22,11 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Coletor Web",
+    title: "CGStock",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
   },
 };
 
@@ -57,9 +61,8 @@ export default async function RootLayout({
             height={3}
             shadow="0 0 10px #e95420,0 0 5px #e95420"
           />
-          <SyncProvider>
-            <AppShell>{children}</AppShell>
-          </SyncProvider>
+          <AppShell>{children}</AppShell>
+          <InstallGuide />
           <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
