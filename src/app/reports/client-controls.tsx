@@ -57,7 +57,7 @@ export function ReportsHeaderControls({ initialFrom, initialTo }: { initialFrom:
       <button 
         onClick={() => handleExport('xlsx')}
         disabled={loadingExcel}
-        className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-[#5C3310] text-[#FDEFD6] rounded-md hover:bg-[#5C3310]/90 transition-colors shadow-sm disabled:opacity-50"
+        className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
       >
         {loadingExcel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
         Exportar Excel

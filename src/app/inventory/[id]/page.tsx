@@ -71,7 +71,7 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
         <div className="flex gap-2">
           {canReview && inv.status === 'IN_PROGRESS' && (
             <form action={finishAction}>
-              <Button className="flex items-center gap-2 bg-primary hover:bg-primary text-white">
+              <Button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                 <StopCircle className="h-4 w-4" />
                 Encerrar Coletas
               </Button>

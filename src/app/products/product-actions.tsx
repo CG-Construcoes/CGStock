@@ -58,7 +58,7 @@ export function ProductActions({ productId, productCode, productName, hasUpdate 
           </Button>
           <Button 
             onClick={handlePrint}
-            className="rounded-md flex-1 bg-primary hover:bg-primary text-white shadow-sm flex items-center justify-center gap-2"
+            className="rounded-md flex-1 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center justify-center gap-2"
           >
             <Printer className="h-4 w-4" />
             Imprimir

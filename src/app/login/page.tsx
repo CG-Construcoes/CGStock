@@ -32,13 +32,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-black font-sans">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#2c001e] font-sans">
       <div className="flex flex-col items-center justify-center p-6 sm:p-12 w-full max-w-[480px]">
         
         {/* Logo */}
         <div className="flex items-center gap-3 mb-10 justify-center">
-          <Package className="h-8 w-8 text-[#FED7A5]" />
-          <span className="text-2xl font-black tracking-tight text-[#FED7A5]">CGSTOCK</span>
+          <Package className="h-8 w-8 text-[#ffb597]" />
+          <span className="text-2xl font-black tracking-tight text-[#ffb597]">CGSTOCK</span>
         </div>
 
         <div className="w-full space-y-8">
@@ -62,7 +62,7 @@ export default function LoginPage() {
                     type="email"
                     placeholder="admin@estok.com"
                     required
-                    className="h-11 bg-[#2D4354]/40 border-[#2D4354] text-white focus-visible:ring-[#FED7A5] placeholder:text-zinc-500"
+                    className="h-11 bg-[#45364d] border-[#6b4c68] text-white focus-visible:ring-[#ffb597] placeholder:text-zinc-500"
                   />
                 </div>
                 
@@ -71,7 +71,7 @@ export default function LoginPage() {
                     <label className="text-sm font-medium text-zinc-300" htmlFor="password">
                       Senha
                     </label>
-                    <a href="#" className="text-xs text-[#FED7A5] hover:text-white transition-colors">
+                    <a href="#" className="text-xs text-[#ffb597] hover:text-white transition-colors">
                       Esqueceu a senha?
                     </a>
                   </div>
@@ -80,7 +80,7 @@ export default function LoginPage() {
                     name="password"
                     type="password"
                     required
-                    className="h-11 bg-[#2D4354]/40 border-[#2D4354] text-white focus-visible:ring-[#FED7A5]"
+                    className="h-11 bg-[#45364d] border-[#6b4c68] text-white focus-visible:ring-[#ffb597]"
                   />
                 </div>
 
@@ -91,7 +91,7 @@ export default function LoginPage() {
                 )}
 
                 <Button 
-                  className="w-full h-11 text-sm font-medium bg-[#FED7A5] hover:bg-white text-[#20212B] transition-colors" 
+                  className="w-full h-11 text-sm font-medium bg-[#e95420] hover:bg-[#ff875b] text-[#241f31] transition-colors"
                   disabled={isPending || state?.success}
                 >
                   {isPending ? "Autenticando..." : "Entrar no Sistema"}

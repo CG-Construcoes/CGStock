@@ -67,8 +67,8 @@ export function ImportUsersClient() {
         <p className="text-muted-foreground">Importe usuários em lote usando um arquivo CSV.</p>
       </div>
 
-      <Card className="border-[#5C3310]/20 shadow-lg overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b border-[#5C3310]/10">
+      <Card className="border-[var(--border)]/20 shadow-lg overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b border-[var(--border)]/10">
           <CardTitle>Envio de Arquivo</CardTitle>
           <CardDescription>
             O arquivo CSV deve conter um cabeçalho com as colunas <strong>Nome</strong>, <strong>Email</strong> e <strong>Matrícula</strong>.

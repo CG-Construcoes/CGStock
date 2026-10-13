@@ -43,7 +43,7 @@ export default async function CollectorHomePage() {
 
   return (
     <div className="min-h-screen bg-accent p-4 font-sans max-w-lg mx-auto">
-      <div className="bg-primary text-white p-4 rounded-md shadow-sm mb-6 flex items-center gap-3">
+      <div className="bg-primary text-primary-foreground p-4 rounded-md shadow-sm mb-6 flex items-center gap-3">
         <Smartphone className="h-8 w-8" />
         <div>
           <h1 className="text-xl font-bold">Coletor Web</h1>
@@ -63,7 +63,7 @@ export default async function CollectorHomePage() {
         <div className="space-y-4">
           {activeInventories.map(inv => (
             <Card key={inv.id} className="border-none shadow-sm rounded-md overflow-hidden">
-              <div className="bg-card p-4 border-b border-[#5C3310]">
+              <div className="bg-card p-4 border-b border-border">
                 <h3 className="font-bold text-lg text-foreground">{inv.name}</h3>
                 <p className="text-sm text-muted-foreground">{inv.code}</p>
               </div>
@@ -75,7 +75,7 @@ export default async function CollectorHomePage() {
                   <div className="space-y-1 mt-1">
                     {inv.locations.map(l => (
                       <Link key={l.id} href={`/collector/${inv.id}/${l.locationId}`}>
-                        <div className="flex items-center justify-between p-3 bg-card rounded-lg border border-[#5C3310] hover:border-primary/50 cursor-pointer">
+                        <div className="flex items-center justify-between p-3 bg-card rounded-lg border border-border hover:border-primary/50 cursor-pointer">
                           <span className="font-medium">{l.location.code}</span>
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         </div>

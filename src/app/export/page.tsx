@@ -126,7 +126,7 @@ export default function ExportPage() {
               <Button 
                 onClick={() => handleExport('products', formatMap['products'])} 
                 disabled={loadingMap[`products_${formatMap['products']}`]} 
-                className="flex-1 bg-[#5C3310] hover:bg-[#5C3310]/90 text-[#FDEFD6]"
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {loadingMap[`products_${formatMap['products']}`] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
                 Exportar Planilha
@@ -147,7 +147,7 @@ export default function ExportPage() {
               <Button 
                 onClick={() => handleExport('stock', formatMap['stock'])} 
                 disabled={loadingMap[`stock_${formatMap['stock']}`]} 
-                className="w-full bg-[#5C3310] hover:bg-[#5C3310]/90 text-[#FDEFD6]"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {loadingMap[`stock_${formatMap['stock']}`] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
                 Exportar Planilha
@@ -177,7 +177,7 @@ export default function ExportPage() {
               <Button 
                 onClick={() => handleExport('movements', formatMap['movements'])} 
                 disabled={loadingMap[`movements_${formatMap['movements']}`]} 
-                className="w-full bg-[#5C3310] hover:bg-[#5C3310]/90 text-[#FDEFD6]"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {loadingMap[`movements_${formatMap['movements']}`] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
                 Exportar Planilha
@@ -222,7 +222,7 @@ export default function ExportPage() {
               <Button 
                 onClick={() => handleExport('inventory', formatMap['inventory'])} 
                 disabled={!selectedInventory || loadingMap[`inventory_${formatMap['inventory']}`]} 
-                className="w-full bg-[#5C3310] hover:bg-[#5C3310]/90 text-[#FDEFD6]"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {loadingMap[`inventory_${formatMap['inventory']}`] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
                 Exportar Planilha

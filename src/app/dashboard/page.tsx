@@ -276,10 +276,10 @@ export default async function DashboardPage() {
               <h2 className="text-sm font-semibold text-foreground">Entradas vs Saídas</h2>
               <div className="flex items-center gap-3 text-[11px] font-medium text-muted-foreground">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#5C3310]"></span> Entradas
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--chart-entry)]"></span> Entradas
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C9832B]"></span> Saídas
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--chart-exit)]"></span> Saídas
                 </div>
               </div>
             </div>

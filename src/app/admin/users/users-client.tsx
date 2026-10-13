@@ -81,9 +81,9 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
         </form>
       </div>
 
-      <div className="bg-card  rounded-md border border-[#5C3310]/50 shadow-sm  overflow-hidden  ">
+      <div className="bg-card  rounded-md border border-[var(--border)]/50 shadow-sm  overflow-hidden  ">
         {/* Mobile View: Cards */}
-        <div className="md:hidden divide-y divide-[#5C3310]/50">
+        <div className="md:hidden divide-y divide-[var(--border)]/50">
           {users.map((user) => (
             <div key={user.id} className="p-4 space-y-4 hover:bg-muted/30 ">
               <div className="flex justify-between items-start gap-2">
@@ -116,7 +116,7 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
               </div>
 
               <div className="text-xs text-muted-foreground break-words">Almoxarifados: {user.roles.some(r => r.name === 'ADMIN') ? 'Todos (ADMIN)' : user.allWarehouseAccess ? 'Todos, inclusive futuros' : user.warehouseAccesses.length ? user.warehouseAccesses.map(a => a.warehouse.name).join(', ') : 'Nenhum'}</div>
-              <div className="flex items-center justify-between pt-2 border-t border-[#5C3310]/50">
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--border)]/50">
                 <div className="text-xs text-muted-foreground">
                   Desde {new Date(user.createdAt).toLocaleDateString('pt-BR')}
                 </div>
@@ -128,7 +128,7 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
 
         {/* Desktop View: Table */}
         <div className="hidden md:block overflow-x-auto">
-          <Table className="[&_tr]:border-[#5C3310]">
+          <Table className="[&_tr]:border-[var(--border)]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[50px]">

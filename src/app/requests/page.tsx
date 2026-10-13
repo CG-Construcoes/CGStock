@@ -50,9 +50,9 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
         </div>
       </div>
 
-      <div className="bg-card  rounded-md border border-[#5C3310]/50 shadow-sm  overflow-hidden  ">
+      <div className="bg-card  rounded-md border border-border/50 shadow-sm  overflow-hidden  ">
         {/* Mobile View: Cards */}
-        <div className="md:hidden divide-y divide-[#5C3310]/50">
+        <div className="md:hidden divide-y divide-border/50">
           {requests.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground">
               Nenhuma requisição encontrada.

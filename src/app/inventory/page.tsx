@@ -33,7 +33,7 @@ export default async function InventoryPage() {
         </div>
         {canCreate && (
           <Link href="/inventory/new">
-            <Button className="flex items-center gap-2 bg-primary hover:bg-primary text-white">
+            <Button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
               <Plus className="h-4 w-4" />
               Novo Inventário
             </Button>

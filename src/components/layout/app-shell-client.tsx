@@ -18,7 +18,7 @@ export function AppShellClient({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background font-sans">
-      <div className="hidden lg:block w-[260px] shrink-0 border-r border-[#5C3310]">
+      <div className="hidden lg:block w-[260px] shrink-0 border-r border-[#5e2750]">
         <Sidebar user={user} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">

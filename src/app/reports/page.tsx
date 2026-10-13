@@ -127,8 +127,8 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
               <div className="flex items-center gap-6">
                 <h2 className="text-xs font-bold text-foreground uppercase tracking-wider">Entradas vs Saídas</h2>
                 <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#5C3310]"></span> Entradas</div>
-                  <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#C9832B]"></span> Saídas</div>
+                  <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[var(--chart-entry)]"></span> Entradas</div>
+                  <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[var(--chart-exit)]"></span> Saídas</div>
                 </div>
               </div>
             </div>
@@ -200,7 +200,7 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
             </div>
             {recentMovements.length > 0 && (
               <div className="px-4 py-2.5 border-t border-border/40 bg-muted/10 text-center">
-                <Link href="/reports/movements" className="text-[11px] font-bold uppercase tracking-widest text-[#C9832B] hover:text-[#5C3310] dark:hover:text-[#E5A94F] transition-colors">
+                <Link href="/reports/movements" className="text-[11px] font-bold uppercase tracking-widest text-primary hover:text-foreground transition-colors">
                   Ver todas as movimentações →
                 </Link>
               </div>

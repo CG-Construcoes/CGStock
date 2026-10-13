@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#4f46e5",
+  themeColor: "#2c001e",
 };
 
 import { Toaster } from "sonner"
@@ -52,10 +52,10 @@ export default async function RootLayout({
           nonce={nonce}
         >
           <NextTopLoader
-            color="#C9832B"
+            color="#e95420"
             showSpinner={false}
             height={3}
-            shadow="0 0 10px #C9832B,0 0 5px #C9832B"
+            shadow="0 0 10px #e95420,0 0 5px #e95420"
           />
           <SyncProvider>
             <AppShell>{children}</AppShell>

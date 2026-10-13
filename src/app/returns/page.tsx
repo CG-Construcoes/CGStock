@@ -32,16 +32,16 @@ export default async function ReturnsPage() {
           </div>
         </div>
         <Link href="/returns/new">
-          <Button className="bg-primary hover:bg-primary text-white flex items-center gap-2">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Nova Devolução
           </Button>
         </Link>
       </div>
 
-      <div className="bg-card  rounded-md border border-[#5C3310]/50 shadow-sm  overflow-hidden  ">
+      <div className="bg-card  rounded-md border border-border/50 shadow-sm  overflow-hidden  ">
         {/* Mobile View: Cards */}
-        <div className="md:hidden divide-y divide-[#5C3310]/50">
+        <div className="md:hidden divide-y divide-border/50">
           {returns.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground flex flex-col items-center">
               <RotateCcw className="h-10 w-10 text-muted-foreground/30 mb-3" />

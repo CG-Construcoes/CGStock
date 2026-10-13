@@ -137,9 +137,9 @@ export default async function MovementsPage(props: {
         }} 
       />
 
-      <div className="bg-card  rounded-md border border-[#5C3310]/50 shadow-sm  overflow-hidden  ">
+      <div className="bg-card  rounded-md border border-border/50 shadow-sm  overflow-hidden  ">
         {/* Mobile View: Cards */}
-        <div className="md:hidden divide-y divide-[#5C3310]/50">
+        <div className="md:hidden divide-y divide-border/50">
           {movements.length === 0 ? (
             <div className="p-6 text-center text-muted-foreground">
               Nenhuma movimentação registrada para este filtro.

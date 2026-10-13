@@ -45,8 +45,8 @@ export function DashboardCharts({ data }: { data: ChartData[] }) {
           itemStyle={{ fontWeight: 600, padding: 0, margin: 0 }}
           labelStyle={{ color: 'var(--muted-foreground)', marginBottom: '6px' }}
         />
-        <Bar dataKey="entradas" fill="#5C3310" radius={[2, 2, 0, 0]} barSize={12} />
-        <Bar dataKey="saidas" fill="#C9832B" radius={[2, 2, 0, 0]} barSize={12} />
+        <Bar dataKey="entradas" fill="var(--chart-entry)" radius={[2, 2, 0, 0]} barSize={12} />
+        <Bar dataKey="saidas" fill="var(--chart-exit)" radius={[2, 2, 0, 0]} barSize={12} />
       </BarChart>
     </ResponsiveContainer>
   )

@@ -77,7 +77,7 @@ export default async function NewReturnPage() {
                 <Button type="button" variant="outline">Cancelar</Button>
               </Link>
               
-              <Button type="submit" className="bg-primary hover:bg-primary text-white flex items-center gap-2">
+              <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
                 <Save className="h-4 w-4" />
                 Receber Devolução
               </Button>

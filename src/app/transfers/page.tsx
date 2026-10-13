@@ -35,7 +35,7 @@ export default async function TransfersPage() {
           </div>
         </div>
         <Link href="/transfers/new">
-          <Button className="bg-primary hover:bg-primary text-white flex items-center gap-2">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Nova Transferência
           </Button>

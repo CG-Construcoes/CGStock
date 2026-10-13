@@ -4,8 +4,8 @@
   "description": "Sistema empresarial de gestão de estoque, almoxarifado e inventário",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#5C3310",
+  "background_color": "#2c001e",
+  "theme_color": "#2c001e",
   "icons": [
     {
       "src": "/window.svg",

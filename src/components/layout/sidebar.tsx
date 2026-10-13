@@ -106,13 +106,13 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
           className={cn(
             "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium border-l-2 transition-colors",
             isActive 
-              ? "border-[#E5A94F] text-[#FDEFD6] bg-[#5C3310]/40" 
-              : "border-transparent text-[#FDEFD6] hover:bg-[#5C3310]/30 hover:text-[#E5A94F]"
+              ? "border-[#e95420] text-white bg-[#5e2750]"
+              : "border-transparent text-[#f6f5f4] hover:bg-[#5e2750]/30 hover:text-[#ffb597]"
           )}
         >
           <item.icon className={cn(
             "h-4 w-4 shrink-0 transition-colors",
-            isActive ? "text-[#E5A94F]" : "text-[#C9832B] group-hover:text-[#E5A94F]"
+            isActive ? "text-[#ffb597]" : "text-[#f49570] group-hover:text-[#ffb597]"
           )} />
           {item.name}
         </Link>
@@ -121,10 +121,10 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
   }
 
   return (
-    <aside className="flex h-full w-full flex-col border-r border-[#5C3310] bg-[#000000]">
-      <div className="flex h-16 items-center border-b border-[#5C3310] px-5 shrink-0">
-        <div className="flex items-center gap-2 font-bold text-xl text-[#E5A94F] tracking-tight">
-          <Package className="h-5 w-5 text-[#E5A94F]" />
+    <aside className="flex h-full w-full flex-col border-r border-[#5e2750] bg-[#2c001e]">
+      <div className="flex h-16 items-center border-b border-[#5e2750] px-5 shrink-0">
+        <div className="flex items-center gap-2 font-bold text-xl text-[#ffb597] tracking-tight">
+          <Package className="h-5 w-5 text-[#ffb597]" />
           CGSTOCK
         </div>
       </div>
@@ -138,21 +138,21 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
 
           {visibleEstoqueItems.length > 0 && (
             <div>
-              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F]">Estoque</h3>
+              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">Estoque</h3>
               <ul className="space-y-0.5">{visibleEstoqueItems.map(renderItem)}</ul>
             </div>
           )}
 
           {visibleOperacoesItems.length > 0 && (
             <div>
-              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F]">Operações</h3>
+              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">Operações</h3>
               <ul className="space-y-0.5">{visibleOperacoesItems.map(renderItem)}</ul>
             </div>
           )}
 
           {visibleInventarioItems.length > 0 && (
             <div>
-              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F]">Inventário</h3>
+              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">Inventário</h3>
               <ul className="space-y-0.5">{visibleInventarioItems.map(renderItem)}</ul>
             </div>
           )}
@@ -161,7 +161,7 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
             <div>
               <button 
                 onClick={() => setIsMoreOpen(!isMoreOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F] hover:bg-[#5C3310]/20 rounded-md transition-colors"
+                className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-[#ffb597] hover:bg-[#5e2750]/20 rounded-md transition-colors"
               >
                 <span>Mais</span>
                 <ChevronDown className={cn("h-4 w-4 transition-transform", isMoreOpen && "rotate-180")} />

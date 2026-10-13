@@ -183,7 +183,7 @@ export function Topbar({ user }: { user?: { name: string; email: string; roles: 
           <div className="relative flex w-[280px] max-w-[85vw] flex-1 flex-col bg-background shadow-2xl animate-in slide-in-from-left">
             <button 
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute right-4 top-4 z-50 p-2 text-[#E5A94F] bg-[#5C3310]/50 rounded-md hover:bg-[#5C3310]"
+              className="absolute right-4 top-4 z-50 p-2 text-[#ffb597] bg-[#5e2750] rounded-md hover:bg-[#713864]"
               aria-label="Fechar menu"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
