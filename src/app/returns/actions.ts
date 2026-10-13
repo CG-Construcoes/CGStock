@@ -6,13 +6,19 @@ import { redirect } from "next/navigation"
 import { receiveMaterialReturn } from "@/lib/stock"
 import { requireActionPermission } from "@/lib/action-guard"
 import { createWithUniqueNumber } from "@/lib/sequential"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function createReturnAction(formData: FormData) {
   const session = await requireActionPermission('STOCK_ENTRY')
 
   const warehouseId = formData.get("warehouseId") as string
+  await assertWarehouseAccess(warehouseId, session.userId)
   const reason = formData.get("reason") as string
   const requestId = formData.get("requestId") as string || null
+  if (requestId) {
+    const request = await db.materialRequest.findFirst({ where: { id: requestId, warehouseId } })
+    if (!request) throw new Error("Requisição não pertence ao almoxarifado selecionado.")
+  }
 
   const ret = await createWithUniqueNumber(
     async (attempt) => {

@@ -46,7 +46,7 @@ export default async function StockPage({
 
   let effectiveWarehouseIds = allowedIds
   if (selectedWarehouseId) {
-    if (allowedIds === null || allowedIds.includes(selectedWarehouseId)) {
+    if (warehouses.some(w => w.id === selectedWarehouseId)) {
       effectiveWarehouseIds = [selectedWarehouseId]
     } else {
       effectiveWarehouseIds = []

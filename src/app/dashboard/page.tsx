@@ -15,7 +15,7 @@ import { QrCode, ClipboardList } from "lucide-react"
 
 async function RequesterDashboard({ user, qrToken }: { user: SessionPayload, qrToken: string | null }) {
   const recentRequests = await db.materialRequest.findMany({
-    where: { requesterId: user.userId },
+    where: { requesterId: user.userId, ...await warehouseIdFilter(user.userId) },
     orderBy: { createdAt: 'desc' },
     take: 5,
     include: {
@@ -138,14 +138,14 @@ export default async function DashboardPage() {
 
   const trWhere: Prisma.StockTransferWhereInput = { status: 'IN_TRANSIT' }
   if (scopeIds) {
-    trWhere.OR = [
-      { sourceWarehouseId: { in: scopeIds } },
-      { destinationWarehouseId: { in: scopeIds } }
-    ]
+    trWhere.sourceWarehouseId = { in: scopeIds }
+    trWhere.destinationWarehouseId = { in: scopeIds }
   }
 
   let chartQuery
-  if (scopeIds) {
+  if (scopeIds?.length === 0) {
+    chartQuery = Prisma.sql`SELECT DATE_TRUNC('day', NOW()) AS day, '' AS type, 0::int AS total WHERE FALSE`
+  } else if (scopeIds) {
     chartQuery = Prisma.sql`
       SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
       FROM "StockMovement"
@@ -172,7 +172,7 @@ export default async function DashboardPage() {
     recentMovements,
     chartRows
   ] = await Promise.all([
-    db.product.count(),
+    db.product.count({ where: scopeIds === null ? undefined : { stocks: { some: { warehouseId: { in: scopeIds } } } } }),
     db.inventoryDivergence.count({ where: divPendingWhere }),
     db.inventoryDivergence.count({ where: divReviewedWhere }),
     db.stockTransfer.count({ where: trWhere }),

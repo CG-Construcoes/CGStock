@@ -16,6 +16,8 @@ type UserListItem = {
   status: string
   createdAt: Date | string
   roles: { id: string; name: string }[]
+  allWarehouseAccess: boolean
+  warehouseAccesses: { warehouse: { name: string; code: string } }[]
 }
 
 export function UsersClient({ users }: { users: UserListItem[] }) {
@@ -113,6 +115,7 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
                 ))}
               </div>
 
+              <div className="text-xs text-muted-foreground break-words">Almoxarifados: {user.roles.some(r => r.name === 'ADMIN') ? 'Todos (ADMIN)' : user.allWarehouseAccess ? 'Todos, inclusive futuros' : user.warehouseAccesses.length ? user.warehouseAccesses.map(a => a.warehouse.name).join(', ') : 'Nenhum'}</div>
               <div className="flex items-center justify-between pt-2 border-t border-[#5C3310]/50">
                 <div className="text-xs text-muted-foreground">
                   Desde {new Date(user.createdAt).toLocaleDateString('pt-BR')}
@@ -139,6 +142,7 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
               <TableHead>Nome</TableHead>
               <TableHead>E-mail</TableHead>
               <TableHead>Perfil</TableHead>
+              <TableHead>Almoxarifados</TableHead>
               <TableHead>Último acesso</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -172,6 +176,9 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
                       </Badge>
                     ))}
                   </div>
+                </TableCell>
+                <TableCell className="text-sm max-w-56 break-words">
+                  {user.roles.some(r => r.name === 'ADMIN') ? 'Todos (ADMIN)' : user.allWarehouseAccess ? 'Todos, inclusive futuros' : user.warehouseAccesses.length ? user.warehouseAccesses.map(a => a.warehouse.name).join(', ') : 'Nenhum'}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {new Date(user.createdAt).toLocaleDateString('pt-BR')}

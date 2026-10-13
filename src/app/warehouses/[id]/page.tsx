@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { requireAnyPermissionPage, hasPermission } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
 import { notFound } from "next/navigation"
@@ -15,8 +16,9 @@ export default async function WarehouseDetailPage({ params }: { params: Promise<
   const canManage = session?.roles?.includes('ADMIN') || (await hasPermission('CONFIG_MANAGE'))
   const resolvedParams = await params
 
-  const warehouse = await db.warehouse.findUnique({
-    where: { id: resolvedParams.id },
+  const scope = await warehouseScopeIds(session!.userId)
+  const warehouse = await db.warehouse.findFirst({
+    where: { id: { equals: resolvedParams.id, in: scope ?? undefined } },
     include: { locations: { orderBy: { name: 'asc' } } }
   })
 

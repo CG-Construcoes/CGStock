@@ -7,6 +7,7 @@ export type UserSecurityContext = {
   roleNames: string[]
   permissionKeys: Set<string>
   mustChangePassword: boolean
+  allWarehouseAccess: boolean
 }
 
 /**
@@ -39,6 +40,7 @@ export const getUserSecurityContext = cache(async (userId: string): Promise<User
     permissionKeys: new Set(
       user.roles.flatMap(r => r.permissions.map(rp => rp.permission.key))
     ),
-    mustChangePassword: user.mustChangePassword
+    mustChangePassword: user.mustChangePassword,
+    allWarehouseAccess: user.allWarehouseAccess
   }
 })

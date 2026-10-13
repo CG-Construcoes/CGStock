@@ -4,6 +4,7 @@ import { getValidatedSession } from "@/lib/auth"
 import { hasPermission } from "@/lib/permissions"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function POST(req: NextRequest) {
   const session = await getValidatedSession()
@@ -21,6 +22,11 @@ export async function POST(req: NextRequest) {
     // We'll use a transaction
     const supplierId = payload.supplierId
     const warehouseId = payload.warehouseId
+    try {
+      await assertWarehouseAccess(warehouseId, session.userId)
+    } catch {
+      return NextResponse.json({ error: "Sem acesso a este almoxarifado." }, { status: 403 })
+    }
     const documentNumber = payload.documentNumber || null
     const documentDate = payload.documentDate ? new Date(payload.documentDate) : null
     const actionType = payload.actionType || "DRAFT"
@@ -31,6 +37,8 @@ export async function POST(req: NextRequest) {
     }
 
     let subtotal = 0
+    const locations = await db.warehouseLocation.count({ where: { id: { in: items.map(item => item.locationId) }, warehouseId } })
+    if (locations !== new Set(items.map(item => item.locationId)).size) return NextResponse.json({ error: "Localização inválida." }, { status: 400 })
     const itemsData = items.map(item => {
       const quantity = Number(item.quantity) || 0
       const unitCost = Number(item.unitCost) || 0

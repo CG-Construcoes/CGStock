@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { Card, CardContent } from "@/components/ui/card"
 import { Smartphone, ChevronRight } from "lucide-react"
 import Link from "next/link"
@@ -24,6 +25,7 @@ export default async function CollectorHomePage() {
   const activeInventories = await db.inventory.findMany({
     where: {
       status: 'IN_PROGRESS',
+      ...await warehouseIdFilter(session.userId),
       // Se não for admin/gestor, filtra apenas os inventários onde o usuário é operador
       ...(isAdminOrManager ? {} : {
         operators: {

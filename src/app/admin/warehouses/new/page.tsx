@@ -1,5 +1,6 @@
 import { BackButton } from "@/components/ui/back-button"
-import { requirePermissionPage } from "@/lib/permissions"
+import { requirePageUser } from "@/lib/dal"
+import { redirect } from "next/navigation"
 import { NewWarehouseForm } from "./new-warehouse-form"
 
 export const metadata = {
@@ -7,7 +8,8 @@ export const metadata = {
 }
 
 export default async function NewWarehousePage() {
-  await requirePermissionPage('CONFIG_MANAGE')
+  const actor = await requirePageUser()
+  if (!actor.ctx.roleNames.includes('ADMIN')) redirect('/unauthorized')
   return (
     <div className="space-y-6 max-w-2xl mx-auto pb-12">
       <div className="flex items-center gap-4">

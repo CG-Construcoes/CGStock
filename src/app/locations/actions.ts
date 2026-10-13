@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { requirePermission } from "@/lib/permissions"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function createLocationAction(formData: FormData) {
   const session = await getSession()
@@ -11,6 +12,7 @@ export async function createLocationAction(formData: FormData) {
   await requirePermission('CONFIG_MANAGE')
 
   const warehouseId = formData.get("warehouseId") as string
+  await assertWarehouseAccess(warehouseId, session.userId)
   const code = formData.get("code") as string
   const name = formData.get("name") as string
   const description = formData.get("description") as string || null
@@ -68,6 +70,7 @@ export async function updateLocationAction(formData: FormData) {
 
   const id = formData.get("id") as string
   const warehouseId = formData.get("warehouseId") as string
+  await assertWarehouseAccess(warehouseId, session.userId)
   const code = formData.get("code") as string
   const name = formData.get("name") as string
   const description = formData.get("description") as string || null
@@ -78,6 +81,9 @@ export async function updateLocationAction(formData: FormData) {
     redirect(`/locations/${id}/edit?error=Dados inválidos.`)
   }
 
+  const original = await db.warehouseLocation.findUnique({ where: { id } })
+  if (!original) throw new Error("Localização não encontrada.")
+  await assertWarehouseAccess(original.warehouseId, session.userId)
   const existing = await db.warehouseLocation.findFirst({
     where: { code, id: { not: id } }
   })

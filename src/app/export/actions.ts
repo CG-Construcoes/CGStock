@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/permissions"
 import { format } from "date-fns"
 import { getMovementTypeLabel } from "@/lib/movement-labels"
 import { Prisma } from "@prisma/client"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export async function exportProductsData() {
   await requirePermission('REPORT_EXPORT')
@@ -26,6 +27,7 @@ export async function exportProductsData() {
 export async function exportStockData() {
   await requirePermission('REPORT_EXPORT')
   const stock = await db.stock.findMany({
+    where: await warehouseIdFilter(),
     include: { product: true, warehouse: true, location: true },
     orderBy: { product: { name: 'asc' } }
   })
@@ -40,7 +42,7 @@ export async function exportStockData() {
 
 export async function exportMovementsData(startDate?: Date, endDate?: Date) {
   await requirePermission('REPORT_EXPORT')
-  const whereClause: Prisma.StockMovementWhereInput = {}
+  const whereClause: Prisma.StockMovementWhereInput = { ...await warehouseIdFilter() }
   if (startDate && endDate) {
     whereClause.createdAt = { gte: new Date(startDate), lte: new Date(endDate) }
   }
@@ -67,6 +69,7 @@ export async function exportMovementsData(startDate?: Date, endDate?: Date) {
 export async function getInventoriesList() {
   await requirePermission('REPORT_EXPORT')
   return db.inventory.findMany({
+    where: await warehouseIdFilter(),
     orderBy: { createdAt: 'desc' },
     take: 20
   })
@@ -74,8 +77,8 @@ export async function getInventoriesList() {
 
 export async function exportInventoryData(inventoryId: string) {
   await requirePermission('REPORT_EXPORT')
-  const inv = await db.inventory.findUnique({
-    where: { id: inventoryId },
+  const inv = await db.inventory.findFirst({
+    where: { id: inventoryId, ...await warehouseIdFilter() },
     include: {
       locations: {
         include: {

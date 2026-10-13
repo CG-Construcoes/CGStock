@@ -1,10 +1,12 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import RequestForm from "./request-form"
 import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewRequestPage() {
   await requirePermissionPage('REQUEST_CREATE')
-  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE' } })
+  const scope = await warehouseScopeIds()
+  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } } })
   const products = await db.product.findMany({ 
     where: { status: 'ACTIVE' },
     include: { unit: true } 

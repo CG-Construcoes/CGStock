@@ -4,11 +4,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, MapPin, Box } from "lucide-react"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function LocationsPage() {
   await requirePermissionPage('CONFIG_MANAGE')
   const locations = await db.warehouseLocation.findMany({
+    where: await warehouseIdFilter(),
     include: { warehouse: true, _count: { select: { products: true } } },
     orderBy: { code: 'asc' }
   })

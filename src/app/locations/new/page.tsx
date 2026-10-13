@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/select"
 import {  Save } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter, warehouseScopeIds } from "@/lib/dal"
 import { createLocationAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { requirePermissionPage } from "@/lib/permissions"
@@ -16,8 +17,9 @@ export default async function NewLocationPage({
 }) {
   await requirePermissionPage('CONFIG_MANAGE')
   const resolvedSearchParams = await searchParams;
-  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE' } })
-  const parentLocations = await db.warehouseLocation.findMany({ where: { status: 'ACTIVE' }, include: { warehouse: true } })
+  const scope = await warehouseScopeIds()
+  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } } })
+  const parentLocations = await db.warehouseLocation.findMany({ where: { status: 'ACTIVE', ...await warehouseIdFilter() }, include: { warehouse: true } })
 
   return (
     <div className="space-y-6 max-w-3xl">

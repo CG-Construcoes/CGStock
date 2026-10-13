@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Filter, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { SearchInput } from "@/components/ui/search-input"
 import { formatCurrency } from "@/lib/utils"
 import { requirePermissionPage } from "@/lib/permissions"
@@ -13,7 +14,7 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const receipts = await db.stockReceipt.findMany({
-    where: q ? { OR: [{ documentNumber: { contains: q, mode: 'insensitive' } }, { supplier: { name: { contains: q, mode: 'insensitive' } } }] } : undefined,
+    where: { ...await warehouseIdFilter(), ...(q ? { OR: [{ documentNumber: { contains: q, mode: 'insensitive' } }, { supplier: { name: { contains: q, mode: 'insensitive' } } }] } : {}) },
     include: {
       supplier: true,
       warehouse: true,

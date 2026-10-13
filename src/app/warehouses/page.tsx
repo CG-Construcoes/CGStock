@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { requireAnyPermissionPage } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
 import Link from "next/link"
@@ -14,7 +15,9 @@ export default async function WarehousesPage() {
   const session = await getValidatedSession()
   const isAdmin = session?.roles?.includes('ADMIN')
 
+  const scope = await warehouseScopeIds(session!.userId)
   const warehouses = await db.warehouse.findMany({
+    where: scope === null ? undefined : { id: { in: scope } },
     orderBy: { name: 'asc' },
     include: { _count: { select: { locations: true } } }
   })

@@ -1,6 +1,7 @@
 import { db } from "./db"
 import { Prisma } from "@prisma/client"
 import { logAudit } from "./audit"
+import { assertWarehouseAccess } from "./dal"
 
 export type StockMovementType = 'ENTRY' | 'EXIT' | 'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'RETURN'
 
@@ -25,6 +26,7 @@ export async function createStockMovement(
   tx?: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
 ) {
   const prisma = tx || db
+  await assertWarehouseAccess(params.warehouseId, params.performedById)
 
   if (params.quantity === 0) {
     throw new Error("Quantidade da movimentação não pode ser zero.")
@@ -156,6 +158,7 @@ export async function deliverMaterialRequest(requestId: string, userId: string, 
     })
 
     if (!request) throw new Error("Requisição não encontrada.")
+    await assertWarehouseAccess(request.warehouseId, userId)
     if (request.status === 'FULFILLED') throw new Error("A requisição já foi totalmente atendida.")
 
     for (const delivery of deliveredItems) {
@@ -228,6 +231,7 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
     })
 
     if (!inv) throw new Error("Inventário não encontrado.")
+    await assertWarehouseAccess(inv.warehouseId, userId)
     
     // Deleta divergências anteriores para recalcular
     await tx.inventoryDivergence.deleteMany({ where: { inventoryId } })
@@ -308,6 +312,7 @@ export async function executeDivergenceAdjustment(divergenceId: string, userId: 
     })
 
     if (!div) throw new Error("Divergência não encontrada.")
+    await assertWarehouseAccess(div.inventory.warehouseId, userId)
     if (div.status !== 'APPROVED') throw new Error("A divergência precisa estar aprovada para ser ajustada.")
 
     const diffNum = Number(div.difference)
@@ -350,9 +355,12 @@ export async function receiveMaterialReturn(returnId: string, userId: string, it
     })
 
     if (!ret) throw new Error("Devolução não encontrada.")
+    await assertWarehouseAccess(ret.warehouseId, userId)
     if (ret.status !== 'DRAFT') throw new Error("Esta devolução já foi recebida ou cancelada.")
 
     for (const item of items) {
+      const location = await tx.warehouseLocation.findUnique({ where: { id: item.locationId } })
+      if (!location || location.warehouseId !== ret.warehouseId) throw new Error("Localização inválida para a devolução.")
       await tx.materialReturnItem.create({
         data: {
           returnId,
@@ -411,6 +419,8 @@ export async function executeStockTransfer(
     })
 
     if (!transfer) throw new Error("Transferência não encontrada.")
+    await assertWarehouseAccess(transfer.sourceWarehouseId, userId)
+    await assertWarehouseAccess(transfer.destinationWarehouseId, userId)
     if (transfer.status !== 'DRAFT') throw new Error("Esta transferência já foi executada ou cancelada.")
 
     for (const item of items) {

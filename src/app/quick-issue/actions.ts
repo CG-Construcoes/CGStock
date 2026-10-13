@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getAccessibleWorksiteIds } from "@/lib/context"
+import { assertWarehouseAccess, warehouseScopeIds } from "@/lib/dal"
 import { revalidatePath } from "next/cache"
 import { createWithUniqueNumber } from "@/lib/sequential"
 import { requireActionPermission } from "@/lib/action-guard"
@@ -44,8 +44,9 @@ export async function verifyEmployeeQR(qrToken: string) {
   }
   
   // 3. Pegar um almoxarifado padrão dessa obra para registrar a saída
+  const scope = await warehouseScopeIds(session.userId)
   const warehouse = await db.warehouse.findFirst({
-    where: { worksiteId: worksite.id, status: "ACTIVE" }
+    where: { worksiteId: worksite.id, status: "ACTIVE", id: { in: scope ?? undefined } }
   })
   
   if (!warehouse) {
@@ -70,7 +71,7 @@ export async function verifyEmployeeQR(qrToken: string) {
   }
 }
 
-export async function getProductStockForQuickIssue(worksiteId: string, productCode: string) {
+export async function getProductStockForQuickIssue(worksiteId: string, warehouseId: string, productCode: string) {
   let session
   try {
     session = await requireActionPermission('STOCK_EXIT')
@@ -79,9 +80,12 @@ export async function getProductStockForQuickIssue(worksiteId: string, productCo
   }
 
   // Verificar se o almoxarife/operador logado tem acesso à obra (no backend!)
-  const allowedWorksites = await getAccessibleWorksiteIds()
-  if (!allowedWorksites.includes(worksiteId)) {
-    return { error: "Você não tem permissão para operar nesta obra." }
+  const warehouse = await db.warehouse.findFirst({ where: { id: warehouseId, worksiteId, status: 'ACTIVE' } })
+  if (!warehouse) return { error: "Almoxarifado inválido para esta obra." }
+  try {
+    await assertWarehouseAccess(warehouseId, session.userId)
+  } catch {
+    return { error: "Você não tem acesso a este almoxarifado." }
   }
 
   // Buscar o produto primeiro globalmente
@@ -99,7 +103,7 @@ export async function getProductStockForQuickIssue(worksiteId: string, productCo
   const stocks = await db.stock.findMany({
     where: {
       productId: product.id,
-      warehouse: { worksiteId }
+      warehouseId
     },
     include: {
       location: true
@@ -146,10 +150,15 @@ export async function confirmQuickIssue(payload: {
   } catch {
     return { error: "Não autorizado." }
   }
-  const allowedWorksites = await getAccessibleWorksiteIds()
-  if (!allowedWorksites.includes(payload.worksiteId)) {
-    return { error: "Você não tem permissão para registrar saídas nesta obra." }
+  const warehouse = await db.warehouse.findFirst({ where: { id: payload.warehouseId, worksiteId: payload.worksiteId, status: 'ACTIVE' } })
+  if (!warehouse) return { error: "Almoxarifado inválido para esta obra." }
+  try {
+    await assertWarehouseAccess(payload.warehouseId, session.userId)
+  } catch {
+    return { error: "Você não tem acesso a este almoxarifado." }
   }
+  const employee = await db.user.findFirst({ where: { id: payload.employeeId, status: 'ACTIVE', qrStatus: 'ACTIVE', worksiteAccesses: { some: { worksiteId: payload.worksiteId } } } })
+  if (!employee) return { error: "Funcionário não autorizado nesta obra." }
   
   if (!payload.items || payload.items.length === 0) {
     return { error: "Nenhum item informado." }
@@ -182,7 +191,7 @@ export async function confirmQuickIssue(payload: {
         const stocks = await tx.stock.findMany({
           where: {
             productId: item.productId,
-            warehouse: { worksiteId: payload.worksiteId },
+            warehouseId: payload.warehouseId,
             quantity: { gt: 0 }
           },
           orderBy: { quantity: 'desc' }

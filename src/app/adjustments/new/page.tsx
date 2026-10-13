@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { requirePermissionPage } from "@/lib/permissions"
 import { AdjustmentClient } from "./client"
 
@@ -9,8 +10,9 @@ export const metadata = {
 export default async function NewAdjustmentPage() {
   await requirePermissionPage('STOCK_ENTRY')
 
+  const scope = await warehouseScopeIds()
   const warehouses = await db.warehouse.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
     orderBy: { name: 'asc' },
     include: { locations: true }
   })

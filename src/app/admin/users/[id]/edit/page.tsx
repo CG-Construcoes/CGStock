@@ -3,10 +3,11 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { BackButton } from "@/components/ui/back-button"
 import { EditUserForm } from "./edit-user-form"
-import { requirePermissionPage } from "@/lib/permissions"
+import { requirePageUser } from "@/lib/dal"
 
 export default async function EditUserPage(props: { params: Promise<{ id: string }> }) {
-  await requirePermissionPage('USER_MANAGE')
+  const actor = await requirePageUser()
+  if (!actor.ctx.roleNames.includes('ADMIN')) redirect('/unauthorized')
   const params = await props.params;
   const user = await db.user.findUnique({
     where: { id: params.id },
@@ -32,9 +33,8 @@ export default async function EditUserPage(props: { params: Promise<{ id: string
   })
 
   const warehouses = await db.warehouse.findMany({
-    where: { status: 'ACTIVE' },
     orderBy: { name: 'asc' },
-    select: { id: true, name: true, code: true }
+    select: { id: true, name: true, code: true, status: true }
   })
 
   return (
@@ -51,7 +51,7 @@ export default async function EditUserPage(props: { params: Promise<{ id: string
         <CardHeader>
           <CardTitle>Dados do Usuário</CardTitle>
           <CardDescription>
-            Edite as informações do usuário, perfis e acesso a obras.
+            Edite as informações do usuário, perfis, obras e almoxarifados.
           </CardDescription>
         </CardHeader>
         <CardContent>

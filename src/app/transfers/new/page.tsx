@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,8 +18,9 @@ export default async function NewTransferPage({
   await requirePermissionPage('STOCK_TRANSFER')
   const resolvedParams = await searchParams
   const error = resolvedParams?.error
+  const scope = await warehouseScopeIds()
   const warehouses = await db.warehouse.findMany({ 
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
     include: { locations: true }
   })
   

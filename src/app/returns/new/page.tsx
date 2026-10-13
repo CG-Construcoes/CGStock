@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter, warehouseScopeIds } from "@/lib/dal"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,9 +13,10 @@ import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewReturnPage() {
   await requirePermissionPage('STOCK_ENTRY')
+  const scope = await warehouseScopeIds()
   const [warehouses, products, requests] = await Promise.all([
     db.warehouse.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
       include: { locations: true }
     }),
     db.product.findMany({
@@ -22,7 +24,7 @@ export default async function NewReturnPage() {
       include: { unit: true }
     }),
     db.materialRequest.findMany({
-      where: { status: { in: ['FULFILLED', 'PARTIALLY_FULFILLED'] } }
+      where: { status: { in: ['FULFILLED', 'PARTIALLY_FULFILLED'] }, ...await warehouseIdFilter() }
     })
   ])
 

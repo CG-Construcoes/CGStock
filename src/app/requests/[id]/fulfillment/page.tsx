@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import FulfillmentForm from "./fulfillment-form"
 import { requirePermissionPage } from "@/lib/permissions"
@@ -7,8 +8,8 @@ export default async function FulfillmentPage({ params }: { params: Promise<{ id
   await requirePermissionPage('REQUEST_FULFILL')
   const { id } = await params
   
-  const req = await db.materialRequest.findUnique({
-    where: { id },
+  const req = await db.materialRequest.findFirst({
+    where: { id, ...await warehouseIdFilter() },
     include: {
       requester: true,
       warehouse: true,
@@ -17,6 +18,7 @@ export default async function FulfillmentPage({ params }: { params: Promise<{ id
           product: { 
             include: { 
               stocks: {
+                where: await warehouseIdFilter(),
                 include: { location: true }
               } 
             } 

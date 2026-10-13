@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Save } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { updateProductAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { notFound } from "next/navigation"
@@ -22,7 +23,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
   const categories = await db.productCategory.findMany({ where: { status: 'ACTIVE' } })
   const units = await db.productUnit.findMany({ where: { status: 'ACTIVE' } })
-  const locations = await db.warehouseLocation.findMany({ where: { status: 'ACTIVE' }, include: { warehouse: true } })
+  const locations = await db.warehouseLocation.findMany({ where: { status: 'ACTIVE', ...await warehouseIdFilter() }, include: { warehouse: true } })
 
   return (
     <div className="space-y-6 max-w-4xl">

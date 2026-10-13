@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Filter, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { SearchInput } from "@/components/ui/search-input"
 import { requireAnyPermissionPage } from "@/lib/permissions"
 
@@ -12,7 +13,7 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const requests = await db.materialRequest.findMany({
-    where: q ? { OR: [{ requestNumber: { contains: q, mode: 'insensitive' } }, { requester: { name: { contains: q, mode: 'insensitive' } } }] } : undefined,
+    where: { ...await warehouseIdFilter(), ...(q ? { OR: [{ requestNumber: { contains: q, mode: 'insensitive' } }, { requester: { name: { contains: q, mode: 'insensitive' } } }] } : {}) },
     include: {
       requester: true,
       warehouse: true,

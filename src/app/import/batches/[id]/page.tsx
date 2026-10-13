@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { requirePermissionPage } from "@/lib/permissions"
 import { PreviewClient } from "./preview-client"
@@ -11,8 +12,9 @@ export default async function ImportPreviewPage({ params }: { params: Promise<{ 
   await requirePermissionPage('CONFIG_MANAGE')
   const resolvedParams = await params
 
-  const batch = await db.importBatch.findUnique({
-    where: { id: resolvedParams.id },
+  const scope = await warehouseScopeIds()
+  const batch = await db.importBatch.findFirst({
+    where: { id: resolvedParams.id, warehouseId: { in: scope ?? undefined } },
     include: {
       warehouse: true,
       rows: true,

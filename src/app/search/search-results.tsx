@@ -7,7 +7,8 @@ import { getValidatedSession } from "@/lib/auth"
 
 export async function SearchResults({ query }: { query: string }) {
   const session = await getValidatedSession()
-  const wFilter = session ? await warehouseIdFilter(session.userId) : undefined
+  if (!session) return null
+  const wFilter = await warehouseIdFilter(session.userId)
 
   const [products, requests, movements, locations] = await Promise.all([
     db.product.findMany({

@@ -5,6 +5,7 @@ import { getValidatedSession } from "@/lib/auth"
 import { requirePermission } from "@/lib/permissions"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function createAdjustmentAction(data: {
   warehouseId: string
@@ -17,6 +18,7 @@ export async function createAdjustmentAction(data: {
   const session = await getValidatedSession()
   if (!session) return { success: false, error: "Não autorizado" }
   await requirePermission('STOCK_ENTRY') // Assuming adjustment requires ENTRY permission or specific ADJUST permission
+  await assertWarehouseAccess(data.warehouseId, session.userId)
 
   if (data.quantity <= 0) {
     return { success: false, error: "Quantidade deve ser maior que zero." }

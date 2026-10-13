@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {  ArrowRightLeft, Plus } from "lucide-react"
@@ -9,7 +10,9 @@ import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function TransfersPage() {
   await requirePermissionPage('STOCK_TRANSFER')
+  const scope = await warehouseScopeIds()
   const transfers = await db.stockTransfer.findMany({
+    where: scope === null ? undefined : { sourceWarehouseId: { in: scope }, destinationWarehouseId: { in: scope } },
     orderBy: { createdAt: 'desc' },
     include: {
       sourceWarehouse: true,

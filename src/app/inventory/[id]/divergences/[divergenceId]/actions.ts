@@ -5,10 +5,20 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { executeDivergenceAdjustment } from "@/lib/stock"
 import { requireActionPermission } from "@/lib/action-guard"
+import { warehouseIdFilter } from "@/lib/dal"
+
+async function assertDivergenceAccess(divergenceId: string, inventoryId: string) {
+  const divergence = await db.inventoryDivergence.findFirst({
+    where: { id: divergenceId, inventory: { id: inventoryId, ...await warehouseIdFilter() } },
+    select: { id: true }
+  })
+  if (!divergence) throw new Error("Divergência não encontrada.")
+}
 
 export async function reviewDivergenceAction(divergenceId: string, inventoryId: string, formData: FormData) {
   const session = await requireActionPermission('INVENTORY_REVIEW')
 
+  await assertDivergenceAccess(divergenceId, inventoryId)
   const notes = formData.get("notes") as string
   
   await db.inventoryDivergence.update({
@@ -28,6 +38,7 @@ export async function reviewDivergenceAction(divergenceId: string, inventoryId: 
 export async function approveDivergenceAction(divergenceId: string, inventoryId: string, formData: FormData) {
   const session = await requireActionPermission('INVENTORY_APPROVE')
 
+  await assertDivergenceAccess(divergenceId, inventoryId)
   const notes = formData.get("notes") as string
   
   await db.inventoryDivergence.update({
@@ -51,6 +62,7 @@ export async function approveDivergenceAction(divergenceId: string, inventoryId:
 export async function rejectDivergenceAction(divergenceId: string, inventoryId: string, formData: FormData) {
   const session = await requireActionPermission('INVENTORY_APPROVE')
 
+  await assertDivergenceAccess(divergenceId, inventoryId)
   const reason = formData.get("reason") as string
   if (!reason) throw new Error("Motivo da rejeição é obrigatório.")
   

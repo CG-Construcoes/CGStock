@@ -20,6 +20,7 @@ model User {
   temporaryPasswordExpiresAt DateTime?
   employeeCode         String?               @unique
   loginEnabled         Boolean               @default(true)
+  allWarehouseAccess   Boolean               @default(false)
 
   
   movementsPerformed   StockMovement[]

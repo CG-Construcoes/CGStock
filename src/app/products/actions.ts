@@ -4,6 +4,15 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
 import { requirePermission } from "@/lib/permissions"
+import { assertWarehouseAccess } from "@/lib/dal"
+
+async function assertProductWarehouseAccess(productId: string, userId: string) {
+  const product = await db.product.findUnique({ where: { id: productId }, select: { defaultLocation: { select: { warehouseId: true } }, stocks: { select: { warehouseId: true } } } })
+  if (!product) throw new Error("Produto não encontrado.")
+  const warehouseIds = new Set(product.stocks.map(stock => stock.warehouseId))
+  if (product.defaultLocation) warehouseIds.add(product.defaultLocation.warehouseId)
+  for (const warehouseId of warehouseIds) await assertWarehouseAccess(warehouseId, userId)
+}
 
 export async function createProductAction(formData: FormData) {
   const session = await getSession()
@@ -21,6 +30,11 @@ export async function createProductAction(formData: FormData) {
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
+  if (defaultLocationId) {
+    const location = await db.warehouseLocation.findUnique({ where: { id: defaultLocationId } })
+    if (!location) throw new Error("Localização inválida.")
+    await assertWarehouseAccess(location.warehouseId, session.userId)
+  }
 
   if (!code && categoryId) {
     const category = await db.productCategory.findUnique({ where: { id: categoryId } })
@@ -88,6 +102,7 @@ export async function updateProductAction(formData: FormData) {
   await requirePermission('PRODUCT_UPDATE')
 
   const id = formData.get("id") as string
+  await assertProductWarehouseAccess(id, session.userId)
   const code = formData.get("code") as string
   const barcode = formData.get("barcode") as string || null
   const name = formData.get("name") as string
@@ -99,6 +114,11 @@ export async function updateProductAction(formData: FormData) {
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
+  if (defaultLocationId) {
+    const location = await db.warehouseLocation.findUnique({ where: { id: defaultLocationId } })
+    if (!location) throw new Error("Localização inválida.")
+    await assertWarehouseAccess(location.warehouseId, session.userId)
+  }
   const status = (formData.get("status") as string) || "ACTIVE"
 
   if (!id || !code || !name || !categoryId || !unitId) {
@@ -141,6 +161,7 @@ export async function deleteProduct(id: string) {
   const session = await getSession()
   if (!session) throw new Error("Unauthorized")
   await requirePermission('PRODUCT_DELETE')
+  await assertProductWarehouseAccess(id, session.userId)
 
   try {
     await db.product.delete({

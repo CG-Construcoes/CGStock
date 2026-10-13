@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter, warehouseScopeIds } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +12,8 @@ import { requirePermissionPage } from "@/lib/permissions"
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('PRODUCT_VIEW')
   const { id } = await params
+  const wFilter = await warehouseIdFilter()
+  const scope = await warehouseScopeIds()
   
   const product = await db.product.findUnique({
     where: { id },
@@ -18,8 +21,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       category: true,
       unit: true,
       defaultLocation: { include: { warehouse: true } },
-      stocks: { include: { location: { include: { warehouse: true } } } },
+      stocks: { where: wFilter, include: { location: { include: { warehouse: true } } } },
       movements: {
+        where: wFilter,
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: { location: true, performedBy: true }
@@ -85,7 +89,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Localização Padrão</p>
-                <p className="font-medium">{product.defaultLocation ? `${product.defaultLocation.warehouse.name} - ${product.defaultLocation.code}` : '-'}</p>
+                <p className="font-medium">{product.defaultLocation && (scope === null || scope.includes(product.defaultLocation.warehouseId)) ? `${product.defaultLocation.warehouse.name} - ${product.defaultLocation.code}` : '-'}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Estoque Mín / Máx</p>

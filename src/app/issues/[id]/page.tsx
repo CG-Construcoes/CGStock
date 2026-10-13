@@ -40,6 +40,7 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
     where: {
       referenceType: 'MATERIAL_REQUEST',
       referenceId: req.id,
+      warehouseId: req.warehouseId,
       type: 'EXIT'
     },
     include: {

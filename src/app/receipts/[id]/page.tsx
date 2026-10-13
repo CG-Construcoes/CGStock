@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,8 +17,8 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
 
   const { id } = await params
 
-  const receipt = await db.stockReceipt.findUnique({
-    where: { id },
+  const receipt = await db.stockReceipt.findFirst({
+    where: { id, ...await warehouseIdFilter() },
     include: {
       supplier: true,
       warehouse: true,

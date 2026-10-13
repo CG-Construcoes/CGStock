@@ -7,6 +7,7 @@ import { db } from "@/lib/db"
 import { ProductActions } from "./product-actions"
 import { cn } from "@/lib/utils"
 import { Prisma } from "@prisma/client"
+import { warehouseIdFilter } from "@/lib/dal"
 
 import { requirePermissionPage, hasPermission } from "@/lib/permissions"
 
@@ -36,6 +37,7 @@ export default async function ProductsPage({
   if (categoryId) where.categoryId = categoryId
   if (status) where.status = status
 
+  const wFilter = await warehouseIdFilter()
   const page = parseInt(resolvedSearchParams.page as string) || 1
   const pageSize = 50
 
@@ -45,8 +47,7 @@ export default async function ProductsPage({
       include: {
         category: true,
         unit: true,
-        defaultLocation: { include: { warehouse: true } },
-        stocks: true
+        stocks: { where: wFilter }
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
@@ -59,7 +60,7 @@ export default async function ProductsPage({
       where,
       select: {
         averageCost: true,
-        stocks: { select: { quantity: true } }
+        stocks: { where: wFilter, select: { quantity: true } }
       }
     })
   ])

@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import { executeStockTransfer } from "@/lib/stock"
 import { requireActionPermission } from "@/lib/action-guard"
 import { createWithUniqueNumber } from "@/lib/sequential"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function createTransferAction(formData: FormData) {
   const session = await requireActionPermission('STOCK_TRANSFER')
@@ -28,6 +29,8 @@ export async function createTransferAction(formData: FormData) {
   ])
 
   if (!sourceLoc || !destLoc) throw new Error("Localizações inválidas.")
+  await assertWarehouseAccess(sourceLoc.warehouseId, session.userId)
+  await assertWarehouseAccess(destLoc.warehouseId, session.userId)
 
   const trf = await createWithUniqueNumber(
     async (attempt) => {

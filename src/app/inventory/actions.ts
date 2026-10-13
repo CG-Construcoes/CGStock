@@ -6,12 +6,14 @@ import { redirect } from "next/navigation"
 import { consolidateInventory } from "@/lib/stock"
 import { requireActionPermission } from "@/lib/action-guard"
 import { createWithUniqueNumber } from "@/lib/sequential"
+import { assertWarehouseAccess, warehouseIdFilter } from "@/lib/dal"
 
 export async function createInventoryAction(formData: FormData) {
   const session = await requireActionPermission('INVENTORY_CREATE')
 
   const name = formData.get("name") as string
   const warehouseId = formData.get("warehouseId") as string
+  await assertWarehouseAccess(warehouseId, session.userId)
   
   const locationKeys = Array.from(formData.keys()).filter(k => k.startsWith('loc_') && formData.get(k) === 'on')
   const operatorKeys = Array.from(formData.keys()).filter(k => k.startsWith('op_') && formData.get(k) === 'on')
@@ -20,6 +22,8 @@ export async function createInventoryAction(formData: FormData) {
   const operatorIds = operatorKeys.map(k => k.replace('op_', ''))
 
   if (locationIds.length === 0) throw new Error("Selecione pelo menos um local para contagem.")
+  const validLocations = await db.warehouseLocation.count({ where: { id: { in: locationIds }, warehouseId } })
+  if (validLocations !== new Set(locationIds).size || validLocations !== locationIds.length) throw new Error("Localização inválida para este almoxarifado.")
   if (operatorIds.length === 0) throw new Error("Selecione pelo menos um operador.")
 
   const currentYear = new Date().getFullYear()
@@ -78,7 +82,7 @@ export async function deleteInventoryAction(formData: FormData) {
   await requireActionPermission('INVENTORY_CREATE')
 
   const inventoryId = formData.get("id") as string
-  const inv = await db.inventory.findUnique({ where: { id: inventoryId }, select: { status: true } })
+  const inv = await db.inventory.findFirst({ where: { id: inventoryId, ...await warehouseIdFilter() }, select: { status: true } })
   if (!inv) throw new Error("Inventário não encontrado.")
   if (inv.status === 'COMPLETED') {
     throw new Error("Inventários concluídos não podem ser excluídos.")
@@ -93,6 +97,8 @@ export async function concludeInventoryAction(formData: FormData) {
   await requireActionPermission('INVENTORY_APPROVE')
 
   const inventoryId = formData.get("id") as string
+  const inv = await db.inventory.findFirst({ where: { id: inventoryId, ...await warehouseIdFilter() } })
+  if (!inv) throw new Error("Inventário não encontrado.")
   await db.inventory.update({
     where: { id: inventoryId },
     data: { status: 'COMPLETED' }

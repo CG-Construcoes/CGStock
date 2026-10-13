@@ -1,12 +1,13 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getValidatedSession } from "@/lib/auth"
+import { requireActionPermission } from "@/lib/action-guard"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function createImportBatchAction(warehouseId: string, rows: any[]) {
-  const session = await getValidatedSession()
-  if (!session) return { success: false, error: "Não autorizado" }
+  const session = await requireActionPermission('CONFIG_MANAGE')
 
+  await assertWarehouseAccess(warehouseId, session.userId)
   // Must have some valid permission to import? Using CONFIG_MANAGE
   // This might be checked at the page level, but doing a basic check is good.
 
@@ -39,8 +40,7 @@ import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 
 export async function executeImportBatchAction(batchId: string) {
-  const session = await getValidatedSession()
-  if (!session) return { success: false, error: "Não autorizado" }
+  const session = await requireActionPermission('CONFIG_MANAGE')
 
   const batch = await db.importBatch.findUnique({
     where: { id: batchId },
@@ -48,6 +48,8 @@ export async function executeImportBatchAction(batchId: string) {
   })
 
   if (!batch) return { success: false, error: "Lote não encontrado." }
+  if (!batch.warehouseId) return { success: false, error: "Almoxarifado de destino não definido no lote." }
+  await assertWarehouseAccess(batch.warehouseId, session.userId)
   if (batch.status !== 'STAGING') return { success: false, error: "Lote já processado ou cancelado." }
   if (!batch.warehouseId) return { success: false, error: "Almoxarifado de destino não definido no lote." }
 

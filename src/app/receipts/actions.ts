@@ -5,12 +5,14 @@ import { redirect } from "next/navigation"
 import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 import { requireActionPermission } from "@/lib/action-guard"
+import { assertWarehouseAccess } from "@/lib/dal"
 
 export async function createReceiptAction(formData: FormData) {
   const session = await requireActionPermission('STOCK_ENTRY')
 
   const supplierId = formData.get("supplierId") as string
   const warehouseId = formData.get("warehouseId") as string
+  await assertWarehouseAccess(warehouseId, session.userId)
   const documentNumber = formData.get("documentNumber") as string || null
   const documentDateStr = formData.get("documentDate") as string || null
   
@@ -49,6 +51,8 @@ export async function createReceiptAction(formData: FormData) {
     if (itemsData.length === 0) {
       return { success: false, error: "no_valid_items" }
     }
+    const locations = await db.warehouseLocation.count({ where: { id: { in: itemsData.map(item => item.locationId) }, warehouseId } })
+    if (locations !== new Set(itemsData.map(item => item.locationId)).size) return { success: false, error: "invalid_location" }
 
     if (actionType === "DRAFT") {
       const receipt = await db.stockReceipt.create({
@@ -125,6 +129,7 @@ export async function confirmReceiptAction(formData: FormData) {
   })
 
   if (!receipt) throw new Error("Recebimento não encontrado")
+  await assertWarehouseAccess(receipt.warehouseId, session.userId)
   if (receipt.status !== "DRAFT") throw new Error("Apenas recebimentos em rascunho podem ser confirmados")
 
   try {

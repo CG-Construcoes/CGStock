@@ -4,13 +4,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Plus, Filter, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function SuppliersPage() {
   await requirePermissionPage('STOCK_ENTRY')
   const suppliers = await db.supplier.findMany({
     include: {
-      _count: { select: { receipts: true } }
+      _count: { select: { receipts: { where: await warehouseIdFilter() } } }
     },
     orderBy: { createdAt: 'desc' }
   })

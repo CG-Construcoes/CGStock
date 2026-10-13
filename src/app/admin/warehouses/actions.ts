@@ -3,11 +3,12 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-import { requireActionPermission } from "@/lib/action-guard"
+import { requireActionPermission, requireAdmin } from "@/lib/action-guard"
+import { assertWarehouseAccess } from "@/lib/dal"
 import { logAudit, logAuditStrict } from "@/lib/audit"
 
 export async function createWarehouseAction(formData: FormData) {
-  const session = await requireActionPermission('CONFIG_MANAGE')
+  const session = await requireAdmin()
 
   const name = (formData.get("name") as string)?.trim()
   const code = (formData.get("code") as string)?.trim().toUpperCase()
@@ -55,6 +56,7 @@ export async function updateWarehouseAction(formData: FormData) {
   const session = await requireActionPermission('CONFIG_MANAGE')
 
   const id = formData.get("id") as string
+  await assertWarehouseAccess(id, session.userId)
   const name = (formData.get("name") as string)?.trim()
   const code = (formData.get("code") as string)?.trim().toUpperCase()
   const description = (formData.get("description") as string)?.trim() || null
@@ -82,6 +84,7 @@ export async function deleteWarehouseAction(id: string, confirmationCode?: strin
     return { error: err?.message || "Sem permissão para excluir almoxarifado." }
   }
 
+  await assertWarehouseAccess(id, session.userId)
   const warehouse = await db.warehouse.findUnique({
     where: { id },
     include: {
@@ -295,6 +298,7 @@ export async function inactivateWarehouseAction(id: string) {
     return { error: err?.message || "Sem permissão para inativar almoxarifado." }
   }
 
+  await assertWarehouseAccess(id, session.userId)
   try {
     const updated = await db.$transaction(async (tx) => {
       const wh = await tx.warehouse.update({
@@ -336,6 +340,7 @@ export async function activateWarehouseAction(id: string) {
     return { error: err?.message || "Sem permissão para ativar almoxarifado." }
   }
 
+  await assertWarehouseAccess(id, session.userId)
   try {
     const updated = await db.$transaction(async (tx) => {
       const wh = await tx.warehouse.update({
@@ -384,6 +389,7 @@ export async function addLocationToWarehouseAction(data: {
   }
 
   const warehouseId = data.warehouseId
+  await assertWarehouseAccess(warehouseId, session.userId)
   const code = data.code?.trim().toUpperCase()
   const name = data.name?.trim()
   const description = data.description?.trim() || null
@@ -425,6 +431,7 @@ export async function createDefaultWarehouseLocationAction(warehouseId: string) 
     return { error: err?.message || "Sem permissão para gerenciar localizações." }
   }
 
+  await assertWarehouseAccess(warehouseId, session.userId)
   const warehouse = await db.warehouse.findUnique({ where: { id: warehouseId } })
   if (!warehouse) return { error: "Almoxarifado não encontrado." }
 
@@ -477,6 +484,8 @@ export async function deleteWarehouseLocationAction(locationId: string, warehous
   })
 
   if (!location) return { error: "Localização não encontrada." }
+  if (location.warehouseId !== warehouseId) return { error: "Localização inválida para este almoxarifado." }
+  await assertWarehouseAccess(location.warehouseId, session.userId)
 
   const activeStock = await db.stock.count({
     where: { locationId, quantity: { gt: 0 } }

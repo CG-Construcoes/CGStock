@@ -1,11 +1,13 @@
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import InventoryForm from "./inventory-form"
 import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function NewInventoryPage() {
   await requirePermissionPage('INVENTORY_CREATE')
+  const scope = await warehouseScopeIds()
   const warehouses = await db.warehouse.findMany({
-    where: { status: 'ACTIVE' },
+    where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
     include: { locations: true }
   })
   

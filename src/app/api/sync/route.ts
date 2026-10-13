@@ -4,6 +4,7 @@ import { getValidatedSession } from "@/lib/auth"
 import { hasPermission } from "@/lib/permissions"
 import { logAudit } from "@/lib/audit"
 import { Prisma } from "@prisma/client"
+import { warehouseIdFilter } from "@/lib/dal"
 
 const MAX_SYNC_ITEMS = 5000
 
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       }
 
       const inventory = await db.inventory.findUnique({
-        where: { id: inventoryId },
+        where: { id: inventoryId, ...await warehouseIdFilter(session.userId) },
         include: {
           operators: { where: { userId: session.userId } },
           locations: { where: { locationId } }

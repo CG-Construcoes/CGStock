@@ -85,7 +85,7 @@ export function QuickIssueClient() {
     }
 
     setIsScanningProduct(true)
-    const result = await getProductStockForQuickIssue(context.worksite.id, productQr)
+    const result = await getProductStockForQuickIssue(context.worksite.id, context.warehouse.id, productQr)
     setIsScanningProduct(false)
     
     if (result.error) {

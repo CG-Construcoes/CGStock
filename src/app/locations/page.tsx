@@ -4,11 +4,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Plus, Filter, Edit } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function LocationsPage() {
   await requirePermissionPage('STOCK_VIEW')
   const locations = await db.warehouseLocation.findMany({
+    where: await warehouseIdFilter(),
     orderBy: [{ warehouseId: 'asc' }, { code: 'asc' }],
     include: {
       warehouse: true,

@@ -28,7 +28,8 @@ export async function MovementsReportTemplate({
   const pageSize = 50
   
   const session = await getValidatedSession()
-  const wFilter = session ? await warehouseIdFilter(session.userId) : undefined
+  if (!session) return null
+  const wFilter = await warehouseIdFilter(session.userId)
   
   const whereClause: Prisma.StockMovementWhereInput = {
     ...(typeFilter ? { type: typeFilter } : {}),

@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest"
+vi.mock("@/lib/dal", () => ({ assertWarehouseAccess: vi.fn() }))
+import { assertWarehouseAccess } from "@/lib/dal"
 import { createStockMovement } from "@/lib/stock"
 
 const tx = {
@@ -31,6 +33,12 @@ describe("createStockMovement", () => {
     tx.warehouse.findUnique.mockResolvedValue({ id: "wh-1" })
     tx.warehouseLocation.findUnique.mockResolvedValue({ id: "loc-1", warehouseId: "wh-1", code: "A01" })
     tx.stockMovement.create.mockResolvedValue({ id: "mov-1" })
+  })
+
+  it("recusa movimentação no almoxarifado não autorizado antes de gravar", async () => {
+    vi.mocked(assertWarehouseAccess).mockRejectedValueOnce(new Error("Não autorizado"))
+    await expect(createStockMovement({ ...baseParams, type: "EXIT" }, tx)).rejects.toThrow("Não autorizado")
+    expect(tx.stockMovement.create).not.toHaveBeenCalled()
   })
 
   it("rejeita quantidade zero", async () => {

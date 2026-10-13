@@ -20,6 +20,14 @@ export async function createUserAction(prevState: { error?: string } | null, for
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const roleIds = formData.getAll("roleIds") as string[]
+  const accessMode = String(formData.get("warehouseAccessMode"))
+  const warehouseIds = [...new Set(formData.getAll("warehouseIds") as string[])]
+  if (!['NONE', 'SELECTED', 'ALL'].includes(String(accessMode))) return { error: "Selecione um tipo de acesso aos almoxarifados." }
+  if (accessMode === 'SELECTED') {
+    if (!warehouseIds.length) return { error: "Selecione ao menos um almoxarifado." }
+    const count = await db.warehouse.count({ where: { id: { in: warehouseIds }, status: 'ACTIVE' } })
+    if (count !== warehouseIds.length) return { error: "Almoxarifado inválido ou inativo." }
+  }
 
   if (!name || !email || !password || roleIds.length === 0) {
     return { error: "Por favor, preencha todos os campos e selecione pelo menos um perfil." }
@@ -49,6 +57,8 @@ export async function createUserAction(prevState: { error?: string } | null, for
             connect: roleIds.map(id => ({ id }))
           },
           status: "ACTIVE",
+          allWarehouseAccess: accessMode === 'ALL',
+          warehouseAccesses: accessMode === 'SELECTED' ? { create: warehouseIds.map(warehouseId => ({ warehouseId, grantedById: session.userId })) } : undefined,
           mustChangePassword: formData.get("mustChangePassword") === "true"
         }
       })
@@ -57,6 +67,8 @@ export async function createUserAction(prevState: { error?: string } | null, for
         name: user.name,
         email: user.email,
         roleIds,
+        warehouseAccessMode: accessMode,
+        warehouseIds: accessMode === 'SELECTED' ? warehouseIds : undefined,
         mustChangePassword: user.mustChangePassword
       }, session.userId, tx)
     })

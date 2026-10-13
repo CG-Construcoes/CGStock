@@ -1,14 +1,15 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createUserAction } from "./actions"
 import { AlertCircle, Loader2 } from "lucide-react"
 
-export function UserForm({ roles }: { roles: { id: string, name: string }[] }) {
+export function UserForm({ roles, warehouses }: { roles: { id: string, name: string }[], warehouses: { id: string, name: string, code: string }[] }) {
   const [state, action, isPending] = useActionState(createUserAction, null)
+  const [accessMode, setAccessMode] = useState('NONE')
 
   return (
     <form action={action} className="space-y-6">
@@ -96,6 +97,26 @@ export function UserForm({ roles }: { roles: { id: string, name: string }[] }) {
         <p className="text-xs text-muted-foreground mt-1">
           Selecione um ou mais perfis. Eles definem os acessos deste usuário no sistema e no coletor.
         </p>
+      </div>
+
+      <div className="space-y-3">
+        <Label>Almoxarifados Autorizados</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Tipo de acesso aos almoxarifados">
+          {([['NONE', 'Nenhum'], ['SELECTED', 'Selecionados'], ['ALL', 'Todos, inclusive futuros']] as const).map(([value, label]) => (
+            <label key={value} className="flex items-center gap-2 rounded-md border border-border p-3 text-sm cursor-pointer">
+              <input type="radio" name="warehouseAccessMode" value={value} checked={accessMode === value} onChange={() => setAccessMode(value)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-md border border-border bg-muted/30 p-4">
+          {warehouses.map(wh => (
+            <label key={wh.id} className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" name="warehouseIds" value={wh.id} disabled={accessMode !== 'SELECTED'} />
+              {wh.name} <span className="text-muted-foreground">({wh.code})</span>
+            </label>
+          ))}
+        </div>
       </div>
 
       <Button type="submit" disabled={isPending} className="w-full bg-primary hover:bg-muted/50 text-primary-foreground shadow-sm  active:scale-95">

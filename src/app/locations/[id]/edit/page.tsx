@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/select"
 import {  Save } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter, warehouseScopeIds } from "@/lib/dal"
 import { redirect } from "next/navigation"
 import { updateLocationAction } from "../../actions"
 import { BackButton } from "@/components/ui/back-button"
@@ -18,18 +19,19 @@ export default async function EditLocationPage(props: {
   const params = await props.params;
   const searchParams = await props.searchParams;
 
-  const location = await db.warehouseLocation.findUnique({
-    where: { id: params.id }
+  const location = await db.warehouseLocation.findFirst({
+    where: { id: params.id, ...await warehouseIdFilter() }
   })
 
   if (!location) {
     redirect("/locations")
   }
 
-  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE' } })
+  const scope = await warehouseScopeIds()
+  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } } })
   // Não podemos definir como pai de si mesmo nem de um filho indireto (validação na action)
   const parentLocations = await db.warehouseLocation.findMany({ 
-    where: { status: 'ACTIVE', id: { not: location.id } }, 
+    where: { status: 'ACTIVE', id: { not: location.id }, ...await warehouseIdFilter() },
     include: { warehouse: true } 
   })
 

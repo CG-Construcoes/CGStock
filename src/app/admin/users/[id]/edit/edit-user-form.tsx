@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,14 +16,16 @@ type User = {
   roles: { id: string, name: string }[]
   worksiteAccesses?: { worksiteId: string, canUseQuickIssue: boolean }[]
   warehouseAccesses?: { warehouseId: string }[]
+  allWarehouseAccess: boolean
 }
 
-export function EditUserForm({ user, roles, worksites, warehouses }: { user: User, roles: { id: string, name: string }[], worksites: { id: string, name: string }[], warehouses: { id: string, name: string, code: string }[] }) {
+export function EditUserForm({ user, roles, worksites, warehouses }: { user: User, roles: { id: string, name: string }[], worksites: { id: string, name: string }[], warehouses: { id: string, name: string, code: string, status: string }[] }) {
   const [state, action, isPending] = useActionState(editUserAction, null)
 
   const userRoleIds = user.roles.map(r => r.id)
   const userWorksiteIds = user.worksiteAccesses?.map(a => a.worksiteId) || []
   const userWarehouseIds = user.warehouseAccesses?.map(a => a.warehouseId) || []
+  const [accessMode, setAccessMode] = useState(user.allWarehouseAccess ? 'ALL' : userWarehouseIds.length ? 'SELECTED' : 'NONE')
 
   return (
     <form action={action} className="space-y-6">
@@ -141,6 +143,15 @@ export function EditUserForm({ user, roles, worksites, warehouses }: { user: Use
 
       <div className="space-y-3">
         <Label>Almoxarifados Autorizados</Label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Tipo de acesso aos almoxarifados">
+          {([['NONE', 'Nenhum'], ['SELECTED', 'Selecionados'], ['ALL', 'Todos, inclusive futuros']] as const).map(([value, label]) => (
+            <label key={value} className="flex items-center gap-2 rounded-md border border-border p-3 text-sm cursor-pointer">
+              <input type="radio" name="warehouseAccessMode" value={value} checked={accessMode === value} onChange={() => setAccessMode(value)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        {user.roles.some(role => role.name === 'ADMIN') && <p className="text-sm text-muted-foreground">Administradores têm acesso total independentemente desta configuração.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-4 rounded-md border border-border">
           {warehouses.map(wh => (
             <label key={wh.id} className="flex items-center gap-3 cursor-pointer group">
@@ -149,6 +160,7 @@ export function EditUserForm({ user, roles, worksites, warehouses }: { user: Use
                   type="checkbox"
                   name="warehouseIds"
                   value={wh.id}
+                  disabled={accessMode !== 'SELECTED'}
                   defaultChecked={userWarehouseIds.includes(wh.id)}
                   className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-blue-500/50 checked:border-blue-600 checked:bg-blue-600 "
                 />
@@ -157,13 +169,13 @@ export function EditUserForm({ user, roles, worksites, warehouses }: { user: Use
                 </svg>
               </div>
               <span className="text-sm font-medium text-foreground group-hover:text-blue-700 ">
-                {wh.name} <span className="text-xs text-muted-foreground font-mono">({wh.code})</span>
+                {wh.name} <span className="text-xs text-muted-foreground font-mono">({wh.code}{wh.status !== 'ACTIVE' ? ' · Inativo' : ''})</span>
               </span>
             </label>
           ))}
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          O usuário só visualiza saldos, valores e movimentações dos almoxarifados marcados. Sem nenhuma marcação, ele não vê dados de estoque (administradores enxergam tudo).
+          Sem acesso configurado, o usuário não visualiza dados de almoxarifados. Acesso a todos inclui novos almoxarifados, mas não concede permissões administrativas.
         </p>
       </div>
 

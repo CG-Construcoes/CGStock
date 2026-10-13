@@ -8,11 +8,13 @@ import { logAudit } from "@/lib/audit"
 import { requireSession, requireActionPermission } from "@/lib/action-guard"
 import { hasPermission } from "@/lib/permissions"
 import { createWithUniqueNumber } from "@/lib/sequential"
+import { assertWarehouseAccess, warehouseIdFilter } from "@/lib/dal"
 
 export async function createRequestAction(formData: FormData) {
   const session = await requireActionPermission('REQUEST_CREATE')
 
   const warehouseId = formData.get("warehouseId") as string
+  await assertWarehouseAccess(warehouseId, session.userId)
   const priority = formData.get("priority") as string
   const notes = formData.get("notes") as string
   const actionType = formData.get("actionType") as string
@@ -60,7 +62,7 @@ export async function createRequestAction(formData: FormData) {
 export async function approveRequestAction(requestId: string) {
   const session = await requireActionPermission('REQUEST_APPROVE')
 
-  const req = await db.materialRequest.findUnique({ where: { id: requestId } })
+  const req = await db.materialRequest.findFirst({ where: { id: requestId, ...await warehouseIdFilter() } })
   if (!req) throw new Error("Requisição não encontrada")
   if (req.status !== 'PENDING_APPROVAL') throw new Error("A requisição não está aguardando aprovação.")
 
@@ -90,7 +92,7 @@ export async function approveRequestAction(requestId: string) {
 export async function rejectRequestAction(requestId: string, reason: string) {
   await requireActionPermission('REQUEST_APPROVE')
 
-  const req = await db.materialRequest.findUnique({ where: { id: requestId } })
+  const req = await db.materialRequest.findFirst({ where: { id: requestId, ...await warehouseIdFilter() } })
   if (!req) throw new Error("Requisição não encontrada")
   if (req.status !== 'PENDING_APPROVAL') throw new Error("A requisição não está aguardando aprovação.")
 
@@ -111,7 +113,7 @@ export async function rejectRequestAction(requestId: string, reason: string) {
 export async function cancelRequestAction(requestId: string) {
   const session = await requireSession()
 
-  const req = await db.materialRequest.findUnique({ where: { id: requestId } })
+  const req = await db.materialRequest.findFirst({ where: { id: requestId, ...await warehouseIdFilter() } })
   if (!req) throw new Error("Requisição não encontrada")
 
   const isRequester = req.requesterId === session.userId
@@ -138,7 +140,7 @@ export async function cancelRequestAction(requestId: string) {
 export async function startSeparationAction(requestId: string) {
   await requireActionPermission('REQUEST_FULFILL')
 
-  const req = await db.materialRequest.findUnique({ where: { id: requestId } })
+  const req = await db.materialRequest.findFirst({ where: { id: requestId, ...await warehouseIdFilter() } })
   if (!req) throw new Error("Requisição não encontrada")
 
   if (req.status !== 'APPROVED') {

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
     where: { id },
     include: {
       receipts: {
+        where: await warehouseIdFilter(),
         orderBy: { createdAt: 'desc' },
         take: 10
       }

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,8 +14,8 @@ export default async function DivergencesPage({ params }: { params: Promise<{ id
   await requireAnyPermissionPage('INVENTORY_REVIEW', 'INVENTORY_APPROVE', 'INVENTORY_CREATE')
   const { id } = await params
   
-  const inv = await db.inventory.findUnique({
-    where: { id },
+  const inv = await db.inventory.findFirst({
+    where: { id, ...await warehouseIdFilter() },
     include: {
       divergences: {
         include: {

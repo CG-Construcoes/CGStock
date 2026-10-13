@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,8 +15,8 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   await requireAnyPermissionPage('REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL')
   const { id } = await params
   
-  const req = await db.materialRequest.findUnique({
-    where: { id },
+  const req = await db.materialRequest.findFirst({
+    where: { id, ...await warehouseIdFilter() },
     include: {
       requester: true,
       warehouse: true,

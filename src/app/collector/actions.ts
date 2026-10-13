@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { requireActionPermission } from "@/lib/action-guard"
+import { warehouseIdFilter } from "@/lib/dal"
 
 export async function submitCollectionAction(formData: FormData) {
   const session = await requireActionPermission('INVENTORY_COUNT')
@@ -25,7 +26,7 @@ export async function submitCollectionAction(formData: FormData) {
 
   // O operador precisa estar escalado no inventário e o inventário deve estar aberto
   const inventory = await db.inventory.findUnique({
-    where: { id: inventoryId },
+    where: { id: inventoryId, ...await warehouseIdFilter(session.userId) },
     include: {
       operators: { where: { userId: session.userId } },
       locations: { where: { locationId } }

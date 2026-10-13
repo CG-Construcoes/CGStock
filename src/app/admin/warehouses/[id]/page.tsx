@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { BackButton } from "@/components/ui/back-button"
 import { Save } from "lucide-react"
 import { db } from "@/lib/db"
+import { warehouseScopeIds } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { updateWarehouseAction } from "../actions"
 import { WarehouseDeleteDialog } from "../warehouse-delete-dialog"
@@ -15,8 +16,9 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
   await requirePermissionPage('CONFIG_MANAGE')
   const { id } = await params
   
-  const warehouse = await db.warehouse.findUnique({
-    where: { id },
+  const scope = await warehouseScopeIds()
+  const warehouse = await db.warehouse.findFirst({
+    where: { id: { equals: id, in: scope ?? undefined } },
     include: {
       locations: {
         include: {

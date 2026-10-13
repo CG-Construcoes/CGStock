@@ -98,13 +98,13 @@ type WarehouseScope = typeof ALL_WAREHOUSES | string[]
 
 /**
  * IDs dos almoxarifados aos quais o usuário tem acesso, ou o símbolo
- * ALL_WAREHOUSES quando o usuário é ADMIN (sem restrição).
+ * ALL_WAREHOUSES quando o usuário é ADMIN ou tem acesso total explícito.
  * Dedup por request.
  */
 export const getWarehouseScope = cache(async (userId: string): Promise<WarehouseScope> => {
   const ctx = await getUserSecurityContext(userId)
   if (!ctx) return []
-  if (ctx.roleNames.includes("ADMIN")) return ALL_WAREHOUSES
+  if (ctx.roleNames.includes("ADMIN") || ctx.allWarehouseAccess) return ALL_WAREHOUSES
 
   const accesses = await db.userWarehouseAccess.findMany({
     where: { userId },
@@ -114,11 +114,7 @@ export const getWarehouseScope = cache(async (userId: string): Promise<Warehouse
 })
 
 export async function getAccessibleWarehouseIds(userId?: string): Promise<string[] | null> {
-  const user = userId
-    ? { ctx: await getUserSecurityContext(userId), id: userId }
-    : await verifyUser()
-  if (!user) return []
-  const id = "session" in user ? user.session.userId : (user as { id: string }).id
+  const id = userId ?? (await requireUser()).session.userId
   const scope = await getWarehouseScope(id)
   return scope === ALL_WAREHOUSES ? null : scope
 }

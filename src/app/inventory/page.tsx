@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Plus, Filter, ClipboardList, Clock } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function InventoryPage() {
   await requireAnyPermissionPage('INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
   const inventories = await db.inventory.findMany({
+    where: await warehouseIdFilter(),
     include: {
       warehouse: true,
       createdBy: true,

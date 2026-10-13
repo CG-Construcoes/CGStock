@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import CollectorForm from "./collector-form"
 import { requireAnyPermissionPage } from "@/lib/permissions"
@@ -11,12 +12,12 @@ export default async function CollectorLocationPage({
   await requireAnyPermissionPage('INVENTORY_COUNT', 'INVENTORY_CREATE', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
   const { inventoryId, locationId } = await params
   
-  const inv = await db.inventory.findUnique({
-    where: { id: inventoryId }
+  const inv = await db.inventory.findFirst({
+    where: { id: inventoryId, ...await warehouseIdFilter(), locations: { some: { locationId } } }
   })
 
-  const loc = await db.warehouseLocation.findUnique({
-    where: { id: locationId }
+  const loc = await db.warehouseLocation.findFirst({
+    where: { id: locationId, warehouseId: inv?.warehouseId ?? '' }
   })
 
   if (!inv || !loc) notFound()

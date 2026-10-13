@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {  RotateCcw, Plus } from "lucide-react"
@@ -10,6 +11,7 @@ import { requirePermissionPage } from "@/lib/permissions"
 export default async function ReturnsPage() {
   await requirePermissionPage('STOCK_ENTRY')
   const returns = await db.materialReturn.findMany({
+    where: await warehouseIdFilter(),
     orderBy: { createdAt: 'desc' },
     include: {
       warehouse: true,

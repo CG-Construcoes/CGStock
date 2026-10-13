@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,8 +15,8 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
   await requireAnyPermissionPage('INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
   const { id } = await params
   
-  const inv = await db.inventory.findUnique({
-    where: { id },
+  const inv = await db.inventory.findFirst({
+    where: { id, ...await warehouseIdFilter() },
     include: {
       warehouse: true,
       createdBy: true,

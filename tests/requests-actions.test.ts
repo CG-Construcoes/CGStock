@@ -12,6 +12,7 @@ vi.mock("@/lib/action-guard", () => ({
   requireActionPermission: vi.fn(),
 }))
 vi.mock("@/lib/permissions", () => ({ hasPermission: vi.fn() }))
+vi.mock("@/lib/dal", () => ({ assertWarehouseAccess: vi.fn(), warehouseIdFilter: vi.fn().mockResolvedValue({ warehouseId: { in: ['wh-1'] } }) }))
 
 const dbMock = vi.hoisted(() => {
   const db: any = {
@@ -19,6 +20,7 @@ const dbMock = vi.hoisted(() => {
       count: vi.fn(),
       create: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
     },
     materialRequestItem: { updateMany: vi.fn() },
@@ -32,6 +34,7 @@ vi.mock("@/lib/db", () => ({ db: dbMock }))
 
 import { requireSession, requireActionPermission } from "@/lib/action-guard"
 import { hasPermission } from "@/lib/permissions"
+import { assertWarehouseAccess } from "@/lib/dal"
 import {
   createRequestAction,
   approveRequestAction,
@@ -68,6 +71,14 @@ describe("createRequestAction", () => {
     )
   })
 
+  it("recusa ID de almoxarifado não autorizado antes de criar", async () => {
+    vi.mocked(assertWarehouseAccess).mockRejectedValueOnce(new Error("Não autorizado"))
+    const formData = new FormData()
+    formData.set("warehouseId", "outro")
+    await expect(createRequestAction(formData)).rejects.toThrow("Não autorizado")
+    expect(dbMock.materialRequest.create).not.toHaveBeenCalled()
+  })
+
   it("rejeita quando não há sessão válida", async () => {
     vi.mocked(requireActionPermission).mockRejectedValue(new Error("Não autenticado"))
     const formData = new FormData()
@@ -84,7 +95,7 @@ describe("approveRequestAction", () => {
   })
 
   it("aprova com o aprovador da sessão e itens aprovados em lote", async () => {
-    dbMock.materialRequest.findUnique.mockResolvedValue({ id: "req-1", status: "PENDING_APPROVAL" })
+    dbMock.materialRequest.findFirst.mockResolvedValue({ id: "req-1", status: "PENDING_APPROVAL" })
     dbMock.materialRequest.update.mockResolvedValue({})
     dbMock.$executeRaw.mockResolvedValue(2)
 
@@ -102,7 +113,7 @@ describe("approveRequestAction", () => {
   })
 
   it("não aprova requisição fora do status de aguardando", async () => {
-    dbMock.materialRequest.findUnique.mockResolvedValue({ id: "req-1", status: "FULFILLED" })
+    dbMock.materialRequest.findFirst.mockResolvedValue({ id: "req-1", status: "FULFILLED" })
     await expect(approveRequestAction("req-1")).rejects.toThrow("aguardando aprovação")
     expect(dbMock.materialRequest.update).not.toHaveBeenCalled()
   })
@@ -110,7 +121,7 @@ describe("approveRequestAction", () => {
   it("rejeita acesso sem permissão", async () => {
     vi.mocked(requireActionPermission).mockRejectedValue(new Error("Não autorizado"))
     await expect(approveRequestAction("req-1")).rejects.toThrow("Não autorizado")
-    expect(dbMock.materialRequest.findUnique).not.toHaveBeenCalled()
+    expect(dbMock.materialRequest.findFirst).not.toHaveBeenCalled()
   })
 })
 
@@ -119,7 +130,7 @@ describe("cancelRequestAction", () => {
 
   it("solicitante pode cancelar a própria requisição rascunho", async () => {
     vi.mocked(requireSession).mockResolvedValue({ userId: "dono", roles: ["SOLICITANTE"] } as any)
-    dbMock.materialRequest.findUnique.mockResolvedValue({ id: "req-1", status: "DRAFT", requesterId: "dono" })
+    dbMock.materialRequest.findFirst.mockResolvedValue({ id: "req-1", status: "DRAFT", requesterId: "dono" })
     dbMock.materialRequest.update.mockResolvedValue({})
 
     await cancelRequestAction("req-1")
@@ -132,7 +143,7 @@ describe("cancelRequestAction", () => {
   it("terceiros sem permissão de aprovação não podem cancelar", async () => {
     vi.mocked(requireSession).mockResolvedValue({ userId: "outro", roles: ["SOLICITANTE"] } as any)
     vi.mocked(hasPermission).mockResolvedValue(false)
-    dbMock.materialRequest.findUnique.mockResolvedValue({ id: "req-1", status: "DRAFT", requesterId: "dono" })
+    dbMock.materialRequest.findFirst.mockResolvedValue({ id: "req-1", status: "DRAFT", requesterId: "dono" })
 
     await expect(cancelRequestAction("req-1")).rejects.toThrow("Apenas o solicitante")
     expect(dbMock.materialRequest.update).not.toHaveBeenCalled()
