@@ -9,10 +9,15 @@ import Link from "next/link"
 import { finishInventoryAction, deleteInventoryAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { DeleteInventoryButton } from "./delete-button"
-import { requireAnyPermissionPage } from "@/lib/permissions"
+import { hasAnyPermission, hasPermission, requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function InventoryDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAnyPermissionPage('INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
+  const [canCreate, canReview, canViewDivergences] = await Promise.all([
+    hasPermission('INVENTORY_CREATE'),
+    hasPermission('INVENTORY_REVIEW'),
+    hasAnyPermission('INVENTORY_REVIEW', 'INVENTORY_APPROVE', 'INVENTORY_CREATE')
+  ])
   const { id } = await params
   
   const inv = await db.inventory.findFirst({
@@ -64,7 +69,7 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
           </div>
         </div>
         <div className="flex gap-2">
-          {inv.status === 'IN_PROGRESS' && (
+          {canReview && inv.status === 'IN_PROGRESS' && (
             <form action={finishAction}>
               <Button className="flex items-center gap-2 bg-primary hover:bg-primary text-white">
                 <StopCircle className="h-4 w-4" />
@@ -72,7 +77,7 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
               </Button>
             </form>
           )}
-          {['CONFERENCE', 'COMPLETED'].includes(inv.status) && (
+          {canViewDivergences && ['CONFERENCE', 'COMPLETED'].includes(inv.status) && (
             <Link href={`/inventory/${inv.id}/divergences`}>
               <Button variant="outline" className="flex items-center gap-2 text-primary border-primary/20 hover:bg-primary/5">
                 <FileText className="h-4 w-4" />
@@ -80,7 +85,7 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
               </Button>
             </Link>
           )}
-          <DeleteInventoryButton deleteAction={deleteInventoryAction} invId={inv.id} />
+          {canCreate && inv.status !== 'COMPLETED' && <DeleteInventoryButton deleteAction={deleteInventoryAction} invId={inv.id} />}
         </div>
       </div>
 

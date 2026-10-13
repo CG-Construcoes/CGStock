@@ -6,10 +6,11 @@ import { Search, Plus, Filter, ClipboardList, Clock } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { warehouseIdFilter } from "@/lib/dal"
-import { requireAnyPermissionPage } from "@/lib/permissions"
+import { hasPermission, requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function InventoryPage() {
   await requireAnyPermissionPage('INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
+  const canCreate = await hasPermission('INVENTORY_CREATE')
   const inventories = await db.inventory.findMany({
     where: await warehouseIdFilter(),
     include: {
@@ -30,12 +31,14 @@ export default async function InventoryPage() {
           <h2 className="text-2xl font-bold tracking-tight">Inventários</h2>
           <p className="text-muted-foreground">Gerencie contagens, coletas e conferências de estoque.</p>
         </div>
-        <Link href="/inventory/new">
-          <Button className="flex items-center gap-2 bg-primary hover:bg-primary text-white">
-            <Plus className="h-4 w-4" />
-            Novo Inventário
-          </Button>
-        </Link>
+        {canCreate && (
+          <Link href="/inventory/new">
+            <Button className="flex items-center gap-2 bg-primary hover:bg-primary text-white">
+              <Plus className="h-4 w-4" />
+              Novo Inventário
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">

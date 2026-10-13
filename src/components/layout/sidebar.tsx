@@ -78,37 +78,26 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
     { name: "Configurações", href: "/admin/settings", icon: Settings, perm: 'CONFIG_MANAGE' },
   ]
 
+  const isAllowed = (item: { name: string; perm?: string }) => {
+    if (!item.perm || isAdmin) return true
+    if (item.name === "Inventários" || item.name === "Coletor") {
+      return ['INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE'].some(hasPerm)
+    }
+    if (item.name === "Requisições") {
+      return ['REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL'].some(hasPerm)
+    }
+    if (item.name === "Gestão Central") return hasPerm('USER_VIEW')
+    if (item.name === "Usuários") return hasPerm('USER_VIEW') || hasPerm('USER_MANAGE')
+    return hasPerm(item.perm)
+  }
+
+  const visibleEstoqueItems = estoqueItems.filter(isAllowed)
+  const visibleOperacoesItems = operacoesItems.filter(isAllowed)
+  const visibleInventarioItems = inventarioItems.filter(isAllowed)
+  const visibleMaisItems = maisItems.filter(isAllowed)
+
   const renderItem = (item: { name: string; href: string; icon: LucideIcon; perm?: string }) => {
     const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/dashboard' && item.href !== '/admin' && item.href !== '#' && pathname.startsWith(item.href))
-    
-    let allowed = true
-    if (item.perm && !isAdmin) {
-      if (item.name === "Inventários") {
-        allowed = hasPerm('INVENTORY_CREATE') || hasPerm('INVENTORY_COUNT') || hasPerm('INVENTORY_REVIEW') || hasPerm('INVENTORY_APPROVE')
-      } else if (item.name === "Requisições") {
-        allowed = hasPerm('REQUEST_CREATE') || hasPerm('REQUEST_APPROVE') || hasPerm('REQUEST_FULFILL')
-      } else if (item.name === "Gestão Central") {
-        allowed = hasPerm('CONFIG_MANAGE') || hasPerm('USER_VIEW')
-      } else {
-        allowed = hasPerm(item.perm)
-      }
-    }
-
-    if (!allowed) {
-      return (
-        <li key={item.name} title="Você não possui permissão para acessar esta função.">
-          <div
-            className={cn(
-              "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium border-l-2 border-transparent transition-colors",
-              "text-[#FDEFD6]/40 cursor-not-allowed"
-            )}
-          >
-            <item.icon className="h-4 w-4 shrink-0 text-[#C9832B]/40" />
-            {item.name}
-          </div>
-        </li>
-      )
-    }
 
     return (
       <li key={item.name}>
@@ -147,28 +136,28 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
             {mainItems.map(renderItem)}
           </ul>
 
-          {estoqueItems.length > 0 && (
+          {visibleEstoqueItems.length > 0 && (
             <div>
               <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F]">Estoque</h3>
-              <ul className="space-y-0.5">{estoqueItems.map(renderItem)}</ul>
+              <ul className="space-y-0.5">{visibleEstoqueItems.map(renderItem)}</ul>
             </div>
           )}
 
-          {operacoesItems.length > 0 && (
+          {visibleOperacoesItems.length > 0 && (
             <div>
               <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F]">Operações</h3>
-              <ul className="space-y-0.5">{operacoesItems.map(renderItem)}</ul>
+              <ul className="space-y-0.5">{visibleOperacoesItems.map(renderItem)}</ul>
             </div>
           )}
 
-          {inventarioItems.length > 0 && (
+          {visibleInventarioItems.length > 0 && (
             <div>
               <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#E5A94F]">Inventário</h3>
-              <ul className="space-y-0.5">{inventarioItems.map(renderItem)}</ul>
+              <ul className="space-y-0.5">{visibleInventarioItems.map(renderItem)}</ul>
             </div>
           )}
 
-          {maisItems.length > 0 && (
+          {visibleMaisItems.length > 0 && (
             <div>
               <button 
                 onClick={() => setIsMoreOpen(!isMoreOpen)}
@@ -179,7 +168,7 @@ export function Sidebar({ user }: { user?: { name: string; email: string; roles:
               </button>
               
               {isMoreOpen && (
-                <ul className="space-y-0.5 mt-2">{maisItems.map(renderItem)}</ul>
+                <ul className="space-y-0.5 mt-2">{visibleMaisItems.map(renderItem)}</ul>
               )}
             </div>
           )}

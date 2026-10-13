@@ -6,10 +6,11 @@ import Link from "next/link"
 import { db } from "@/lib/db"
 import { warehouseIdFilter } from "@/lib/dal"
 import { SearchInput } from "@/components/ui/search-input"
-import { requireAnyPermissionPage } from "@/lib/permissions"
+import { hasPermission, requireAnyPermissionPage } from "@/lib/permissions"
 
 export default async function RequestsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requireAnyPermissionPage('REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL')
+  const canCreate = await hasPermission('REQUEST_CREATE')
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const requests = await db.materialRequest.findMany({
@@ -29,12 +30,14 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
           <h2 className="text-2xl font-bold tracking-tight">Requisições de Material</h2>
           <p className="text-muted-foreground">Gerencie solicitações, separação e entregas de materiais.</p>
         </div>
-        <Link href="/requests/new">
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Requisição
-          </Button>
-        </Link>
+        {canCreate && (
+          <Link href="/requests/new">
+            <Button className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Requisição
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">
