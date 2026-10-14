@@ -103,10 +103,16 @@ export async function POST(request: Request) {
         createdUnits.forEach(u => unitMap.set(u.code, u.id))
       }
 
-      // 4. Produtos: pré-carrega os existentes e separa criação de atualização
+      // 4. Produtos: pré-carrega os existentes neste almoxarifado e separa criação de atualização
       const codes = rows.map(r => r.code)
       const existingProducts = await tx.product.findMany({
-        where: { code: { in: codes } },
+        where: {
+          code: { in: codes },
+          OR: [
+            { stocks: { some: { warehouseId: warehouse.id } } },
+            { defaultLocation: { warehouseId: warehouse.id } }
+          ]
+        },
         select: { id: true, code: true }
       })
       const productByCode = new Map(existingProducts.map(p => [p.code, p.id]))
@@ -121,14 +127,17 @@ export async function POST(request: Request) {
             name: r.name,
             categoryId: defaultCategory.id,
             unitId: unitMap.get(r.unitCode)!,
+            defaultLocationId: location.id,
             minimumStock: r.minimumStock,
             averageCost: r.averageCost,
             status: 'ACTIVE'
           })),
-          skipDuplicates: true
         })
         const createdProducts = await tx.product.findMany({
-          where: { code: { in: toCreate.map(r => r.code) } },
+          where: {
+            code: { in: toCreate.map(r => r.code) },
+            defaultLocationId: location.id
+          },
           select: { id: true, code: true }
         })
         createdProducts.forEach(p => productByCode.set(p.code, p.id))
@@ -165,7 +174,17 @@ export async function POST(request: Request) {
         const currentQty = current?.quantity || 0
         const difference = Number(r.quantity) - Number(currentQty)
 
-        if (difference === 0) continue
+        if (difference === 0) {
+          if (!current) {
+            stockCreates.push({
+              productId,
+              warehouseId: warehouse.id,
+              locationId: location.id,
+              quantity: 0
+            })
+          }
+          continue
+        }
 
         if (current) {
           stockUpdates.push({ id: current.id, quantity: r.quantity })

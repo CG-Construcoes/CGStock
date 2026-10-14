@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useState, useTransition } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Building2, ChevronDown, Loader2 } from "lucide-react"
 import { setActiveWarehouseAction } from "@/app/auth-actions"
@@ -35,6 +35,7 @@ export function WarehouseSelectFilter({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
+  const [loadingName, setLoadingName] = useState<string | null>(null)
 
   // Se o usuário só tem acesso a 1 almoxarifado, exibe apenas o badge informativo (ou oculta o dropdown de troca)
   if (warehouses.length === 0) return null
@@ -57,9 +58,12 @@ export function WarehouseSelectFilter({
   }
 
   const handleChange = (newWarehouseId: string) => {
+    const selectedWh = warehouses.find((w) => w.id === newWarehouseId)
+    setLoadingName(selectedWh ? selectedWh.name : allLabel)
+
     startTransition(async () => {
       if (syncGlobalCookie) {
-        await setActiveWarehouseAction(newWarehouseId)
+        await setActiveWarehouseAction(newWarehouseId || "ALL")
       }
 
       const params = new URLSearchParams(searchParams.toString())
@@ -89,33 +93,49 @@ export function WarehouseSelectFilter({
   }
 
   return (
-    <div className={cn("relative inline-flex items-center", className)}>
-      <Building2 className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-primary shrink-0 z-10" />
-      <select
-        value={selectedWarehouseId}
-        disabled={isPending}
-        onChange={(e) => handleChange(e.target.value)}
-        aria-label="Selecionar almoxarifado"
-        className={cn(
-          "w-full appearance-none rounded-md border border-input bg-background pl-8 pr-8 text-xs sm:text-sm font-medium text-foreground shadow-xs transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-70",
-          compact ? "h-8" : "h-9",
-          selectedWarehouseId && "border-primary/40 bg-primary/[0.03]"
-        )}
-      >
-        <option value="">{allLabel}</option>
-        {warehouses.map((w) => (
-          <option key={w.id} value={w.id}>
-            {w.name}
-          </option>
-        ))}
-      </select>
-      <div className="pointer-events-none absolute right-2.5 flex items-center">
-        {isPending ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
+    <>
+      {isPending && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-50 flex items-start justify-center pt-28 bg-background/50 backdrop-blur-[2px] transition-all duration-200"
+        >
+          <div className="flex items-center gap-3 bg-card border border-primary/40 shadow-xl px-5 py-3 rounded-full text-foreground backdrop-blur-md animate-in fade-in zoom-in-95 duration-200">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span className="text-sm font-semibold tracking-tight text-foreground">
+              {loadingName ? `Carregando "${loadingName}"...` : "Filtrando almoxarifado..."}
+            </span>
+          </div>
+        </div>
+      )}
+      <div className={cn("relative inline-flex items-center", className)}>
+        <Building2 className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-primary shrink-0 z-10" />
+        <select
+          value={selectedWarehouseId}
+          disabled={isPending}
+          onChange={(e) => handleChange(e.target.value)}
+          aria-label="Selecionar almoxarifado"
+          className={cn(
+            "w-full appearance-none rounded-md border border-input bg-background pl-8 pr-8 text-xs sm:text-sm font-medium text-foreground shadow-xs transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-70",
+            compact ? "h-8" : "h-9",
+            selectedWarehouseId && "border-primary/40 bg-primary/[0.03]"
+          )}
+        >
+          <option value="">{allLabel}</option>
+          {warehouses.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+        <div className="pointer-events-none absolute right-2.5 flex items-center">
+          {isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

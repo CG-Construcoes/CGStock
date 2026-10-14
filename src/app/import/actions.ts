@@ -104,33 +104,44 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
     return { success: true, processed: 0, rowResults: [], completed: remainingPending === 0 }
   }
 
-  // Pre-fetch existing products for all codes in this chunk
+  // Pre-fetch existing products for all codes in this chunk (isolado por almoxarifado)
   const productCodes = Array.from(new Set(rowsToProcess.map(r => r.productCode).filter(Boolean)))
   const existingProducts = await db.product.findMany({
-    where: { code: { in: productCodes } }
+    where: {
+      code: { in: productCodes },
+      OR: [
+        { stocks: { some: { warehouseId } } },
+        { defaultLocation: { warehouseId } }
+      ]
+    }
   })
   const productMap = new Map(existingProducts.map(p => [p.code, p]))
 
-  // Create missing products in bulk if needed
+  // Create missing products in bulk if needed (exclusivos deste almoxarifado)
   const missingCodes = productCodes.filter(code => !productMap.has(code))
   if (missingCodes.length > 0 && defaultCategory && defaultUnit) {
     const newProductsData = missingCodes.map(code => {
       const row = rowsToProcess.find(r => r.productCode === code)!
+      const cost = row.unitCost != null ? Number(row.unitCost) : null
       return {
         code,
         name: row.productName || code,
         categoryId: defaultCategory.id,
-        unitId: defaultUnit.id
+        unitId: defaultUnit.id,
+        defaultLocationId: locationId,
+        averageCost: cost != null && cost > 0 ? cost : null,
       }
     })
 
     await db.product.createMany({
       data: newProductsData,
-      skipDuplicates: true
     })
 
     const newlyCreated = await db.product.findMany({
-      where: { code: { in: missingCodes } }
+      where: {
+        code: { in: missingCodes },
+        defaultLocationId: locationId,
+      }
     })
     for (const p of newlyCreated) {
       productMap.set(p.code, p)
@@ -267,13 +278,37 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
             adjustedCount++
             actionMessage = `Estoque ajustado: ${currentWarehouseQty} → ${targetQty} (${diff})`
           } else {
-            // Quantidade idêntica no sistema e na planilha: mantém sem criar movimentação duplicada
-            unchangedCount++
-            actionMessage = `Mantido (${targetQty} em estoque)`
+            if (warehouseStocks.length === 0) {
+              await tx.stock.upsert({
+                where: {
+                  productId_locationId: {
+                    productId: product.id,
+                    locationId,
+                  }
+                },
+                update: {},
+                create: {
+                  productId: product.id,
+                  warehouseId,
+                  locationId,
+                  quantity: 0,
+                  reservedQuantity: 0
+                }
+              })
+              createdCount++
+              actionMessage = `Item cadastrado no almoxarifado (saldo 0)`
+            } else {
+              // Quantidade idêntica no sistema e na planilha: mantém sem criar movimentação duplicada
+              unchangedCount++
+              actionMessage = `Mantido (${targetQty} em estoque)`
+            }
           }
 
           // Atualiza nome do produto e/ou custo unitário se necessário
-          const productUpdates: { name?: string; averageCost?: number } = {}
+          const productUpdates: { name?: string; averageCost?: number; defaultLocationId?: string } = {}
+          if (!product.defaultLocationId) {
+            productUpdates.defaultLocationId = locationId
+          }
           if (row.productName && row.productName !== 'N/A' && row.productName !== product.name) {
             productUpdates.name = row.productName
           }

@@ -116,7 +116,7 @@ model ProductUnit {
 
 model Product {
   id                   String                    @id @default(uuid())
-  code                 String                    @unique
+  code                 String
   barcode              String?
   name                 String
   shortDescription     String?
@@ -127,6 +127,7 @@ model Product {
   brand                String?
   model                String?
 
+  @@index([code])
   @@index([barcode])
   minimumStock         Int                       @default(0)
   maximumStock         Int                       @default(0)

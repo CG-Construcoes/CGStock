@@ -234,6 +234,19 @@ export async function deleteWarehouseAction(id: string, confirmationCode?: strin
         }
       })
 
+      // Coleta produtos vinculados a este almoxarifado antes de apagar os saldos
+      const warehouseProductIds = "findMany" in tx.product && typeof tx.product.findMany === "function"
+        ? (await tx.product.findMany({
+            where: {
+              OR: [
+                { stocks: { some: { warehouseId: id } } },
+                ...(locationIds.length > 0 ? [{ defaultLocationId: { in: locationIds } }] : [])
+              ]
+            },
+            select: { id: true }
+          })).map(p => p.id)
+        : []
+
       // 10. Saldos em Estoque (Stock)
       await tx.stock.deleteMany({
         where: {
@@ -243,6 +256,17 @@ export async function deleteWarehouseAction(id: string, confirmationCode?: strin
           ]
         }
       })
+
+      // Remove produtos exclusivos deste almoxarifado que ficaram sem vínculo em outros almoxarifados
+      if (warehouseProductIds.length > 0 && "deleteMany" in tx.product && typeof tx.product.deleteMany === "function") {
+        await tx.product.deleteMany({
+          where: {
+            id: { in: warehouseProductIds },
+            stocks: { none: {} },
+            movements: { none: {} }
+          }
+        })
+      }
 
       // 11. Permissões de Acesso de Usuários (UserWarehouseAccess)
       await tx.userWarehouseAccess.deleteMany({
@@ -441,6 +465,19 @@ export async function clearWarehouseDataAction(id: string, confirmationCode?: st
         }
       })
 
+      // Coleta produtos vinculados a este almoxarifado antes de apagar os saldos
+      const warehouseProductIds = "findMany" in tx.product && typeof tx.product.findMany === "function"
+        ? (await tx.product.findMany({
+            where: {
+              OR: [
+                { stocks: { some: { warehouseId: id } } },
+                ...(locationIds.length > 0 ? [{ defaultLocationId: { in: locationIds } }] : [])
+              ]
+            },
+            select: { id: true }
+          })).map(p => p.id)
+        : []
+
       // 9. Saldos em Estoque (Stock)
       await tx.stock.deleteMany({
         where: {
@@ -450,6 +487,17 @@ export async function clearWarehouseDataAction(id: string, confirmationCode?: st
           ]
         }
       })
+
+      // 10. Remove produtos exclusivos deste almoxarifado para zerar completamente sua base de itens
+      if (warehouseProductIds.length > 0 && "deleteMany" in tx.product && typeof tx.product.deleteMany === "function") {
+        await tx.product.deleteMany({
+          where: {
+            id: { in: warehouseProductIds },
+            stocks: { none: {} },
+            movements: { none: {} }
+          }
+        })
+      }
 
       // Mantém o almoxarifado, suas localizações físicas e permissões de usuários intactos!
       await logAuditStrict(

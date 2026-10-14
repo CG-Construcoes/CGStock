@@ -176,11 +176,12 @@ async function main() {
     ]
 
     for (const p of products) {
-      await prisma.product.upsert({
-        where: { code: p.code },
-        update: {},
-        create: p
+      const existing = await prisma.product.findFirst({
+        where: { code: p.code, defaultLocationId: p.defaultLocationId }
       })
+      if (!existing) {
+        await prisma.product.create({ data: p })
+      }
     }
   }
 
@@ -200,8 +201,8 @@ async function main() {
   // 10. Criar Recebimentos e Estoque
   const supplier1 = await prisma.supplier.findUnique({ where: { document: '12345678000199' } })
   const userAdmin = await prisma.user.findUnique({ where: { email: adminEmail } })
-  const prod1 = await prisma.product.findUnique({ where: { code: 'MAT-00001' } })
-  const prod2 = await prisma.product.findUnique({ where: { code: 'MAT-00002' } })
+  const prod1 = await prisma.product.findFirst({ where: { code: 'MAT-00001' } })
+  const prod2 = await prisma.product.findFirst({ where: { code: 'MAT-00002' } })
 
   if (supplier1 && userAdmin && prod1 && prod2 && locA01 && warehouse) {
     const existingReceipt = await prisma.stockReceipt.findFirst({ where: { documentNumber: 'NF-100' } })

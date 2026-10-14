@@ -182,7 +182,7 @@ async function StockContent({
         unit: true,
         stocks: {
           where: wFilter,
-          include: { location: true },
+          include: { location: true, warehouse: { select: { name: true, code: true } } },
         },
       },
       orderBy: { name: "asc" },
@@ -693,13 +693,20 @@ async function StockContent({
                         <div className="h-8 w-8 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold shadow-sm group-hover:bg-primary group-hover:text-primary-foreground uppercase text-xs transition-colors">
                           {data.product.name.charAt(0)}
                         </div>
-                        <Link
-                          href={`/stock/${data.product.id}`}
-                          title={data.product.name}
-                          className="font-semibold text-sm text-foreground group-hover:text-primary truncate block hover:underline"
-                        >
-                          {data.product.name}
-                        </Link>
+                        <div className="min-w-0">
+                          <Link
+                            href={`/stock/${data.product.id}`}
+                            title={data.product.name}
+                            className="font-semibold text-sm text-foreground group-hover:text-primary truncate block hover:underline"
+                          >
+                            {data.product.name}
+                          </Link>
+                          {!selectedWarehouseId && data.product.stocks[0]?.warehouse?.name && (
+                            <span className="text-[11px] text-muted-foreground truncate block">
+                              {data.product.stocks[0].warehouse.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">

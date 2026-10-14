@@ -12,6 +12,7 @@ async function assertProductWarehouseAccess(productId: string, userId: string) {
   const warehouseIds = new Set(product.stocks.map(stock => stock.warehouseId))
   if (product.defaultLocation) warehouseIds.add(product.defaultLocation.warehouseId)
   for (const warehouseId of warehouseIds) await assertWarehouseAccess(warehouseId, userId)
+  return Array.from(warehouseIds)
 }
 
 export async function createProductAction(formData: FormData) {
@@ -30,11 +31,22 @@ export async function createProductAction(formData: FormData) {
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
+  let targetWarehouseId: string | null = null
   if (defaultLocationId) {
     const location = await db.warehouseLocation.findUnique({ where: { id: defaultLocationId } })
     if (!location) throw new Error("Localização inválida.")
     await assertWarehouseAccess(location.warehouseId, session.userId)
+    targetWarehouseId = location.warehouseId
   }
+
+  const warehouseCodeFilter = targetWarehouseId
+    ? {
+        OR: [
+          { stocks: { some: { warehouseId: targetWarehouseId } } },
+          { defaultLocation: { warehouseId: targetWarehouseId } }
+        ]
+      }
+    : {}
 
   if (!code && categoryId) {
     const category = await db.productCategory.findUnique({ where: { id: categoryId } })
@@ -46,13 +58,13 @@ export async function createProductAction(formData: FormData) {
         .toUpperCase()
         .padEnd(3, 'X')
       
-      const count = await db.product.count({ where: { categoryId } })
+      const count = await db.product.count({ where: { categoryId, ...warehouseCodeFilter } })
       
       let isUnique = false
       let attempts = count + 1
       while (!isUnique) {
         code = `${prefix}-${String(attempts).padStart(3, '0')}`
-        const existingCode = await db.product.findUnique({ where: { code } })
+        const existingCode = await db.product.findFirst({ where: { code, ...warehouseCodeFilter } })
         if (!existingCode) {
           isUnique = true
         } else {
@@ -66,14 +78,14 @@ export async function createProductAction(formData: FormData) {
     redirect("/products/new?error=missing_fields")
   }
 
-  // Verifica duplicação de código
-  const existing = await db.product.findUnique({ where: { code } })
+  // Verifica duplicação de código dentro do mesmo almoxarifado
+  const existing = await db.product.findFirst({ where: { code, ...warehouseCodeFilter } })
   if (existing) {
     redirect("/products/new?error=duplicate_code")
   }
 
   try {
-    await db.product.create({
+    const created = await db.product.create({
       data: {
         code,
         barcode,
@@ -88,6 +100,24 @@ export async function createProductAction(formData: FormData) {
         defaultLocationId: defaultLocationId || null
       }
     })
+    if (defaultLocationId && targetWarehouseId && "stock" in db && db.stock?.upsert) {
+      await db.stock.upsert({
+        where: {
+          productId_locationId: {
+            productId: created.id,
+            locationId: defaultLocationId,
+          }
+        },
+        update: {},
+        create: {
+          productId: created.id,
+          warehouseId: targetWarehouseId,
+          locationId: defaultLocationId,
+          quantity: 0,
+          reservedQuantity: 0,
+        }
+      })
+    }
   } catch (error) {
     console.error(error)
     redirect("/products/new?error=create_failed")
@@ -102,7 +132,7 @@ export async function updateProductAction(formData: FormData) {
   await requirePermission('PRODUCT_UPDATE')
 
   const id = formData.get("id") as string
-  await assertProductWarehouseAccess(id, session.userId)
+  const warehouseIds = await assertProductWarehouseAccess(id, session.userId)
   const code = formData.get("code") as string
   const barcode = formData.get("barcode") as string || null
   const name = formData.get("name") as string
@@ -125,8 +155,23 @@ export async function updateProductAction(formData: FormData) {
     redirect(`/products/${id}/edit?error=missing_fields`)
   }
 
-  // Verifica duplicação de código apenas se o código mudou
-  const existing = await db.product.findUnique({ where: { code } })
+  // Verifica duplicação de código apenas dentro do mesmo almoxarifado
+  const existing = "findFirst" in db.product && typeof db.product.findFirst === "function"
+    ? await db.product.findFirst({
+        where: {
+          code,
+          id: { not: id },
+          ...(warehouseIds.length > 0
+            ? {
+                OR: [
+                  { stocks: { some: { warehouseId: { in: warehouseIds } } } },
+                  { defaultLocation: { warehouseId: { in: warehouseIds } } }
+                ]
+              }
+            : {})
+        }
+      })
+    : null
   if (existing && existing.id !== id) {
     redirect(`/products/${id}/edit?error=duplicate_code`)
   }

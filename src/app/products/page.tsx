@@ -1,10 +1,13 @@
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { ProductActions } from "./product-actions"
+import {
+  ProductsTransitionProvider,
+  ProductsFilterForm,
+  ProductsContentWrapper,
+} from "./products-filter-client"
 import { cn } from "@/lib/utils"
 import { Prisma } from "@prisma/client"
 import { resolveWarehouseContext } from "@/lib/dal"
@@ -42,6 +45,8 @@ export default async function ProductsPage({
   if (status) where.status = status
   if (selectedWarehouseId) {
     where.stocks = { some: { warehouseId: selectedWarehouseId } }
+  } else if (wFilter) {
+    where.stocks = { some: wFilter }
   }
 
   const page = parseInt(resolvedSearchParams.page as string) || 1
@@ -53,7 +58,7 @@ export default async function ProductsPage({
       include: {
         category: true,
         unit: true,
-        stocks: { where: wFilter }
+        stocks: { where: wFilter, include: { warehouse: { select: { name: true, code: true } } } }
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
@@ -85,66 +90,32 @@ export default async function ProductsPage({
   const totalPages = Math.ceil(totalCount / pageSize)
 
   return (
-    <div className="flex flex-col h-full space-y-4">
-      {/* Header and Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 border border-border shadow-sm">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">Produtos</h2>
-          {selectedWarehouse && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Filtrado por: <span className="font-semibold text-foreground">{selectedWarehouse.name}</span>
-            </p>
-          )}
-        </div>
-        
-        <form method="GET" className="flex flex-col sm:flex-row flex-wrap gap-3 w-full sm:w-auto items-stretch sm:items-center">
-          <div className="relative w-full sm:w-56">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input name="q" defaultValue={search || ""} placeholder="Buscar por Cód.Insumo ou descrição..." className="pl-9 h-9 text-sm" />
+    <ProductsTransitionProvider>
+      <div className="flex flex-col h-full space-y-4">
+        {/* Header and Toolbar */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 border border-border shadow-sm">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">Produtos</h2>
+            {selectedWarehouse && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Filtrado por: <span className="font-semibold text-foreground">{selectedWarehouse.name}</span>
+              </p>
+            )}
           </div>
 
-          {warehouses.length > 1 && (
-            <select
-              name="warehouseId"
-              defaultValue={selectedWarehouseId || "ALL"}
-              className="h-9 w-full sm:w-48 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="ALL">Almoxarifados (Todos)</option>
-              {warehouses.map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-          )}
-          
-          <select name="category" defaultValue={categoryId || ""} className="h-9 w-full sm:w-40 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-            <option value="">Categorias (Todas)</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          
-          <select name="status" defaultValue={status || ""} className="h-9 w-full sm:w-32 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-            <option value="">Status (Todos)</option>
-            <option value="ACTIVE">Ativo</option>
-            <option value="INACTIVE">Inativo</option>
-          </select>
-          
-          <Button type="submit" variant="secondary" className="h-9 px-3 text-sm">
-            Filtrar
-          </Button>
+          <ProductsFilterForm
+            search={search || ""}
+            selectedWarehouseId={selectedWarehouseId || ""}
+            warehouses={warehouses}
+            categoryId={categoryId || ""}
+            categories={categories}
+            status={status || ""}
+            hasCreate={hasCreate}
+          />
+        </div>
 
-          <div className="h-6 w-px bg-border hidden sm:block mx-1"></div>
-
-          {hasCreate && (
-            <Link href="/products/new">
-              <Button className="h-9 px-3 text-sm bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Novo
-              </Button>
-            </Link>
-          )}
-        </form>
-      </div>
-
-      {/* KPI Stats (Compact) */}
+        <ProductsContentWrapper>
+          {/* KPI Stats (Compact) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 divide-x divide-border bg-card border border-border shadow-sm">
         <div className="min-w-0 p-3 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total (Tipos)</span>
@@ -207,6 +178,7 @@ export default async function ProductsPage({
                 productsList.map((product) => {
                   const totalStock = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
                   const totalValue = totalStock * Number(product.averageCost || 0)
+                  const warehouseName = product.stocks[0]?.warehouse?.name
                   return (
                     <TableRow 
                       key={product.id}
@@ -214,9 +186,16 @@ export default async function ProductsPage({
                     >
                       <TableCell className="px-4 py-2 font-mono text-muted-foreground">{product.code}</TableCell>
                       <TableCell className="px-4 py-2">
-                        <Link href={`/products/${product.id}`} className="font-medium text-foreground hover:underline">
-                          {product.name}
-                        </Link>
+                        <div className="flex flex-col">
+                          <Link href={`/products/${product.id}`} className="font-medium text-foreground hover:underline">
+                            {product.name}
+                          </Link>
+                          {!selectedWarehouseId && warehouseName && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {warehouseName}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="px-4 py-2 text-muted-foreground">
                         {product.category.name}
@@ -280,6 +259,8 @@ export default async function ProductsPage({
           )}
         </div>
       </div>
-    </div>
+        </ProductsContentWrapper>
+      </div>
+    </ProductsTransitionProvider>
   )
 }

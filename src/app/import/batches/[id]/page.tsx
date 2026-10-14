@@ -30,7 +30,13 @@ export default async function ImportPreviewPage({ params }: { params: Promise<{ 
 
   const existingProducts = batch.warehouseId && productCodes.length > 0
     ? await db.product.findMany({
-        where: { code: { in: productCodes } },
+        where: {
+          code: { in: productCodes },
+          OR: [
+            { stocks: { some: { warehouseId: batch.warehouseId } } },
+            { defaultLocation: { warehouseId: batch.warehouseId } },
+          ],
+        },
         select: {
           code: true,
           stocks: {
