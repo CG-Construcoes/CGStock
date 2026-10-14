@@ -2,13 +2,13 @@ import { db } from "@/lib/db"
 import Link from "next/link"
 import { Package, ArrowRightLeft, ClipboardList, MapPin, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { getValidatedSession } from "@/lib/auth"
 
 export async function SearchResults({ query }: { query: string }) {
   const session = await getValidatedSession()
   if (!session) return null
-  const wFilter = await warehouseIdFilter(session.userId)
+  const { selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(undefined, session.userId)
 
   const [products, requests, movements, locations] = await Promise.all([
     db.product.findMany({
@@ -16,7 +16,8 @@ export async function SearchResults({ query }: { query: string }) {
         OR: [
           { name: { contains: query, mode: "insensitive" } },
           { code: { contains: query, mode: "insensitive" } },
-        ]
+        ],
+        ...(selectedWarehouseId ? { stocks: { some: { warehouseId: selectedWarehouseId } } } : {})
       },
       include: {
         category: true

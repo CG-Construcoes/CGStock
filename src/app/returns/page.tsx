@@ -1,17 +1,24 @@
 import { db } from "@/lib/db"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {  RotateCcw, Plus } from "lucide-react"
+import { RotateCcw, Plus } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { requirePermissionPage } from "@/lib/permissions"
+import { Suspense } from "react"
 
-export default async function ReturnsPage() {
+export default async function ReturnsPage(props: {
+  searchParams?: Promise<{ warehouseId?: string }>
+}) {
   await requirePermissionPage('STOCK_ENTRY')
+  const resolvedParams = props?.searchParams ? await props.searchParams : {}
+  const { warehouses, selectedWarehouseId, warehouseWhere } = await resolveWarehouseContext(resolvedParams.warehouseId)
+
   const returns = await db.materialReturn.findMany({
-    where: await warehouseIdFilter(),
+    where: warehouseWhere,
     orderBy: { createdAt: 'desc' },
     include: {
       warehouse: true,
@@ -23,7 +30,7 @@ export default async function ReturnsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <BackButton />
           <div>
@@ -31,12 +38,23 @@ export default async function ReturnsPage() {
             <p className="text-muted-foreground">Controle de materiais devolvidos ao estoque.</p>
           </div>
         </div>
-        <Link href="/returns/new">
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Devolução
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          {warehouses.length > 1 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={selectedWarehouseId}
+                className="w-full sm:w-60"
+              />
+            </Suspense>
+          )}
+          <Link href="/returns/new">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Devolução
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-card  rounded-md border border-border/50 shadow-sm  overflow-hidden  ">

@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { createPortal } from "react-dom"
 import { Bell, Download, Menu, Search } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
@@ -8,9 +8,18 @@ import { logoutAction } from "@/app/auth-actions"
 import { clearOfflineSnapshots } from "@/lib/offline-snapshot"
 import { toast } from "sonner"
 import { ThemeToggle } from "@/components/ui/theme-toggle"
+import { WarehouseSelectFilter, type WarehouseOption } from "@/components/ui/warehouse-select-filter"
 import { Sidebar } from "./sidebar"
 
-export function Topbar({ user }: { user?: { userId: string; name: string; email: string; roles: string[]; permissions?: string[] } | null }) {
+export function Topbar({
+  user,
+  warehouses = [],
+  activeWarehouseId = "",
+}: {
+  user?: { userId: string; name: string; email: string; roles: string[]; permissions?: string[] } | null
+  warehouses?: WarehouseOption[]
+  activeWarehouseId?: string
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -47,7 +56,9 @@ export function Topbar({ user }: { user?: { userId: string; name: string; email:
     'issues': 'Saídas',
     'requests': 'Requisições',
     'returns': 'Devoluções',
+    'transfers': 'Transferências',
     'inventory': 'Auditorias',
+    'divergences': 'Divergências',
     'collector': 'Coletor',
     'import': 'Importar',
     'export': 'Exportar',
@@ -126,6 +137,19 @@ export function Topbar({ user }: { user?: { userId: string; name: string; email:
       {/* Right side: Actions */}
       {!isMobileSearchOpen && (
         <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          {/* Seletor Global de Almoxarifado */}
+          {user && warehouses.length > 0 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={activeWarehouseId}
+                syncGlobalCookie={true}
+                allLabel="Todos os Almoxarifados"
+                compact={true}
+                className="w-[155px] sm:w-[210px] md:w-[230px]"
+              />
+            </Suspense>
+          )}
           
           {/* Search Toggle (Mobile) */}
           <button 

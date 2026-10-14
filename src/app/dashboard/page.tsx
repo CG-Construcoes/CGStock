@@ -8,14 +8,18 @@ import { DashboardCharts } from "./charts"
 import { getValidatedSession, type SessionPayload } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
+import * as dal from "@/lib/dal"
 import { warehouseScopeIds, warehouseIdFilter } from "@/lib/dal"
 import { QRCodeBadge } from "@/components/ui/qr-code-badge"
 import { Button } from "@/components/ui/button"
-import { QrCode, ClipboardList } from "lucide-react"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
+import { QrCode, ClipboardList, Building2 } from "lucide-react"
+import { Suspense } from "react"
 
-async function RequesterDashboard({ user, qrToken }: { user: SessionPayload, qrToken: string | null }) {
+async function RequesterDashboard({ user, qrToken, warehouseWhere }: { user: SessionPayload, qrToken: string | null, warehouseWhere?: { warehouseId: { in: string[] } } }) {
+  const wFilter = warehouseWhere !== undefined ? warehouseWhere : await warehouseIdFilter(user.userId)
   const recentRequests = await db.materialRequest.findMany({
-    where: { requesterId: user.userId, ...await warehouseIdFilter(user.userId) },
+    where: { requesterId: user.userId, ...wFilter },
     orderBy: { createdAt: 'desc' },
     take: 5,
     include: {
@@ -108,16 +112,41 @@ async function RequesterDashboard({ user, qrToken }: { user: SessionPayload, qrT
   )
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: {
+  searchParams?: Promise<{ warehouseId?: string }>
+}) {
   const session = await getValidatedSession()
   if (!session) redirect("/login")
   const roles = session.roles || []
+
+  const resolvedParams = props?.searchParams ? await props.searchParams : {}
+  const baseWFilter = await warehouseIdFilter(session.userId)
+  const baseScopeIds = await warehouseScopeIds(session.userId)
+
+  // Busca almoxarifados acessíveis e cookie global (com fallback seguro para mocks de teste)
+  const warehouses = "getAccessibleWarehouses" in dal && typeof dal.getAccessibleWarehouses === "function"
+    ? (await dal.getAccessibleWarehouses(session.userId)) || []
+    : []
+  const cookieWhId = "getActiveWarehouseId" in dal && typeof dal.getActiveWarehouseId === "function"
+    ? (await dal.getActiveWarehouseId(session.userId)) || ""
+    : ""
+
+  const rawSelectedId = resolvedParams.warehouseId !== undefined ? resolvedParams.warehouseId : cookieWhId
+  const selectedWarehouseId = rawSelectedId && (
+    warehouses.length === 0
+      ? (baseScopeIds === null || baseScopeIds.includes(rawSelectedId))
+      : warehouses.some(w => w.id === rawSelectedId)
+  ) ? rawSelectedId : ""
+
+  const scopeIds = selectedWarehouseId ? [selectedWarehouseId] : baseScopeIds
+  const wFilter = selectedWarehouseId ? { warehouseId: { in: [selectedWarehouseId] } } : baseWFilter
+  const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId)
   
   const isRequesterOnly = roles.includes('SOLICITANTE') && !roles.some(r => ['ADMIN', 'GESTOR', 'ALMOXARIFE'].includes(r))
   
   if (isRequesterOnly && session) {
     const user = await db.user.findUnique({ where: { id: session.userId }, select: { qrToken: true } })
-    return <RequesterDashboard user={session} qrToken={user?.qrToken || null} />
+    return <RequesterDashboard user={session} qrToken={user?.qrToken || null} warehouseWhere={wFilter} />
   }
 
   // Agrega entradas e saídas dos últimos 30 dias diretamente no banco
@@ -125,9 +154,6 @@ export default async function DashboardPage() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
   type ChartRow = { day: Date, type: string, total: number }
-
-  const wFilter = await warehouseIdFilter(session.userId)
-  const scopeIds = await warehouseScopeIds(session.userId)
 
   const divPendingWhere: Prisma.InventoryDivergenceWhereInput = { status: 'PENDING' }
   const divReviewedWhere: Prisma.InventoryDivergenceWhereInput = { status: 'REVIEWED' }
@@ -218,55 +244,105 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {warehouses.length > 1 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 sm:px-4 rounded-md border border-border shadow-xs">
+          <div className="flex items-center gap-2 text-sm">
+            <Building2 className="h-4 w-4 text-primary shrink-0" />
+            <span className="font-medium text-muted-foreground">Exibindo indicadores de:</span>
+            <span className="font-bold text-foreground">
+              {selectedWarehouse ? selectedWarehouse.name : "Todos os Almoxarifados"}
+            </span>
+          </div>
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-md border-border bg-card  shadow-sm  hover:shadow-sm ">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Divergências</CardTitle>
-            <div className="bg-amber-100 p-2 rounded-lg">
-              <FileText className="h-4 w-4 text-amber-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-foreground">{pendingDivergencesCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Pendentes de análise</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-md border-border bg-card  shadow-sm  hover:shadow-sm ">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Ajustes</CardTitle>
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <AlertTriangle className="h-4 w-4 text-blue-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-foreground">{pendingApprovalsCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Aguardando aprovação</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-md border-border bg-card  shadow-sm  hover:shadow-sm ">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Transferências</CardTitle>
-            <div className="bg-emerald-100 p-2 rounded-lg">
-              <ArrowRightLeft className="h-4 w-4 text-emerald-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-foreground">{inTransitTransfersCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Em andamento</p>
-          </CardContent>
-        </Card>
-        <Card className="rounded-md border-border bg-card  shadow-sm  hover:shadow-sm ">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Total de Produtos</CardTitle>
-            <div className="bg-slate-100 p-2 rounded-lg">
-              <Package className="h-4 w-4 text-slate-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-foreground">{totalProducts}</div>
-            <p className="text-xs text-muted-foreground mt-1">Cadastrados na base</p>
-          </CardContent>
-        </Card>
+        <Link href="/divergences?status=PENDING" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
+          <Card className="rounded-md border-border bg-card shadow-sm hover:border-amber-500/60 hover:shadow-md transition-all cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Divergências</CardTitle>
+              <div className="bg-amber-100 p-2 rounded-lg">
+                <FileText className="h-4 w-4 text-amber-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-foreground">{pendingDivergencesCount}</div>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-muted-foreground">Pendentes de análise</p>
+                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Analisar →
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/divergences?status=REVIEWED" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
+          <Card className="rounded-md border-border bg-card shadow-sm hover:border-blue-500/60 hover:shadow-md transition-all cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Ajustes</CardTitle>
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <AlertTriangle className="h-4 w-4 text-blue-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-foreground">{pendingApprovalsCount}</div>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-muted-foreground">Aguardando aprovação</p>
+                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Ver ajustes →
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/transfers" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
+          <Card className="rounded-md border-border bg-card shadow-sm hover:border-emerald-500/60 hover:shadow-md transition-all cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Transferências</CardTitle>
+              <div className="bg-emerald-100 p-2 rounded-lg">
+                <ArrowRightLeft className="h-4 w-4 text-emerald-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-foreground">{inTransitTransfersCount}</div>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-muted-foreground">Em andamento</p>
+                <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Ver todas →
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/products" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
+          <Card className="rounded-md border-border bg-card shadow-sm hover:border-primary/60 hover:shadow-md transition-all cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Total de Produtos</CardTitle>
+              <div className="bg-slate-100 p-2 rounded-lg">
+                <Package className="h-4 w-4 text-slate-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-foreground">{totalProducts}</div>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-muted-foreground">Cadastrados na base</p>
+                <span className="text-[11px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                  Ver catálogo →
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-7">
@@ -293,9 +369,14 @@ export default async function DashboardPage() {
         </Card>
 
         <Card className="lg:col-span-3 rounded-md border-border shadow-sm flex flex-col min-w-0">
-          <CardHeader>
-            <CardTitle className="text-lg font-bold">Últimas Movimentações</CardTitle>
-            <CardDescription className="mt-1">Entradas, saídas e ajustes recentes no sistema.</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-lg font-bold">Últimas Movimentações</CardTitle>
+              <CardDescription className="mt-1">Entradas, saídas e ajustes recentes no sistema.</CardDescription>
+            </div>
+            <Link href="/movements" className="text-xs font-medium text-primary hover:underline shrink-0 mt-1">
+              Ver todas →
+            </Link>
           </CardHeader>
           <CardContent className="flex-1">
             <div className="space-y-4">
@@ -311,7 +392,11 @@ export default async function DashboardPage() {
                   const Icon = mov.type === 'RETURN' ? RotateCcw : ArrowRightLeft
 
                   return (
-                    <div key={mov.id} className="flex min-w-0 items-center justify-between gap-2 border-b border-border pb-4 last:border-0 last:pb-0 hover:bg-muted/20 -mx-2 px-2 rounded-lg py-2">
+                    <Link
+                      key={mov.id}
+                      href={`/movements/${mov.id}`}
+                      className="group flex min-w-0 items-center justify-between gap-2 border-b border-border pb-4 last:border-0 last:pb-0 hover:bg-muted/30 -mx-2 px-2 rounded-lg py-2 transition-colors cursor-pointer"
+                    >
                       <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                         <div className={`flex h-10 w-10 items-center justify-center rounded-md shadow-inner ${
                           isPositive ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
@@ -319,7 +404,7 @@ export default async function DashboardPage() {
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="flex min-w-0 flex-col">
-                          <span className="break-words text-sm font-bold text-foreground">{mov.product.name}</span>
+                          <span className="break-words text-sm font-bold text-foreground group-hover:text-primary transition-colors">{mov.product.name}</span>
                           <span className="text-xs font-medium text-muted-foreground mt-0.5">{typeStr} • {new Date(mov.createdAt).toLocaleDateString('pt-BR')}</span>
                         </div>
                       </div>
@@ -328,7 +413,7 @@ export default async function DashboardPage() {
                       }`}>
                         {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
                       </div>
-                    </div>
+                    </Link>
                   )
                 })
               )}
@@ -363,11 +448,15 @@ export default async function DashboardPage() {
                   const progress = total > 0 ? Math.round((completed / total) * 100) : 0
 
                   return (
-                    <div key={inv.id} className="group flex items-center justify-between rounded-md border border-border bg-background/50 p-4   hover:shadow-sm">
+                    <Link
+                      key={inv.id}
+                      href={`/inventory/${inv.id}`}
+                      className="group flex items-center justify-between rounded-md border border-border bg-background/50 p-4 hover:border-primary/50 hover:bg-muted/20 hover:shadow-sm transition-all cursor-pointer"
+                    >
                       <div className="flex flex-col space-y-1">
-                        <Link href={`/inventory/${inv.id}`} className="font-bold text-foreground group-hover:text-primary ">
+                        <span className="font-bold text-foreground group-hover:text-primary transition-colors">
                           {inv.name}
-                        </Link>
+                        </span>
                         <span className="text-sm font-medium text-muted-foreground flex items-center gap-1.5 mt-1">
                           <Smartphone className="h-3.5 w-3.5 text-primary/70" />
                           Locais: {completed}/{total}
@@ -377,7 +466,7 @@ export default async function DashboardPage() {
                         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">Em Andamento</Badge>
                         <span className="text-sm font-bold text-primary">{progress}% concluído</span>
                       </div>
-                    </div>
+                    </Link>
                   )
                 })
               )}

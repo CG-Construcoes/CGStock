@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Trash2, AlertTriangle, ShieldAlert, Loader2, X } from "lucide-react"
+import { Trash2, AlertTriangle, ShieldAlert, Loader2, X, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { deleteWarehouseAction, inactivateWarehouseAction } from "./actions"
+import { deleteWarehouseAction, inactivateWarehouseAction, clearWarehouseDataAction } from "./actions"
 import { toast } from "sonner"
 
 interface WarehouseDeleteDialogProps {
@@ -28,10 +28,12 @@ export function WarehouseDeleteDialog({
   const [isOpen, setIsOpen] = useState(false)
   const [typedCode, setTypedCode] = useState("")
   const [isDeleting, startDeleteTransition] = useTransition()
+  const [isClearing, startClearTransition] = useTransition()
   const [isInactivating, startInactivateTransition] = useTransition()
 
   const normalizedExpectedCode = warehouseCode.trim().toUpperCase()
   const isMatch = typedCode.trim().toUpperCase() === normalizedExpectedCode
+  const isBusy = isDeleting || isClearing || isInactivating
 
   const handleDelete = () => {
     if (!isMatch) {
@@ -56,6 +58,25 @@ export function WarehouseDeleteDialog({
     })
   }
 
+  const handleClearData = () => {
+    if (!isMatch) {
+      toast.error(`Digite exatamente "${normalizedExpectedCode}" para confirmar a limpeza dos dados.`)
+      return
+    }
+
+    startClearTransition(async () => {
+      const res = await clearWarehouseDataAction(warehouseId, typedCode.trim().toUpperCase())
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        toast.success(`Todos os saldos e movimentações de "${warehouseName}" foram zerados! O almoxarifado continua ativo.`)
+        setIsOpen(false)
+        setTypedCode("")
+        router.refresh()
+      }
+    })
+  }
+
   const handleInactivate = () => {
     startInactivateTransition(async () => {
       const res = await inactivateWarehouseAction(warehouseId)
@@ -75,7 +96,7 @@ export function WarehouseDeleteDialog({
   }
 
   const handleClose = () => {
-    if (isDeleting || isInactivating) return
+    if (isBusy) return
     setIsOpen(false)
     setTypedCode("")
   }
@@ -93,7 +114,7 @@ export function WarehouseDeleteDialog({
           className="flex items-center gap-2 shadow-xs"
         >
           <Trash2 className="h-4 w-4" />
-          Excluir Almoxarifado
+          Limpar / Excluir Almoxarifado
         </Button>
       ) : (
         <button
@@ -105,7 +126,7 @@ export function WarehouseDeleteDialog({
             setIsOpen(true)
           }}
           className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md transition-colors"
-          title="Excluir almoxarifado"
+          title="Limpar dados ou excluir almoxarifado"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -120,7 +141,7 @@ export function WarehouseDeleteDialog({
                   <Trash2 className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">Excluir Almoxarifado Definitivamente</h3>
+                  <h3 className="text-lg font-bold text-foreground">Limpar Dados ou Excluir Almoxarifado</h3>
                   <p className="text-xs text-muted-foreground">
                     {warehouseName} ({normalizedExpectedCode})
                   </p>
@@ -129,7 +150,7 @@ export function WarehouseDeleteDialog({
               <button
                 type="button"
                 onClick={handleClose}
-                disabled={isDeleting || isInactivating}
+                disabled={isBusy}
                 className="text-muted-foreground hover:text-foreground p-1 rounded-md"
               >
                 <X className="h-4 w-4" />
@@ -141,24 +162,21 @@ export function WarehouseDeleteDialog({
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                 <span className="font-semibold uppercase tracking-wider text-[11px]">
-                  Ação Permanente e Irreversível
+                  Escolha o que deseja fazer com {warehouseName}
                 </span>
               </div>
               <p className="leading-relaxed">
-                Esta ação apagará permanentemente o galpão <strong>{warehouseName}</strong> e <strong>TODOS</strong> os dados vinculados a ele:
+                <strong>Limpar Base do Almoxarifado:</strong> apaga todo o estoque, movimentações, lotes de importação, requisições e inventários deste almoxarifado, mas <strong>mantém o almoxarifado, suas localizações e acessos criados</strong> para você importar do zero.
               </p>
-              <ul className="list-disc list-inside space-y-0.5 text-muted-foreground pl-1">
-                <li>Lotes e saldos em estoque</li>
-                <li>Histórico de movimentações (entradas, saídas e ajustes)</li>
-                <li>Requisições, devoluções e transferências</li>
-                <li>Inventários e todas as localizações físicas</li>
-              </ul>
+              <p className="leading-relaxed">
+                <strong>Excluir Tudo:</strong> apaga todos os dados acima e também remove o cadastro do almoxarifado do sistema.
+              </p>
             </div>
 
             {/* Confirmação à escrita */}
             <div className="space-y-2 pt-1">
               <Label htmlFor="confirm-code" className="text-xs font-medium text-foreground">
-                Para confirmar a exclusão completa, digite o código{" "}
+                Para liberar as ações de limpeza/exclusão, digite o código{" "}
                 <code className="bg-muted px-2 py-0.5 rounded text-sm font-mono font-bold text-red-600 dark:text-red-400 border border-border select-all">
                   {normalizedExpectedCode}
                 </code>{" "}
@@ -180,54 +198,76 @@ export function WarehouseDeleteDialog({
             </div>
 
             {/* Ações */}
-            <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleInactivate}
-                disabled={isInactivating || isDeleting}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 h-9 shrink-0"
-              >
-                {isInactivating ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
-                )}
-                Apenas Inativar Almoxarifado
-              </Button>
-
-              <div className="flex items-center gap-2 shrink-0 justify-end">
+            <div className="pt-4 border-t border-border flex flex-col gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  onClick={handleClose}
-                  disabled={isDeleting || isInactivating}
-                  className="h-9 px-4"
+                  onClick={handleInactivate}
+                  disabled={isBusy}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5 h-9"
                 >
-                  Cancelar
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={!isMatch || isDeleting}
-                  className="flex items-center justify-center gap-2 h-9 px-4 shrink-0 font-semibold"
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Excluindo Tudo...
-                    </>
+                  {isInactivating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      Sim, Excluir Tudo
-                    </>
+                    <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
                   )}
+                  Apenas Inativar
                 </Button>
+
+                <div className="flex flex-wrap items-center gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClose}
+                    disabled={isBusy}
+                    className="h-9 px-3"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClearData}
+                    disabled={!isMatch || isBusy}
+                    className="flex items-center justify-center gap-1.5 h-9 px-3 border-amber-500/50 text-amber-500 hover:bg-amber-500/10 font-semibold"
+                  >
+                    {isClearing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Limpando Base...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-4 w-4" />
+                        Limpar Base (Manter Almoxarifado)
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={!isMatch || isBusy}
+                    className="flex items-center justify-center gap-1.5 h-9 px-3 font-semibold"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Excluindo...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        Excluir Tudo
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

@@ -1,18 +1,40 @@
 import { db } from "@/lib/db"
-import { warehouseScopeIds } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {  ArrowRightLeft, Plus } from "lucide-react"
+import { ArrowRightLeft, Plus } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { requirePermissionPage } from "@/lib/permissions"
+import { Prisma } from "@prisma/client"
+import { Suspense } from "react"
 
-export default async function TransfersPage() {
+export default async function TransfersPage(props: {
+  searchParams?: Promise<{ warehouseId?: string }>
+}) {
   await requirePermissionPage('STOCK_TRANSFER')
-  const scope = await warehouseScopeIds()
+  const resolvedParams = props?.searchParams ? await props.searchParams : {}
+  const { warehouses, selectedWarehouseId, effectiveScopeIds: scope } = await resolveWarehouseContext(resolvedParams.warehouseId)
+
+  let whereClause: Prisma.StockTransferWhereInput | undefined
+  if (selectedWarehouseId) {
+    whereClause = {
+      OR: [
+        { sourceWarehouseId: selectedWarehouseId },
+        { destinationWarehouseId: selectedWarehouseId }
+      ]
+    }
+  } else if (scope !== null) {
+    whereClause = {
+      sourceWarehouseId: { in: scope },
+      destinationWarehouseId: { in: scope }
+    }
+  }
+
   const transfers = await db.stockTransfer.findMany({
-    where: scope === null ? undefined : { sourceWarehouseId: { in: scope }, destinationWarehouseId: { in: scope } },
+    where: whereClause,
     orderBy: { createdAt: 'desc' },
     include: {
       sourceWarehouse: true,
@@ -26,7 +48,7 @@ export default async function TransfersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <BackButton />
           <div>
@@ -34,12 +56,23 @@ export default async function TransfersPage() {
             <p className="text-muted-foreground">Movimentações entre almoxarifados ou localizações.</p>
           </div>
         </div>
-        <Link href="/transfers/new">
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Transferência
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          {warehouses.length > 1 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={selectedWarehouseId}
+                className="w-full sm:w-60"
+              />
+            </Suspense>
+          )}
+          <Link href="/transfers/new">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Transferência
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

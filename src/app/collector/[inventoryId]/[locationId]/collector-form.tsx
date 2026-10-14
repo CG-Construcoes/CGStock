@@ -107,7 +107,7 @@ export default function CollectorForm({
     setItems(items.map(i => {
       if (i.productId === productId) {
         const newQ = i.quantity + delta
-        return { ...i, quantity: newQ > 0 ? newQ : 1 }
+        return { ...i, quantity: newQ >= 0 ? newQ : 0 }
       }
       return i
     }))
@@ -115,7 +115,7 @@ export default function CollectorForm({
 
   const setExactQuantity = (productId: string, val: string) => {
     const num = parseInt(val, 10)
-    if (!isNaN(num) && num > 0) {
+    if (!isNaN(num) && num >= 0) {
       setItems(items.map(i => i.productId === productId ? { ...i, quantity: num } : i))
     }
   }

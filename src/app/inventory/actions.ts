@@ -13,6 +13,8 @@ export async function createInventoryAction(formData: FormData) {
 
   const name = formData.get("name") as string
   const warehouseId = formData.get("warehouseId") as string
+  const rawType = (formData.get("type") as string) || "PARTIAL"
+  const inventoryType = ["PARTIAL", "FULL", "CYCLE_COUNT"].includes(rawType) ? rawType : "PARTIAL"
   await assertWarehouseAccess(warehouseId, session.userId)
   
   const locationKeys = Array.from(formData.keys()).filter(k => k.startsWith('loc_') && formData.get(k) === 'on')
@@ -49,6 +51,7 @@ export async function createInventoryAction(formData: FormData) {
         code,
         name,
         warehouseId,
+        type: inventoryType,
         createdById: session.userId,
         status: 'IN_PROGRESS',
         startedAt: new Date(),
@@ -75,7 +78,51 @@ export async function finishInventoryAction(inventoryId: string) {
   const session = await requireActionPermission('INVENTORY_REVIEW')
   await consolidateInventory(inventoryId, session.userId)
   revalidatePath(`/inventory/${inventoryId}`)
+  revalidatePath(`/inventory/${inventoryId}/divergences`)
   revalidatePath("/inventory")
+  revalidatePath("/divergences")
+  revalidatePath("/dashboard")
+}
+
+export async function recalculatePartialInventoryAction(formData: FormData) {
+  const session = await requireActionPermission('INVENTORY_REVIEW')
+  const inventoryId = formData.get("id") as string
+  if (!inventoryId) throw new Error("Inventário inválido.")
+
+  await consolidateInventory(inventoryId, session.userId, { onlyCountedItems: true })
+
+  revalidatePath(`/inventory/${inventoryId}`)
+  revalidatePath(`/inventory/${inventoryId}/divergences`)
+  revalidatePath("/inventory")
+  revalidatePath("/divergences")
+  revalidatePath("/dashboard")
+}
+
+export async function recalculateAllInventoriesPartialAction() {
+  const session = await requireActionPermission('INVENTORY_REVIEW')
+  const wFilter = await warehouseIdFilter(session.userId)
+
+  // Busca todos os inventários do escopo do usuário que possuem divergências pendentes de itens não coletados (countedQuantity = 0)
+  const inventoriesWithUncollectedDivs = await db.inventory.findMany({
+    where: {
+      ...wFilter,
+      divergences: {
+        some: {
+          status: 'PENDING',
+          countedQuantity: 0
+        }
+      }
+    },
+    select: { id: true }
+  })
+
+  for (const inv of inventoriesWithUncollectedDivs) {
+    await consolidateInventory(inv.id, session.userId, { onlyCountedItems: true })
+  }
+
+  revalidatePath("/divergences")
+  revalidatePath("/inventory")
+  revalidatePath("/dashboard")
 }
 
 export async function deleteInventoryAction(formData: FormData) {

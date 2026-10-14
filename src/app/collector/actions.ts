@@ -18,7 +18,7 @@ export async function submitCollectionAction(formData: FormData) {
     const productId = k.replace('qty_', '')
     const quantity = Number(formData.get(k))
     return { productId, quantity }
-  }).filter(i => i.quantity > 0)
+  }).filter(i => !isNaN(i.quantity) && i.quantity >= 0)
 
   if (items.length === 0) {
     throw new Error("Nenhum item coletado.")

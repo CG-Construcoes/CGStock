@@ -10,39 +10,29 @@ import { format } from "date-fns"
 import { getMovementTypeLabel, getMovementBadgeVariant, isInMovement, isManualAdjustment } from "@/lib/movement-labels"
 import { requirePermissionPage } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 
 export default async function MovementsPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   await requirePermissionPage('STOCK_VIEW')
-  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const session = await getValidatedSession()
   const searchParams = await props.searchParams;
   const page = Number(searchParams.page) || 1
   const pageSize = 20
   const skip = (page - 1) * pageSize
 
+  const warehouseParam = searchParams.warehouseId as string | undefined
+  const { warehouses, selectedWarehouseId, warehouseWhere } = await resolveWarehouseContext(warehouseParam, session!.userId)
+
   // Build filter query
-  const where: Prisma.StockMovementWhereInput = {}
+  const where: Prisma.StockMovementWhereInput = { ...warehouseWhere }
   
   const typeParam = searchParams.type as string
   if (typeParam) where.type = typeParam
 
   const productParam = searchParams.productId as string
   if (productParam) where.productId = productParam
-
-  if (wFilter) {
-    where.warehouseId = wFilter.warehouseId
-  }
-
-  const warehouseParam = searchParams.warehouseId as string
-  if (warehouseParam) {
-    if (wFilter) {
-      where.AND = [{ warehouseId: wFilter.warehouseId }, { warehouseId: warehouseParam }]
-    } else {
-      where.warehouseId = warehouseParam
-    }
-  }
 
   const refTypeParam = searchParams.referenceType as string
   if (refTypeParam) where.referenceType = refTypeParam
@@ -56,7 +46,7 @@ export default async function MovementsPage(props: {
     ]
   }
 
-  const [movements, totalCount, products, warehouses] = await Promise.all([
+  const [movements, totalCount, products] = await Promise.all([
     db.stockMovement.findMany({
       where,
       include: {
@@ -70,11 +60,6 @@ export default async function MovementsPage(props: {
     }),
     db.stockMovement.count({ where }),
     db.product.findMany({ select: { id: true, code: true, name: true }, orderBy: { name: 'asc' } }),
-    db.warehouse.findMany({ 
-      where: wFilter ? { id: wFilter.warehouseId } : undefined,
-      select: { id: true, name: true }, 
-      orderBy: { name: 'asc' } 
-    })
   ])
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -132,7 +117,7 @@ export default async function MovementsPage(props: {
           q: search || "",
           type: typeParam || "",
           productId: productParam || "",
-          warehouseId: warehouseParam || "",
+          warehouseId: selectedWarehouseId || "",
           referenceType: refTypeParam || ""
         }} 
       />

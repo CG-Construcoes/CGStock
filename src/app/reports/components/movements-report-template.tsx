@@ -3,10 +3,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge, type BadgeProps } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { BackButton } from "@/components/ui/back-button"
-import { warehouseIdFilter } from "@/lib/dal"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { getValidatedSession } from "@/lib/auth"
 import { getMovementTypeLabel, getMovementBadgeVariant, isManualAdjustment, isInMovement } from "@/lib/movement-labels"
 import { Prisma } from "@prisma/client"
+import { Suspense } from "react"
 
 export interface MovementsReportTemplateProps {
   page: number;
@@ -15,6 +17,7 @@ export interface MovementsReportTemplateProps {
   icon: React.ElementType;
   typeFilter?: Prisma.StockMovementWhereInput["type"];
   basePath: string;
+  warehouseId?: string;
 }
 
 export async function MovementsReportTemplate({
@@ -23,13 +26,14 @@ export async function MovementsReportTemplate({
   description,
   icon: Icon,
   typeFilter,
-  basePath
+  basePath,
+  warehouseId,
 }: MovementsReportTemplateProps) {
   const pageSize = 50
   
   const session = await getValidatedSession()
   if (!session) return null
-  const wFilter = await warehouseIdFilter(session.userId)
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(warehouseId, session.userId)
   
   const whereClause: Prisma.StockMovementWhereInput = {
     ...(typeFilter ? { type: typeFilter } : {}),
@@ -61,7 +65,7 @@ export async function MovementsReportTemplate({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <BackButton />
           <div>
@@ -72,6 +76,15 @@ export async function MovementsReportTemplate({
             <p className="text-muted-foreground text-sm mt-1">{description}</p>
           </div>
         </div>
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

@@ -1,19 +1,27 @@
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Filter, MoreHorizontal, LogOut } from "lucide-react"
+import { MoreHorizontal, LogOut } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { SearchInput } from "@/components/ui/search-input"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { requireAnyPermissionPage } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { Suspense } from "react"
 
-export default async function IssuesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function IssuesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; warehouseId?: string }>
+}) {
   await requireAnyPermissionPage('STOCK_EXIT', 'REQUEST_FULFILL')
-  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const session = await getValidatedSession()
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(resolvedParams?.warehouseId, session!.userId)
+
   const issues = await db.materialRequest.findMany({
     where: {
       status: {
@@ -45,14 +53,17 @@ export default async function IssuesPage({ searchParams }: { searchParams: Promi
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-md border border-border shadow-sm">
         <SearchInput placeholder="Buscar por número da requisição ou solicitante..." />
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
-          </Button>
-        </div>
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="bg-card  rounded-md border border-border/50 shadow-sm  overflow-hidden  ">

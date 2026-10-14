@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Box,
   LogOut,
+  AlertTriangle,
   type LucideIcon
 } from "lucide-react"
 
@@ -67,6 +68,7 @@ export function Sidebar({ user }: { user?: { userId: string; name: string; email
 
   const inventarioItems = isRequesterOnly ? [] : [
     { name: "Inventários", href: "/inventory", icon: ClipboardList, perm: 'INVENTORY_CREATE' }, // Or COUNT/REVIEW
+    { name: "Divergências", href: "/divergences", icon: AlertTriangle, perm: 'INVENTORY_REVIEW' },
     { name: "Coletor", href: "/collector", icon: CheckSquare, perm: 'INVENTORY_COUNT' },
   ]
 
@@ -83,7 +85,7 @@ export function Sidebar({ user }: { user?: { userId: string; name: string; email
 
   const isAllowed = (item: { name: string; perm?: string }) => {
     if (!item.perm || isAdmin) return true
-    if (item.name === "Inventários" || item.name === "Coletor") {
+    if (item.name === "Inventários" || item.name === "Coletor" || item.name === "Divergências") {
       return ['INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE'].some(hasPerm)
     }
     if (item.name === "Requisições") {

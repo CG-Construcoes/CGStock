@@ -33,6 +33,8 @@ export async function reviewDivergenceAction(divergenceId: string, inventoryId: 
 
   revalidatePath(`/inventory/${inventoryId}/divergences/${divergenceId}`)
   revalidatePath(`/inventory/${inventoryId}/divergences`)
+  revalidatePath("/divergences")
+  revalidatePath("/dashboard")
 }
 
 export async function approveDivergenceAction(divergenceId: string, inventoryId: string, formData: FormData) {
@@ -56,6 +58,8 @@ export async function approveDivergenceAction(divergenceId: string, inventoryId:
 
   revalidatePath(`/inventory/${inventoryId}/divergences/${divergenceId}`)
   revalidatePath(`/inventory/${inventoryId}/divergences`)
+  revalidatePath("/divergences")
+  revalidatePath("/dashboard")
   redirect(`/inventory/${inventoryId}/divergences`)
 }
 
@@ -78,5 +82,7 @@ export async function rejectDivergenceAction(divergenceId: string, inventoryId: 
 
   revalidatePath(`/inventory/${inventoryId}/divergences/${divergenceId}`)
   revalidatePath(`/inventory/${inventoryId}/divergences`)
+  revalidatePath("/divergences")
+  revalidatePath("/dashboard")
   redirect(`/inventory/${inventoryId}/divergences`)
 }

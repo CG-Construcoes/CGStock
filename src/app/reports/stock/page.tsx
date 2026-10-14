@@ -5,14 +5,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Package } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
-import { warehouseIdFilter } from "@/lib/dal"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { Suspense } from "react"
 
-export default async function StockReportPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+export default async function StockReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; warehouseId?: string }>
+}) {
   await requirePermissionPage('REPORT_VIEW')
-  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const session = await getValidatedSession()
   const params = await searchParams
   const page = Number(params.page) || 1
   const pageSize = 50
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(params.warehouseId, session!.userId)
   
   const stocks = await db.stock.findMany({
     where: wFilter,
@@ -33,17 +40,26 @@ export default async function StockReportPage({ searchParams }: { searchParams: 
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <BackButton />
           <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Package className="h-6 w-6 text-emerald-600" />
-            Posição Atual de Estoque
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Visão detalhada do saldo de produtos por localização.</p>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <Package className="h-6 w-6 text-emerald-600" />
+              Posição Atual de Estoque
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">Visão detalhada do saldo de produtos por localização.</p>
+          </div>
         </div>
-        </div>
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

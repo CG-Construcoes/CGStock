@@ -47,7 +47,7 @@ export default async function NewLocationPage({
                   <Select name="warehouseId" required>
                     <option value="">Selecione...</option>
                     {warehouses.map(w => (
-                      <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
+                      <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </Select>
                 </div>

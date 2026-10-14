@@ -1,18 +1,29 @@
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Filter, ClipboardList, Clock } from "lucide-react"
+import { Plus, ClipboardList, Clock } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { SearchInput } from "@/components/ui/search-input"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { hasPermission, requireAnyPermissionPage } from "@/lib/permissions"
+import { Suspense } from "react"
 
-export default async function InventoryPage() {
+export default async function InventoryPage(props: {
+  searchParams?: Promise<{ q?: string; warehouseId?: string }>
+}) {
   await requireAnyPermissionPage('INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE')
   const canCreate = await hasPermission('INVENTORY_CREATE')
+  const resolvedParams = props?.searchParams ? await props.searchParams : {}
+  const q = resolvedParams.q || ''
+  const { warehouses, selectedWarehouseId, warehouseWhere } = await resolveWarehouseContext(resolvedParams.warehouseId)
+
   const inventories = await db.inventory.findMany({
-    where: await warehouseIdFilter(),
+    where: {
+      ...warehouseWhere,
+      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { code: { contains: q, mode: 'insensitive' } }] } : {})
+    },
     include: {
       warehouse: true,
       createdBy: true,
@@ -41,17 +52,17 @@ export default async function InventoryPage() {
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar inventário..." className="pl-9" />
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
-          </Button>
-        </div>
+      <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-md border border-border shadow-sm">
+        <SearchInput placeholder="Buscar inventário por código ou nome..." />
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

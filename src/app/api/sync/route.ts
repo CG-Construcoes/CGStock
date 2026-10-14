@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       }
       const validItems = (items as { productId: unknown, quantity: unknown }[])
         .map(i => ({ productId: i && typeof i.productId === 'string' ? i.productId : '', quantity: Number(i?.quantity) }))
-      if (validItems.some(i => !i.productId || !Number.isSafeInteger(i.quantity) || i.quantity <= 0) || new Set(validItems.map(i => i.productId)).size !== validItems.length) {
+      if (validItems.some(i => !i.productId || !Number.isSafeInteger(i.quantity) || i.quantity < 0) || new Set(validItems.map(i => i.productId)).size !== validItems.length) {
         return NextResponse.json({ error: "Itens de coleta inválidos." }, { status: 400 })
       }
 

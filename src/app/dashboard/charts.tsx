@@ -19,7 +19,7 @@ export function DashboardCharts({ data }: { data: ChartData[] }) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} barGap={2} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <BarChart data={data} barGap={2} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="currentColor" className="text-border opacity-30" />
         <XAxis 
           dataKey="name" 
@@ -34,10 +34,10 @@ export function DashboardCharts({ data }: { data: ChartData[] }) {
           className="text-muted-foreground text-[10px] font-medium"
           tickLine={false} 
           axisLine={false} 
-          tickFormatter={(value) => `${value}`}
-          tickMargin={4}
+          tickFormatter={(value) => Number(value).toLocaleString("pt-BR")}
+          tickMargin={6}
           tickCount={4}
-          width={35}
+          width={56}
         />
         <Tooltip 
           cursor={{ fill: 'currentColor', className: 'text-muted opacity-5' }}

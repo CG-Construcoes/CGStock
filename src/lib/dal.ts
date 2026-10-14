@@ -1,9 +1,12 @@
 import { cache } from "react"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { db } from "./db"
 import { getValidatedSession, type SessionPayload } from "./auth"
 import { getUserSecurityContext, type UserSecurityContext } from "./user-context"
 import type { PermissionKey } from "./permissions"
+
+export const ACTIVE_WAREHOUSE_COOKIE = "cgstock_active_warehouse"
 
 /**
  * Data Access Layer (DAL): ponto centralizado de verificação de sessão e
@@ -145,4 +148,95 @@ export async function warehouseScopeIds(userId?: string): Promise<string[] | nul
   const user = userId ?? (await requireUser()).session.userId
   const scope = await getWarehouseScope(user)
   return scope === ALL_WAREHOUSES ? null : scope
+}
+
+export type AccessibleWarehouse = {
+  id: string
+  name: string
+  code: string
+}
+
+/**
+ * Retorna a lista de almoxarifados ativos aos quais o usuário tem acesso.
+ */
+export const getAccessibleWarehouses = cache(async (userId?: string): Promise<AccessibleWarehouse[]> => {
+  const user = userId ?? (await requireUser()).session.userId
+  const scope = await getWarehouseScope(user)
+  if (scope === ALL_WAREHOUSES) {
+    return db.warehouse.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    })
+  }
+  if (scope.length === 0) return []
+  return db.warehouse.findMany({
+    where: { status: "ACTIVE", id: { in: scope } },
+    select: { id: true, name: true, code: true },
+    orderBy: { name: "asc" },
+  })
+})
+
+/**
+ * Retorna o ID do almoxarifado selecionado no filtro global (cookie),
+ * validado contra as permissões do usuário, ou "" (todos os permitidos).
+ */
+export async function getActiveWarehouseId(userId?: string): Promise<string> {
+  try {
+    const cookieStore = await cookies()
+    const cookieVal = cookieStore.get(ACTIVE_WAREHOUSE_COOKIE)?.value || ""
+    if (!cookieVal) return ""
+    const user = userId ?? (await requireUser()).session.userId
+    const scope = await getWarehouseScope(user)
+    if (scope === ALL_WAREHOUSES) return cookieVal
+    return scope.includes(cookieVal) ? cookieVal : ""
+  } catch {
+    return ""
+  }
+}
+
+/**
+ * Resolve o filtro efetivo de almoxarifado combinando o parâmetro de URL (se informado),
+ * o cookie global de almoxarifado ativo e o escopo de segurança do usuário.
+ */
+export async function resolveWarehouseContext(
+  paramWarehouseId?: string | null,
+  userId?: string
+): Promise<{
+  warehouses: AccessibleWarehouse[]
+  selectedWarehouseId: string
+  effectiveScopeIds: string[] | null
+  warehouseWhere: { warehouseId: { in: string[] } } | undefined
+}> {
+  const user = userId ?? (await requireUser()).session.userId
+  const [warehouses, baseScope, activeCookieId] = await Promise.all([
+    getAccessibleWarehouses(user),
+    warehouseScopeIds(user),
+    getActiveWarehouseId(user),
+  ])
+
+  // Se o parâmetro foi passado explicitamente na URL (mesmo se for "ALL" para limpar), respeita;
+  // caso contrário usa o cookie global.
+  let candidateId = ""
+  if (paramWarehouseId !== undefined && paramWarehouseId !== null) {
+    candidateId = paramWarehouseId === "ALL" ? "" : paramWarehouseId
+  } else {
+    candidateId = activeCookieId
+  }
+
+  const validSelected = candidateId && warehouses.some(w => w.id === candidateId) ? candidateId : ""
+
+  let effectiveScopeIds: string[] | null = baseScope
+  if (validSelected) {
+    effectiveScopeIds = [validSelected]
+  }
+
+  const warehouseWhere = effectiveScopeIds === null ? undefined : { warehouseId: { in: effectiveScopeIds } }
+
+  return {
+    warehouses,
+    selectedWarehouseId: validSelected,
+    effectiveScopeIds,
+    warehouseWhere,
+  }
 }

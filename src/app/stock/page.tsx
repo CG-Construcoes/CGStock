@@ -5,7 +5,7 @@ import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
 import { requirePermissionPage } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
-import { getAccessibleWarehouseIds } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/ui/info-tooltip"
@@ -22,36 +22,15 @@ export default async function StockPage({
   const session = await getValidatedSession()
   const params = await searchParams
   const q = params.q?.trim() || ""
-  const selectedWarehouseId = params.warehouseId || ""
   const stockFilter = params.stockFilter || ""
   const page = Math.max(1, parseInt(params.page || "1", 10))
   const pageSize = 50
 
-  const allowedIds = await getAccessibleWarehouseIds(session!.userId)
-
-  let warehouses: { id: string; name: string }[] = []
-  if (allowedIds === null) {
-    warehouses = await db.warehouse.findMany({
-      where: { status: "ACTIVE" },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    })
-  } else {
-    warehouses = await db.warehouse.findMany({
-      where: { status: "ACTIVE", id: { in: allowedIds } },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    })
-  }
-
-  let effectiveWarehouseIds = allowedIds
-  if (selectedWarehouseId) {
-    if (warehouses.some(w => w.id === selectedWarehouseId)) {
-      effectiveWarehouseIds = [selectedWarehouseId]
-    } else {
-      effectiveWarehouseIds = []
-    }
-  }
+  const {
+    warehouses,
+    selectedWarehouseId,
+    effectiveScopeIds: effectiveWarehouseIds,
+  } = await resolveWarehouseContext(params.warehouseId, session!.userId)
 
   const selectedWarehouse = warehouses.find((w) => w.id === selectedWarehouseId)
   const warehouseLabel = selectedWarehouse ? selectedWarehouse.name : "Todos os Almoxarifados"

@@ -7,7 +7,7 @@ import { db } from "@/lib/db"
 import { ProductActions } from "./product-actions"
 import { cn } from "@/lib/utils"
 import { Prisma } from "@prisma/client"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 
 import { requirePermissionPage, hasPermission } from "@/lib/permissions"
 
@@ -26,6 +26,10 @@ export default async function ProductsPage({
   const search = resolvedSearchParams.q as string
   const categoryId = resolvedSearchParams.category as string
   const status = resolvedSearchParams.status as string
+  const warehouseParam = resolvedSearchParams.warehouseId as string | undefined
+
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(warehouseParam)
+  const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId)
 
   const where: Prisma.ProductWhereInput = {}
   if (search) {
@@ -36,8 +40,10 @@ export default async function ProductsPage({
   }
   if (categoryId) where.categoryId = categoryId
   if (status) where.status = status
+  if (selectedWarehouseId) {
+    where.stocks = { some: { warehouseId: selectedWarehouseId } }
+  }
 
-  const wFilter = await warehouseIdFilter()
   const page = parseInt(resolvedSearchParams.page as string) || 1
   const pageSize = 50
 
@@ -84,13 +90,31 @@ export default async function ProductsPage({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 border border-border shadow-sm">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">Produtos</h2>
+          {selectedWarehouse && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Filtrado por: <span className="font-semibold text-foreground">{selectedWarehouse.name}</span>
+            </p>
+          )}
         </div>
         
-        <form method="GET" className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-stretch sm:items-center">
-          <div className="relative w-full sm:w-64">
+        <form method="GET" className="flex flex-col sm:flex-row flex-wrap gap-3 w-full sm:w-auto items-stretch sm:items-center">
+          <div className="relative w-full sm:w-56">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input name="q" defaultValue={search || ""} placeholder="Buscar por Cód.Insumo ou descrição..." className="pl-9 h-9 text-sm" />
           </div>
+
+          {warehouses.length > 1 && (
+            <select
+              name="warehouseId"
+              defaultValue={selectedWarehouseId || "ALL"}
+              className="h-9 w-full sm:w-48 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="ALL">Almoxarifados (Todos)</option>
+              {warehouses.map(w => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          )}
           
           <select name="category" defaultValue={categoryId || ""} className="h-9 w-full sm:w-40 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
             <option value="">Categorias (Todas)</option>

@@ -15,7 +15,7 @@ import { db } from "@/lib/db"
 import DashboardPage from "@/app/dashboard/page"
 
 it("dashboard restringe produtos, indicadores, transferências e consultas por almoxarifado", async () => {
-  await DashboardPage()
+  await DashboardPage({})
   expect(db.product.count).toHaveBeenCalledWith({ where: { stocks: { some: { warehouseId: { in: ["central"] } } } } })
   expect(db.inventoryDivergence.count).toHaveBeenCalledWith({ where: { status: "PENDING", inventory: { warehouseId: { in: ["central"] } } } })
   expect(db.stockTransfer.count).toHaveBeenCalledWith({ where: { status: "IN_TRANSIT", sourceWarehouseId: { in: ["central"] }, destinationWarehouseId: { in: ["central"] } } })

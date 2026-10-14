@@ -5,11 +5,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
-import { warehouseIdFilter } from "@/lib/dal"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { Suspense } from "react"
 
-export default async function LowStockReportPage() {
+export default async function LowStockReportPage(props: {
+  searchParams?: Promise<{ warehouseId?: string }>
+}) {
   await requirePermissionPage('REPORT_VIEW')
-  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const session = await getValidatedSession()
+  const params = props?.searchParams ? await props.searchParams : {}
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(params.warehouseId, session!.userId)
 
   const stocks = await db.stock.findMany({
     where: wFilter,
@@ -27,17 +33,26 @@ export default async function LowStockReportPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <BackButton />
           <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <AlertTriangle className="h-6 w-6 text-amber-500" />
-            Produtos em Baixo Estoque
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Itens que atingiram o limite mínimo ou estão zerados.</p>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-amber-500" />
+              Produtos em Baixo Estoque
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">Itens que atingiram o limite mínimo ou estão zerados.</p>
+          </div>
         </div>
-        </div>
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

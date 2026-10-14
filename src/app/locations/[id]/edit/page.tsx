@@ -63,7 +63,7 @@ export default async function EditLocationPage(props: {
                   <Select name="warehouseId" defaultValue={location.warehouseId} required>
                     <option value="">Selecione...</option>
                     {warehouses.map(w => (
-                      <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
+                      <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </Select>
                 </div>

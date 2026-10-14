@@ -7,7 +7,7 @@ import { exportToExcel, exportToPDF } from "@/lib/export-utils"
 import { exportMovementsData } from "@/app/export/actions"
 import { toast } from "sonner"
 
-export function ReportsHeaderControls({ initialFrom, initialTo }: { initialFrom: string, initialTo: string }) {
+export function ReportsHeaderControls({ initialFrom, initialTo, warehouseId }: { initialFrom: string, initialTo: string, warehouseId?: string }) {
   const [loadingExcel, setLoadingExcel] = useState(false)
   const [loadingPdf, setLoadingPdf] = useState(false)
 
@@ -19,7 +19,7 @@ export function ReportsHeaderControls({ initialFrom, initialTo }: { initialFrom:
       const fromDate = new Date(initialFrom + "T00:00:00")
       const toDate = new Date(initialTo + "T23:59:59")
       
-      const data = await exportMovementsData(fromDate, toDate)
+      const data = await exportMovementsData(fromDate, toDate, warehouseId || "ALL")
 
       if (!data || data.length === 0) {
         throw new Error("Não há dados no período selecionado.")

@@ -8,12 +8,15 @@ import { DashboardCharts } from "@/app/dashboard/charts"
 
 import { ReportsHeaderControls, ReportsFilterControls } from "./client-controls"
 import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
+import { Suspense } from "react"
 
-export default async function ReportsHubPage(props: { searchParams: Promise<{ from?: string, to?: string }> }) {
+export default async function ReportsHubPage(props: { searchParams: Promise<{ from?: string, to?: string, warehouseId?: string }> }) {
   await requirePermissionPage('REPORT_VIEW')
-  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const session = await getValidatedSession()
   const searchParams = await props.searchParams
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(searchParams.warehouseId, session!.userId)
   const defaultThirtyDaysAgo = new Date()
   defaultThirtyDaysAgo.setDate(defaultThirtyDaysAgo.getDate() - 30)
 
@@ -69,10 +72,21 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
           <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
           <p className="text-sm text-muted-foreground mt-1">Consulte e gere relatórios detalhados do estoque.</p>
         </div>
-        <ReportsHeaderControls initialFrom={fromDateStr} initialTo={toDateStr} />
+        <ReportsHeaderControls initialFrom={fromDateStr} initialTo={toDateStr} warehouseId={selectedWarehouseId} />
       </div>
 
-      <ReportsFilterControls initialFrom={fromDateStr} initialTo={toDateStr} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <ReportsFilterControls initialFrom={fromDateStr} initialTo={toDateStr} />
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         

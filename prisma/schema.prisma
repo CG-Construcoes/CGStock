@@ -376,7 +376,7 @@ model Inventory {
   warehouseId  String
   warehouse    Warehouse             @relation(fields: [warehouseId], references: [id])
   status       String                @default("DRAFT") // DRAFT, READY, IN_PROGRESS, COUNTING, CONFERENCE, COMPLETED, CANCELLED
-  type         String                @default("FULL") // FULL, PARTIAL, CYCLE_COUNT
+  type         String                @default("PARTIAL") // FULL, PARTIAL, CYCLE_COUNT
   notes        String?
   startedAt    DateTime?
   finishedAt   DateTime?

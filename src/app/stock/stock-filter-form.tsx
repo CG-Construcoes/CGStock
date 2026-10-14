@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { useStockTransition } from "./stock-transition-context"
+import { setActiveWarehouseAction } from "@/app/auth-actions"
 import { cn } from "@/lib/utils"
 
 export function StockFilterForm({
@@ -36,7 +37,8 @@ export function StockFilterForm({
     const selectedWh = warehouses.find((w) => w.id === wId)
     setLoadingWarehouseName(selectedWh ? selectedWh.name : wId ? null : "Todos os Almoxarifados")
 
-    startTransition(() => {
+    startTransition(async () => {
+      await setActiveWarehouseAction(wId || "ALL")
       router.push(`/stock?${searchParams.toString()}`)
     })
   }

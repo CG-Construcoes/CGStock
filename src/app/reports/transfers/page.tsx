@@ -2,7 +2,7 @@ import { requirePermissionPage } from "@/lib/permissions"
 import { ArrowRightLeft } from "lucide-react"
 import { MovementsReportTemplate } from "../components/movements-report-template"
 
-export default async function TransfersReportPage(props: { searchParams: Promise<{ page?: string }> }) {
+export default async function TransfersReportPage(props: { searchParams: Promise<{ page?: string; warehouseId?: string }> }) {
   await requirePermissionPage('REPORT_VIEW')
 
   const params = await props.searchParams
@@ -11,6 +11,7 @@ export default async function TransfersReportPage(props: { searchParams: Promise
   return (
     <MovementsReportTemplate
       page={page}
+      warehouseId={params.warehouseId}
       title="Transferências"
       description="Remanejos internos de mercadorias."
       icon={ArrowRightLeft}

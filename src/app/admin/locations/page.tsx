@@ -1,16 +1,33 @@
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MapPin, Box } from "lucide-react"
+import { Plus, MapPin, Box } from "lucide-react"
+import Link from "next/link"
 import { db } from "@/lib/db"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { SearchInput } from "@/components/ui/search-input"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { requirePermissionPage } from "@/lib/permissions"
+import { Suspense } from "react"
 
-export default async function LocationsPage() {
+export default async function LocationsPage(props: {
+  searchParams?: Promise<{ q?: string; warehouseId?: string }>
+}) {
   await requirePermissionPage('CONFIG_MANAGE')
+  const resolvedParams = props?.searchParams ? await props.searchParams : {}
+  const q = resolvedParams.q || ''
+  const { warehouses, selectedWarehouseId, warehouseWhere } = await resolveWarehouseContext(resolvedParams.warehouseId)
+
   const locations = await db.warehouseLocation.findMany({
-    where: await warehouseIdFilter(),
+    where: {
+      ...warehouseWhere,
+      ...(q ? {
+        OR: [
+          { code: { contains: q, mode: 'insensitive' } },
+          { name: { contains: q, mode: 'insensitive' } },
+        ]
+      } : {})
+    },
     include: { warehouse: true, _count: { select: { products: true } } },
     orderBy: { code: 'asc' }
   })
@@ -22,17 +39,25 @@ export default async function LocationsPage() {
           <h2 className="text-2xl font-bold tracking-tight">Localizações</h2>
           <p className="text-muted-foreground">Estruture fisicamente o almoxarifado em setores, corredores e prateleiras.</p>
         </div>
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Local
-        </Button>
+        <Link href="/locations/new">
+          <Button className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Novo Local
+          </Button>
+        </Link>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar localização por código ou nome..." className="pl-9" />
-        </div>
+      <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-md border border-border shadow-sm">
+        <SearchInput placeholder="Buscar localização por código ou nome..." />
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

@@ -272,6 +272,9 @@ export async function deleteWarehouseAction(id: string, confirmationCode?: strin
         session.userId,
         tx
       )
+    }, {
+      maxWait: 15000,
+      timeout: 60000
     })
 
     revalidatePath("/admin/warehouses")
@@ -287,6 +290,198 @@ export async function deleteWarehouseAction(id: string, confirmationCode?: strin
   } catch (error) {
     console.error("Erro ao excluir almoxarifado em cascata:", error)
     return { error: "Ocorreu um erro ao excluir o almoxarifado e seus dados vinculados." }
+  }
+}
+
+export async function clearWarehouseDataAction(id: string, confirmationCode?: string) {
+  let session
+  try {
+    session = await requireActionPermission('CONFIG_MANAGE')
+  } catch (err: any) {
+    return { error: err?.message || "Sem permissão para limpar dados do almoxarifado." }
+  }
+
+  await assertWarehouseAccess(id, session.userId)
+  const warehouse = await db.warehouse.findUnique({
+    where: { id },
+    include: {
+      locations: { select: { id: true } }
+    }
+  })
+
+  if (!warehouse) {
+    return { error: "Almoxarifado não encontrado." }
+  }
+
+  const expectedCode = warehouse.code.trim().toUpperCase()
+  if (!confirmationCode || confirmationCode.trim().toUpperCase() !== expectedCode) {
+    return { error: `Confirmação incorreta. Digite exatamente "${expectedCode}" para confirmar a limpeza.` }
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      const locationIds = warehouse.locations.map(l => l.id)
+
+      // 1. Lotes de importação deste almoxarifado
+      await tx.importBatch.deleteMany({
+        where: { warehouseId: id }
+      })
+
+      // 2. Entregas Rápidas (QuickIssue)
+      if (locationIds.length > 0) {
+        await tx.quickIssueItem.deleteMany({
+          where: { locationId: { in: locationIds } }
+        })
+      }
+      await tx.quickIssue.deleteMany({
+        where: { warehouseId: id }
+      })
+
+      // 3. Transferências entre almoxarifados ou locais (StockTransfer)
+      const transfers = await tx.stockTransfer.findMany({
+        where: {
+          OR: [
+            { sourceWarehouseId: id },
+            { destinationWarehouseId: id }
+          ]
+        },
+        select: { id: true }
+      })
+      if (transfers.length > 0) {
+        const transferIds = transfers.map(t => t.id)
+        await tx.stockTransferItem.deleteMany({
+          where: { transferId: { in: transferIds } }
+        })
+        await tx.stockTransfer.deleteMany({
+          where: { id: { in: transferIds } }
+        })
+      }
+
+      // 4. Devoluções de Materiais (MaterialReturn)
+      if (locationIds.length > 0) {
+        await tx.materialReturnItem.deleteMany({
+          where: { locationId: { in: locationIds } }
+        })
+      }
+      await tx.materialReturn.deleteMany({
+        where: { warehouseId: id }
+      })
+
+      // 5. Requisições de Materiais (MaterialRequest)
+      const requests = await tx.materialRequest.findMany({
+        where: { warehouseId: id },
+        select: { id: true }
+      })
+      if (requests.length > 0) {
+        const requestIds = requests.map(r => r.id)
+        await tx.materialRequestItem.deleteMany({
+          where: { requestId: { in: requestIds } }
+        })
+        await tx.materialRequest.deleteMany({
+          where: { id: { in: requestIds } }
+        })
+      }
+
+      // 6. Inventários e Auditorias (Inventory)
+      const inventories = await tx.inventory.findMany({
+        where: { warehouseId: id },
+        select: { id: true }
+      })
+      if (inventories.length > 0) {
+        const inventoryIds = inventories.map(inv => inv.id)
+        const collections = await tx.inventoryCollection.findMany({
+          where: { inventoryId: { in: inventoryIds } },
+          select: { id: true }
+        })
+        if (collections.length > 0) {
+          const collectionIds = collections.map(c => c.id)
+          await tx.inventoryCollectionItem.deleteMany({
+            where: { collectionId: { in: collectionIds } }
+          })
+        }
+        await tx.inventoryCollection.deleteMany({
+          where: { inventoryId: { in: inventoryIds } }
+        })
+        await tx.inventoryDivergence.deleteMany({
+          where: { inventoryId: { in: inventoryIds } }
+        })
+        await tx.inventoryLocation.deleteMany({
+          where: { inventoryId: { in: inventoryIds } }
+        })
+        await tx.inventoryOperator.deleteMany({
+          where: { inventoryId: { in: inventoryIds } }
+        })
+        await tx.inventory.deleteMany({
+          where: { id: { in: inventoryIds } }
+        })
+      }
+
+      // 7. Entradas de Materiais (StockReceipt)
+      const receipts = await tx.stockReceipt.findMany({
+        where: { warehouseId: id },
+        select: { id: true }
+      })
+      if (receipts.length > 0) {
+        const receiptIds = receipts.map(rc => rc.id)
+        await tx.stockReceiptItem.deleteMany({
+          where: { receiptId: { in: receiptIds } }
+        })
+        await tx.stockReceipt.deleteMany({
+          where: { id: { in: receiptIds } }
+        })
+      }
+
+      // 8. Histórico de Movimentações (StockMovement)
+      await tx.stockMovement.deleteMany({
+        where: {
+          OR: [
+            { warehouseId: id },
+            ...(locationIds.length > 0 ? [{ locationId: { in: locationIds } }] : [])
+          ]
+        }
+      })
+
+      // 9. Saldos em Estoque (Stock)
+      await tx.stock.deleteMany({
+        where: {
+          OR: [
+            { warehouseId: id },
+            ...(locationIds.length > 0 ? [{ locationId: { in: locationIds } }] : [])
+          ]
+        }
+      })
+
+      // Mantém o almoxarifado, suas localizações físicas e permissões de usuários intactos!
+      await logAuditStrict(
+        'WAREHOUSE_DATA_CLEARED',
+        'Warehouse',
+        id,
+        { name: warehouse.name, code: warehouse.code },
+        session.userId,
+        tx
+      )
+    }, {
+      maxWait: 15000,
+      timeout: 60000
+    })
+
+    revalidatePath("/admin/warehouses")
+    revalidatePath(`/admin/warehouses/${id}`)
+    revalidatePath("/warehouses")
+    revalidatePath(`/warehouses/${id}`)
+    revalidatePath("/locations")
+    revalidatePath("/admin/locations")
+    revalidatePath("/stock")
+    revalidatePath("/products")
+    revalidatePath("/movements")
+    revalidatePath("/requests")
+    revalidatePath("/receipts")
+    revalidatePath("/import")
+
+    return { success: true, name: warehouse.name }
+  } catch (error) {
+    console.error("Erro ao limpar dados do almoxarifado:", error)
+    return { error: "Ocorreu um erro ao limpar os dados do almoxarifado." }
   }
 }
 

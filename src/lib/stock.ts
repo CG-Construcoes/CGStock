@@ -219,7 +219,11 @@ export async function deliverMaterialRequest(requestId: string, userId: string, 
   return db.$transaction(run)
 }
 
-export async function consolidateInventory(inventoryId: string, userId: string) {
+export async function consolidateInventory(
+  inventoryId: string,
+  userId: string,
+  options?: { onlyCountedItems?: boolean }
+) {
   return await db.$transaction(async (tx) => {
     const inv = await tx.inventory.findUnique({
       where: { id: inventoryId },
@@ -235,8 +239,13 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
     if (!inv) throw new Error("Inventário não encontrado.")
     await assertWarehouseAccess(inv.warehouseId, userId)
     
-    // Deleta divergências anteriores para recalcular
-    await tx.inventoryDivergence.deleteMany({ where: { inventoryId } })
+    // Deleta divergências pendentes/revisadas anteriores para recalcular
+    await tx.inventoryDivergence.deleteMany({
+      where: {
+        inventoryId,
+        status: { in: ['PENDING', 'REVIEWED'] }
+      }
+    })
 
     const countedMap = new Map<string, number>()
     
@@ -248,8 +257,12 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
       }
     }
 
-    // Also include all items currently in stock for the inventoried locations
-    // so that uncounted items appear as missing (shortage)
+    // Por padrão, se o inventário for PARTIAL ou CYCLE_COUNT (ou se solicitado explicitamente),
+    // compara APENAS os produtos que foram efetivamente bipados/coletados.
+    // Apenas inventários explicitamente marcados como FULL (e sem override onlyCountedItems)
+    // consideram itens não bipados como saldo 0.
+    const isPartialScope = options?.onlyCountedItems ?? (inv.type !== 'FULL')
+
     const locationIds = inv.locations.map(l => l.locationId)
     const systemStocks = await tx.stock.findMany({
       where: { locationId: { in: locationIds } }
@@ -259,7 +272,7 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
     for (const sys of systemStocks) {
       const key = `${sys.locationId}_${sys.productId}`
       systemStockMap.set(key, Number(sys.quantity))
-      if (!countedMap.has(key)) {
+      if (!isPartialScope && !countedMap.has(key)) {
         countedMap.set(key, 0)
       }
     }
@@ -293,10 +306,15 @@ export async function consolidateInventory(inventoryId: string, userId: string) 
       })
     }
 
+    const totalRemainingDivergences = await tx.inventoryDivergence.count({
+      where: { inventoryId, status: { in: ['PENDING', 'REVIEWED'] } }
+    })
+
     await tx.inventory.update({
       where: { id: inventoryId },
       data: {
-        status: hasDivergences ? 'CONFERENCE' : 'COMPLETED',
+        ...(options?.onlyCountedItems ? { type: 'PARTIAL' } : {}),
+        status: (hasDivergences || totalRemainingDivergences > 0) ? 'CONFERENCE' : 'COMPLETED',
         finishedAt: new Date(),
         finishedById: userId
       }

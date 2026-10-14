@@ -13,6 +13,7 @@ import { BackButton } from "@/components/ui/back-button"
 
 export default function InventoryForm({ warehouses, users }: any) {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState("")
+  const [inventoryType, setInventoryType] = useState("PARTIAL")
 
   const warehouse = warehouses.find((w: any) => w.id === selectedWarehouseId)
   const locations = warehouse?.locations || []
@@ -32,10 +33,10 @@ export default function InventoryForm({ warehouses, users }: any) {
           <form action={createInventoryAction} className="space-y-8">
             <div className="space-y-4">
               <h3 className="text-lg font-medium border-b pb-2">Informações Gerais</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Nome do Inventário *</label>
-                  <Input name="name" placeholder="Ex: Inventário Geral 2026" required />
+                  <Input name="name" placeholder="Ex: Conferência de Itens" required />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Almoxarifado *</label>
@@ -51,7 +52,29 @@ export default function InventoryForm({ warehouses, users }: any) {
                     ))}
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Modo de Apuração *</label>
+                  <Select
+                    name="type"
+                    value={inventoryType}
+                    onChange={(e) => setInventoryType(e.target.value)}
+                  >
+                    <option value="PARTIAL">Parcial / Amostragem (Apenas itens coletados)</option>
+                    <option value="FULL">Geral Completo (Itens não coletados = 0)</option>
+                  </Select>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground bg-muted/40 p-3 rounded-md border border-border">
+                {inventoryType === "PARTIAL" ? (
+                  <>
+                    <strong>Modo Parcial / Amostragem (Recomendado):</strong> Gera divergência apenas para os produtos que forem bipados/coletados. Os demais produtos do almoxarifado permanecem inalterados.
+                  </>
+                ) : (
+                  <>
+                    <strong>Modo Geral Completo:</strong> Espera que 100% dos itens com saldo no local sejam contados. Qualquer item não bipado será considerado como falta total (contado = 0).
+                  </>
+                )}
+              </p>
             </div>
 
             <div className="space-y-4">

@@ -1,20 +1,31 @@
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Filter, MoreHorizontal } from "lucide-react"
+import { Plus, MoreHorizontal } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { SearchInput } from "@/components/ui/search-input"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { formatCurrency } from "@/lib/utils"
 import { requirePermissionPage } from "@/lib/permissions"
+import { Suspense } from "react"
 
-export default async function ReceiptsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function ReceiptsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; warehouseId?: string }>
+}) {
   await requirePermissionPage('STOCK_ENTRY')
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
+  const { warehouses, selectedWarehouseId, warehouseWhere } = await resolveWarehouseContext(resolvedParams?.warehouseId)
+
   const receipts = await db.stockReceipt.findMany({
-    where: { ...await warehouseIdFilter(), ...(q ? { OR: [{ documentNumber: { contains: q, mode: 'insensitive' } }, { supplier: { name: { contains: q, mode: 'insensitive' } } }] } : {}) },
+    where: {
+      ...warehouseWhere,
+      ...(q ? { OR: [{ documentNumber: { contains: q, mode: 'insensitive' } }, { supplier: { name: { contains: q, mode: 'insensitive' } } }] } : {})
+    },
     include: {
       supplier: true,
       warehouse: true,
@@ -38,14 +49,17 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
         </Link>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-md border border-border shadow-sm">
         <SearchInput placeholder="Buscar por número do documento ou fornecedor..." />
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filtros
-          </Button>
-        </div>
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="bg-card  rounded-md border border-border/50 shadow-sm  overflow-hidden  ">

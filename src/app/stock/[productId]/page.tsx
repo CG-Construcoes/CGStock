@@ -7,14 +7,24 @@ import {  Box, Package, Info, MapPin } from "lucide-react"
 import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
 import { requirePermissionPage } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
-import { warehouseIdFilter } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
+import { Suspense } from "react"
 
-export default async function ProductStockPage({ params }: { params: Promise<{ productId: string }> }) {
+export default async function ProductStockPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ productId: string }>
+  searchParams?: Promise<{ warehouseId?: string }>
+}) {
   await requirePermissionPage('STOCK_VIEW')
-  const wFilter = await warehouseIdFilter((await getValidatedSession())!.userId)
+  const session = await getValidatedSession()
+  const resolvedSearch = searchParams ? await searchParams : {}
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(resolvedSearch.warehouseId, session!.userId)
   const { productId } = await params
   
   const product = await db.product.findUnique({
@@ -43,15 +53,26 @@ export default async function ProductStockPage({ params }: { params: Promise<{ p
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <BackButton />
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight">{product.name}</h2>
-            <Badge variant="outline">{product.code}</Badge>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold tracking-tight">{product.name}</h2>
+              <Badge variant="outline">{product.code}</Badge>
+            </div>
+            <p className="text-muted-foreground">{product.category.name} • {product.unit.name}</p>
           </div>
-          <p className="text-muted-foreground">{product.category.name} • {product.unit.name}</p>
         </div>
+        {warehouses.length > 1 && (
+          <Suspense fallback={null}>
+            <WarehouseSelectFilter
+              warehouses={warehouses}
+              selectedWarehouseId={selectedWarehouseId}
+              className="w-full sm:w-64"
+            />
+          </Suspense>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

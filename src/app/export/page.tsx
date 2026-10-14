@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { FileSpreadsheet, FileText, Loader2 } from "lucide-react"
+import { FileSpreadsheet, FileText, Loader2, Building2 } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
 import { exportToCSV, exportToExcel, exportToPDF } from "@/lib/export-utils"
-import { exportProductsData, exportStockData, exportMovementsData, getInventoriesList, exportInventoryData } from "./actions"
+import { exportProductsData, exportStockData, exportMovementsData, getInventoriesList, exportInventoryData, getExportWarehousesAction } from "./actions"
+import { setActiveWarehouseAction } from "@/app/auth-actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -14,6 +15,8 @@ type ExportFormat = 'csv' | 'xlsx' | 'pdf'
 
 export default function ExportPage() {
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string }[]>([])
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("")
   const [inventories, setInventories] = useState<{ id: string; name: string }[]>([])
   const [selectedInventory, setSelectedInventory] = useState<string>("")
   const [formatMap, setFormatMap] = useState<Record<string, 'csv' | 'xlsx'>>({
@@ -24,8 +27,19 @@ export default function ExportPage() {
   })
 
   useEffect(() => {
-    getInventoriesList().then(setInventories).catch(console.error)
+    getExportWarehousesAction().then(({ warehouses: whs, activeWarehouseId }) => {
+      setWarehouses(whs)
+      setSelectedWarehouse(activeWarehouseId)
+      return getInventoriesList(activeWarehouseId || "ALL")
+    }).then(setInventories).catch(console.error)
   }, [])
+
+  const handleWarehouseChange = async (whId: string) => {
+    setSelectedWarehouse(whId)
+    setSelectedInventory("")
+    await setActiveWarehouseAction(whId || "ALL")
+    getInventoriesList(whId || "ALL").then(setInventories).catch(console.error)
+  }
 
   const handleExport = async (type: string, format: ExportFormat) => {
     try {
@@ -34,17 +48,18 @@ export default function ExportPage() {
       let data: Record<string, unknown>[] = []
       let title = ""
       let filename = ""
+      const whParam = selectedWarehouse || "ALL"
 
       if (type === 'products') {
-        data = await exportProductsData()
+        data = await exportProductsData(whParam)
         title = "CADASTRO DE PRODUTOS"
         filename = `CGSTOCK_Produtos_${new Date().toISOString().split('T')[0]}`
       } else if (type === 'stock') {
-        data = await exportStockData()
+        data = await exportStockData(whParam)
         title = "POSIÇÃO DE ESTOQUE"
         filename = `CGSTOCK_Estoque_${new Date().toISOString().split('T')[0]}`
       } else if (type === 'movements') {
-        data = await exportMovementsData()
+        data = await exportMovementsData(undefined, undefined, whParam)
         title = "HISTÓRICO DE MOVIMENTAÇÕES"
         filename = `CGSTOCK_Movimentacoes_${new Date().toISOString().split('T')[0]}`
       } else if (type === 'inventory') {
@@ -104,12 +119,29 @@ export default function ExportPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-6">
-      <div className="flex items-center gap-4 border-b border-border pb-4">
-        <BackButton />
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Exportar Dados</h2>
-          <p className="text-sm text-muted-foreground mt-1">Gere relatórios completos em PDF ou exporte os dados para planilhas.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+        <div className="flex items-center gap-4">
+          <BackButton />
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Exportar Dados</h2>
+            <p className="text-sm text-muted-foreground mt-1">Gere relatórios completos em PDF ou exporte os dados para planilhas.</p>
+          </div>
         </div>
+        {warehouses.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary shrink-0" />
+            <select
+              value={selectedWarehouse}
+              onChange={(e) => void handleWarehouseChange(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Todos os Almoxarifados</option>
+              {warehouses.map(w => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

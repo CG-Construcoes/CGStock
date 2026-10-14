@@ -1,19 +1,27 @@
 import { db } from "@/lib/db"
-import { warehouseIdFilter, warehouseScopeIds } from "@/lib/dal"
+import { resolveWarehouseContext } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {  Edit, Package, Archive } from "lucide-react"
+import { Edit, Package, Archive } from "lucide-react"
 import Link from "next/link"
 import { BackButton } from "@/components/ui/back-button"
+import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { requirePermissionPage } from "@/lib/permissions"
+import { Suspense } from "react"
 
-export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ warehouseId?: string }>
+}) {
   await requirePermissionPage('PRODUCT_VIEW')
   const { id } = await params
-  const wFilter = await warehouseIdFilter()
-  const scope = await warehouseScopeIds()
+  const resolvedSearch = searchParams ? await searchParams : {}
+  const { warehouses, selectedWarehouseId, effectiveScopeIds: scope, warehouseWhere: wFilter } = await resolveWarehouseContext(resolvedSearch.warehouseId)
   
   const product = await db.product.findUnique({
     where: { id },
@@ -50,7 +58,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <p className="text-muted-foreground">Cód.Insumo: {product.code} {product.barcode ? `• Cód. Barras: ${product.barcode}` : ''}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {warehouses.length > 1 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={selectedWarehouseId}
+                className="w-56"
+              />
+            </Suspense>
+          )}
           <Link href={`/stock/${product.id}`}>
             <Button variant="outline" className="flex items-center gap-2">
               <Archive className="h-4 w-4" />

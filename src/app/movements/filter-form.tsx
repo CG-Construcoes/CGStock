@@ -6,6 +6,7 @@ import { Select } from "@/components/ui/select"
 import { Filter, Search } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { setActiveWarehouseAction } from "@/app/auth-actions"
 
 export function MovementsFilterForm({
   products,
@@ -24,7 +25,7 @@ export function MovementsFilterForm({
   const [productId, setProductId] = useState(defaultValues.productId)
   const [warehouseId, setWarehouseId] = useState(defaultValues.warehouseId)
 
-  const handleFilter = (e: React.FormEvent) => {
+  const handleFilter = async (e: React.FormEvent) => {
     e.preventDefault()
     
     const params = new URLSearchParams(searchParams.toString())
@@ -38,17 +39,25 @@ export function MovementsFilterForm({
     if (productId && productId !== 'ALL') params.set('productId', productId)
     else params.delete('productId')
 
-    if (warehouseId && warehouseId !== 'ALL') params.set('warehouseId', warehouseId)
-    else params.delete('warehouseId')
+    if (warehouseId && warehouseId !== 'ALL') {
+      params.set('warehouseId', warehouseId)
+      await setActiveWarehouseAction(warehouseId)
+    } else {
+      params.delete('warehouseId')
+      await setActiveWarehouseAction('ALL')
+    }
 
     // reset to page 1 on filter
     params.delete('page')
 
     router.push(`/movements?${params.toString()}`)
+    router.refresh()
   }
 
-  const clearFilters = () => {
+  const clearFilters = async () => {
+    await setActiveWarehouseAction('ALL')
     router.push('/movements')
+    router.refresh()
     setQ('')
     setType('')
     setProductId('')
