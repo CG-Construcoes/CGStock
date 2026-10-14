@@ -53,6 +53,7 @@ export default async function proxy(request: NextRequest) {
   const isApi = pathname.startsWith('/api/')
   const isLoginPage = pathname.startsWith('/login')
   const isChangePasswordPage = pathname.startsWith('/change-password')
+  const isServerAction = request.method === 'POST' && request.headers.has('next-action')
 
   if (!session) {
     if (isApi) return unauthorizedApi()
@@ -75,6 +76,11 @@ export default async function proxy(request: NextRequest) {
       return NextResponse.next()
     }
 
+    // Não interceptar chamadas POST de Server Actions com redirect de página (evita POST / 200 e erro RSC no cliente)
+    if (isServerAction) {
+      return withSecurityHeaders(request)
+    }
+
     const mustChangePassword = payload.mustChangePassword as boolean
 
     if (mustChangePassword && !isChangePasswordPage) {
@@ -82,11 +88,11 @@ export default async function proxy(request: NextRequest) {
     }
 
     if (!mustChangePassword && isChangePasswordPage) {
-      return NextResponse.redirect(new URL('/', request.url))
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
     if (isLoginPage) {
-      return NextResponse.redirect(new URL('/', request.url))
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
     return withSecurityHeaders(request)

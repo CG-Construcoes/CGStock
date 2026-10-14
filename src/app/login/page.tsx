@@ -14,7 +14,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (state?.success) {
-      router.push("/dashboard")
+      window.location.href = "/dashboard"
     }
   }, [state, router])
 
