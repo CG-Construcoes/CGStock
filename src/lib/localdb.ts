@@ -5,6 +5,9 @@ export interface LocalProduct {
   code: string;
   barcode: string | null;
   name: string;
+  unitCode?: string | null;
+  systemQuantity?: number;
+  locationStocks?: Record<string, number>;
 }
 
 export interface LocalLocation {

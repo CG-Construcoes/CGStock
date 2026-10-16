@@ -1,6 +1,5 @@
 import { db } from "@/lib/db"
 import { warehouseIdFilter } from "@/lib/dal"
-import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +12,6 @@ import { requirePermissionPage } from "@/lib/permissions"
 
 export default async function ReceiptDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('STOCK_ENTRY')
-  const session = await getSession()
 
   const { id } = await params
 
@@ -161,36 +159,84 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Produto</TableHead>
-                <TableHead>Localização Destino</TableHead>
-                <TableHead className="text-right">Qtd</TableHead>
-                <TableHead>Unid.</TableHead>
-                <TableHead className="text-right">Custo Unit.</TableHead>
-                <TableHead className="text-right pr-6">Custo Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {receipt.items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="pl-6">
-                    <div className="font-medium">{item.product.name}</div>
-                    <div className="text-xs text-muted-foreground">Cód: {item.product.code}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono bg-muted/50">{item.location.code}</Badge>
-                    <span className="text-sm ml-2">{item.location.name}</span>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">{Number(item.quantity)}</TableCell>
-                  <TableCell>{item.product.unit.code}</TableCell>
-                  <TableCell className="text-right">{item.unitCost ? formatCurrency(item.unitCost) : '-'}</TableCell>
-                  <TableCell className="text-right font-medium pr-6">{item.totalCost ? formatCurrency(item.totalCost) : '-'}</TableCell>
+          {/* Mobile View: Cards */}
+          <div className="md:hidden divide-y divide-border">
+            {receipt.items.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-sm">
+                Nenhum item nesta entrada.
+              </div>
+            ) : (
+              receipt.items.map((item) => (
+                <div key={item.id} className="p-4 space-y-2.5">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <span className="font-bold text-base text-foreground block">{item.product.name}</span>
+                      <span className="text-xs text-muted-foreground">Cód: {item.product.code}</span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-base text-foreground block">
+                        {Number(item.quantity)} <span className="text-xs font-normal text-muted-foreground">{item.product.unit.code}</span>
+                      </span>
+                      {item.totalCost && (
+                        <span className="text-xs font-semibold text-primary block">
+                          {formatCurrency(item.totalCost)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs bg-muted/30 p-2 rounded-lg border border-border/50">
+                    <span className="text-muted-foreground">Destino:</span>
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <Badge variant="outline" className="font-mono bg-muted/60 text-[10px] px-1.5 py-0.5">{item.location.code}</Badge>
+                      <span className="truncate max-w-[150px]">{item.location.name}</span>
+                    </div>
+                  </div>
+
+                  {item.unitCost && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Custo unitário:</span>
+                      <span>{formatCurrency(item.unitCost)}</span>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop View: Table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Produto</TableHead>
+                  <TableHead>Localização Destino</TableHead>
+                  <TableHead className="text-right">Qtd</TableHead>
+                  <TableHead>Unid.</TableHead>
+                  <TableHead className="text-right">Custo Unit.</TableHead>
+                  <TableHead className="text-right pr-6">Custo Total</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {receipt.items.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="pl-6">
+                      <div className="font-medium">{item.product.name}</div>
+                      <div className="text-xs text-muted-foreground">Cód: {item.product.code}</div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono bg-muted/50">{item.location.code}</Badge>
+                      <span className="text-sm ml-2">{item.location.name}</span>
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{Number(item.quantity)}</TableCell>
+                    <TableCell>{item.product.unit.code}</TableCell>
+                    <TableCell className="text-right">{item.unitCost ? formatCurrency(item.unitCost) : '-'}</TableCell>
+                    <TableCell className="text-right font-medium pr-6">{item.totalCost ? formatCurrency(item.totalCost) : '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

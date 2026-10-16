@@ -106,42 +106,86 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Data/Hora</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Localização Retirada</TableHead>
-                <TableHead className="text-right">Qtd Retirada</TableHead>
-                <TableHead className="pr-6">Executado por</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movements.map(mov => (
-                <TableRow key={mov.id}>
-                  <TableCell className="pl-6">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      {new Date(mov.createdAt).toLocaleString('pt-BR')}
+          {/* Mobile View: Cards */}
+          <div className="md:hidden divide-y divide-border">
+            {movements.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-sm">
+                Nenhuma movimentação registrada.
+              </div>
+            ) : (
+              movements.map((mov) => (
+                <div key={mov.id} className="p-4 space-y-2.5">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <span className="font-bold text-base text-foreground block">{mov.product.name}</span>
+                      <span className="text-xs text-muted-foreground">Cód: {mov.product.code}</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{mov.product.code}</span> - {mov.product.name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="font-mono bg-muted/50">{mov.location.code}</Badge>
-                    <span className="ml-2 text-sm">{mov.location.name}</span>
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
-                    -{Number(mov.quantity)}
-                  </TableCell>
-                  <TableCell className="pr-6">
-                    {mov.performedBy.name}
-                  </TableCell>
+                    <div className="text-right shrink-0">
+                      <span className="font-bold text-base text-red-600 dark:text-red-400 block">
+                        -{Number(mov.quantity)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs bg-muted/30 p-2 rounded-lg border border-border/50">
+                    <span className="text-muted-foreground">Local de retirada:</span>
+                    <div className="flex items-center gap-1.5 font-medium text-foreground">
+                      <Badge variant="outline" className="font-mono bg-muted/60 text-[10px] px-1.5 py-0.5">{mov.location.code}</Badge>
+                      <span className="truncate max-w-[150px]">{mov.location.name}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center text-xs text-muted-foreground pt-0.5">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      {new Date(mov.createdAt).toLocaleString('pt-BR')}
+                    </span>
+                    <span>Por {mov.performedBy.name}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop View: Table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Data/Hora</TableHead>
+                  <TableHead>Produto</TableHead>
+                  <TableHead>Localização Retirada</TableHead>
+                  <TableHead className="text-right">Qtd Retirada</TableHead>
+                  <TableHead className="pr-6">Executado por</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {movements.map(mov => (
+                  <TableRow key={mov.id}>
+                    <TableCell className="pl-6">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        {new Date(mov.createdAt).toLocaleString('pt-BR')}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium">{mov.product.code}</span> - {mov.product.name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono bg-muted/50">{mov.location.code}</Badge>
+                      <span className="ml-2 text-sm">{mov.location.name}</span>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
+                      -{Number(mov.quantity)}
+                    </TableCell>
+                    <TableCell className="pr-6">
+                      {mov.performedBy.name}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

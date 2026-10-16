@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package, AlertTriangle, ArrowRightLeft, FileText, Smartphone, RotateCcw } from "lucide-react"
+import { Package, AlertTriangle, ArrowRightLeft, FileText, Smartphone, RotateCcw, Zap, PackagePlus, Search, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
@@ -263,21 +263,78 @@ export default async function DashboardPage(props: {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Atalhos Rápidos no Celular */}
+      <div className="lg:hidden">
+        <div className="grid grid-cols-2 gap-2.5">
+          <Link
+            href="/quick-issue"
+            className="flex items-center gap-2.5 p-3 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 active:scale-[0.98] transition-all shadow-xs"
+          >
+            <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-xs">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground leading-tight">Entrega Rápida</span>
+              <span className="block text-[11px] text-muted-foreground truncate">Saída para pessoa</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/receipts/new"
+            className="flex items-center gap-2.5 p-3 rounded-xl border border-border bg-card hover:bg-muted/50 active:scale-[0.98] transition-all shadow-xs"
+          >
+            <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <PackagePlus className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground leading-tight">Nova Entrada</span>
+              <span className="block text-[11px] text-muted-foreground truncate">Chegou material</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/stock"
+            className="flex items-center gap-2.5 p-3 rounded-xl border border-border bg-card hover:bg-muted/50 active:scale-[0.98] transition-all shadow-xs"
+          >
+            <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+              <Search className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground leading-tight">Ver Estoque</span>
+              <span className="block text-[11px] text-muted-foreground truncate">Saldos atuais</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/collector"
+            className="flex items-center gap-2.5 p-3 rounded-xl border border-border bg-card hover:bg-muted/50 active:scale-[0.98] transition-all shadow-xs"
+          >
+            <div className="h-9 w-9 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+              <Smartphone className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground leading-tight">Coletor</span>
+              <span className="block text-[11px] text-muted-foreground truncate">Contar estoque</span>
+            </div>
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Link href="/divergences?status=PENDING" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
           <Card className="rounded-md border-border bg-card shadow-sm hover:border-amber-500/60 hover:shadow-md transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Divergências</CardTitle>
-              <div className="bg-amber-100 p-2 rounded-lg">
-                <FileText className="h-4 w-4 text-amber-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors truncate">Divergências</CardTitle>
+              <div className="bg-amber-100 dark:bg-amber-950/40 p-1.5 sm:p-2 rounded-lg shrink-0">
+                <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 dark:text-amber-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-foreground">{pendingDivergencesCount}</div>
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{pendingDivergencesCount}</div>
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">Pendentes de análise</p>
-                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                  Analisar →
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Pendentes</p>
+                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
+                  <span className="hidden sm:inline">Analisar</span> <ChevronRight className="h-3.5 w-3.5" />
                 </span>
               </div>
             </CardContent>
@@ -286,18 +343,18 @@ export default async function DashboardPage(props: {
 
         <Link href="/divergences?status=REVIEWED" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
           <Card className="rounded-md border-border bg-card shadow-sm hover:border-blue-500/60 hover:shadow-md transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Ajustes</CardTitle>
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-blue-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors truncate">Ajustes</CardTitle>
+              <div className="bg-blue-100 dark:bg-blue-950/40 p-1.5 sm:p-2 rounded-lg shrink-0">
+                <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-foreground">{pendingApprovalsCount}</div>
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{pendingApprovalsCount}</div>
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">Aguardando aprovação</p>
-                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                  Ver ajustes →
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Aprovação</p>
+                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
+                  <span className="hidden sm:inline">Ver</span> <ChevronRight className="h-3.5 w-3.5" />
                 </span>
               </div>
             </CardContent>
@@ -306,18 +363,18 @@ export default async function DashboardPage(props: {
 
         <Link href="/transfers" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
           <Card className="rounded-md border-border bg-card shadow-sm hover:border-emerald-500/60 hover:shadow-md transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Transferências</CardTitle>
-              <div className="bg-emerald-100 p-2 rounded-lg">
-                <ArrowRightLeft className="h-4 w-4 text-emerald-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors truncate">Transferências</CardTitle>
+              <div className="bg-emerald-100 dark:bg-emerald-950/40 p-1.5 sm:p-2 rounded-lg shrink-0">
+                <ArrowRightLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-foreground">{inTransitTransfersCount}</div>
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{inTransitTransfersCount}</div>
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">Em andamento</p>
-                <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                  Ver todas →
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Trânsito</p>
+                <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
+                  <span className="hidden sm:inline">Ver</span> <ChevronRight className="h-3.5 w-3.5" />
                 </span>
               </div>
             </CardContent>
@@ -326,18 +383,18 @@ export default async function DashboardPage(props: {
 
         <Link href="/products" className="block group focus:outline-none focus:ring-2 focus:ring-primary rounded-md">
           <Card className="rounded-md border-border bg-card shadow-sm hover:border-primary/60 hover:shadow-md transition-all cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors">Total de Produtos</CardTitle>
-              <div className="bg-slate-100 p-2 rounded-lg">
-                <Package className="h-4 w-4 text-slate-600" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-semibold text-muted-foreground group-hover:text-foreground transition-colors truncate">Produtos</CardTitle>
+              <div className="bg-slate-100 dark:bg-slate-800 p-1.5 sm:p-2 rounded-lg shrink-0">
+                <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-600 dark:text-slate-300" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black text-foreground">{totalProducts}</div>
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{totalProducts}</div>
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground">Cadastrados na base</p>
-                <span className="text-[11px] font-semibold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                  Ver catálogo →
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Cadastrados</p>
+                <span className="text-[11px] font-semibold text-primary opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
+                  <span className="hidden sm:inline">Catálogo</span> <ChevronRight className="h-3.5 w-3.5" />
                 </span>
               </div>
             </CardContent>

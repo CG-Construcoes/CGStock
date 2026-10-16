@@ -3,114 +3,30 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { logoutAction } from "@/app/auth-actions"
-import { clearOfflineSnapshots } from "@/lib/offline-snapshot"
-import {
-  LayoutDashboard,
-  Package,
-  Tags,
-  MapPin,
-  ArrowRightLeft,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  ClipboardList,
-  RotateCcw,
-  CheckSquare,
-  BarChart3,
-  Users,
-  Shield,
-  Settings,
-  FolderSync,
-  HelpCircle,
-  ChevronDown,
-  Box,
-  LogOut,
-  AlertTriangle,
-  type LucideIcon
-} from "lucide-react"
+import { Package, ChevronDown } from "lucide-react"
+import { getNavSections, isNavItemActive, type NavItem, type NavUser } from "./nav-config"
 
-export function Sidebar({ user }: { user?: { userId: string; name: string; email: string; roles: string[]; permissions?: string[] } | null }) {
+/** Menu lateral fixo (telas grandes). No celular é usado o MobileMenu. */
+export function Sidebar({ user }: { user?: NavUser }) {
   const pathname = usePathname()
-  const [isMoreOpen, setIsMoreOpen] = useState(false)
+  const sections = getNavSections(user)
 
-  const isRequesterOnly = user?.roles && 
-    user.roles.includes('SOLICITANTE') && 
-    !user.roles.some(r => ['ADMIN', 'GESTOR', 'ALMOXARIFE'].includes(r))
+  // A seção "Mais" já começa aberta se a página atual estiver dentro dela
+  const moreHasActive = sections.some((s) => s.collapsible && s.items.some((i) => isNavItemActive(pathname, i.href)))
+  const [isMoreOpen, setIsMoreOpen] = useState(moreHasActive)
 
-  const permissions = user?.permissions || []
-  const isAdmin = user?.roles?.includes('ADMIN') || permissions.includes('ADMIN')
-
-  const hasPerm = (key: string) => isAdmin || permissions.includes(key)
-
-  const mainItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  ]
-
-  const estoqueItems = isRequesterOnly ? [] : [
-    { name: "Produtos", href: "/products", icon: Package, perm: 'PRODUCT_VIEW' },
-    { name: "Estoque e Saldos", href: "/stock", icon: Box, perm: 'STOCK_VIEW' },
-    { name: "Categorias", href: "/categories", icon: Tags, perm: 'PRODUCT_VIEW' },
-    { name: "Unidades", href: "/units", icon: Package, perm: 'PRODUCT_VIEW' },
-    { name: "Localizações", href: "/locations", icon: MapPin, perm: 'STOCK_VIEW' },
-  ]
-
-  const operacoesItems = isRequesterOnly 
-    ? [{ name: "Requisições", href: "/requests", icon: ClipboardList, perm: 'REQUEST_CREATE' }]
-    : [
-        { name: "Entradas", href: "/receipts", icon: ArrowDownToLine, perm: 'STOCK_ENTRY' },
-        { name: "Saídas", href: "/issues", icon: ArrowUpFromLine, perm: 'STOCK_EXIT' },
-        { name: "Movimentações", href: "/movements", icon: ArrowRightLeft, perm: 'STOCK_VIEW' },
-        { name: "Entrega Rápida", href: "/quick-issue", icon: Shield, perm: 'STOCK_EXIT' },
-        { name: "Ajuste Manual", href: "/adjustments/new", icon: ArrowRightLeft, perm: 'STOCK_ENTRY' },
-        { name: "Requisições", href: "/requests", icon: ClipboardList, perm: 'REQUEST_CREATE' }, // Also can check APPROVE/FULFILL if needed
-        { name: "Devoluções", href: "/returns", icon: RotateCcw, perm: 'STOCK_ENTRY' },
-      ]
-
-  const inventarioItems = isRequesterOnly ? [] : [
-    { name: "Inventários", href: "/inventory", icon: ClipboardList, perm: 'INVENTORY_CREATE' }, // Or COUNT/REVIEW
-    { name: "Divergências", href: "/divergences", icon: AlertTriangle, perm: 'INVENTORY_REVIEW' },
-    { name: "Coletor", href: "/collector", icon: CheckSquare, perm: 'INVENTORY_COUNT' },
-  ]
-
-  const maisItems = isRequesterOnly ? [] : [
-    { name: "Importar", href: "/import", icon: FolderSync, perm: 'ADMIN_ONLY' },
-    { name: "Exportar", href: "/export", icon: FolderSync, perm: 'REPORT_EXPORT' },
-    { name: "Relatórios", href: "/reports", icon: BarChart3, perm: 'REPORT_VIEW' },
-    { name: "API / Conectores", href: "/api", icon: Settings, perm: 'CONFIG_MANAGE' },
-    { name: "Central de Ajuda", href: "/help", icon: HelpCircle },
-    { name: "Gestão Central", href: "/admin", icon: Shield, perm: 'CONFIG_MANAGE' },
-    { name: "Usuários", href: "/admin/users", icon: Users, perm: 'USER_VIEW' },
-    { name: "Configurações", href: "/admin/settings", icon: Settings, perm: 'CONFIG_MANAGE' },
-  ]
-
-  const isAllowed = (item: { name: string; perm?: string }) => {
-    if (!item.perm || isAdmin) return true
-    if (item.name === "Inventários" || item.name === "Coletor" || item.name === "Divergências") {
-      return ['INVENTORY_CREATE', 'INVENTORY_COUNT', 'INVENTORY_REVIEW', 'INVENTORY_APPROVE'].some(hasPerm)
-    }
-    if (item.name === "Requisições") {
-      return ['REQUEST_CREATE', 'REQUEST_APPROVE', 'REQUEST_FULFILL'].some(hasPerm)
-    }
-    if (item.name === "Gestão Central") return hasPerm('USER_VIEW')
-    if (item.name === "Usuários") return hasPerm('USER_VIEW') || hasPerm('USER_MANAGE')
-    return hasPerm(item.perm)
-  }
-
-  const visibleEstoqueItems = estoqueItems.filter(isAllowed)
-  const visibleOperacoesItems = operacoesItems.filter(isAllowed)
-  const visibleInventarioItems = inventarioItems.filter(isAllowed)
-  const visibleMaisItems = maisItems.filter(isAllowed)
-
-  const renderItem = (item: { name: string; href: string; icon: LucideIcon; perm?: string }) => {
-    const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/dashboard' && item.href !== '/admin' && item.href !== '#' && pathname.startsWith(item.href))
+  const renderItem = (item: NavItem) => {
+    const isActive = isNavItemActive(pathname, item.href)
 
     return (
-      <li key={item.name}>
+      <li key={item.href}>
         <Link
           href={item.href}
+          title={item.description}
+          aria-current={isActive ? "page" : undefined}
           className={cn(
             "group flex items-center gap-3 px-3 py-2.5 text-sm font-medium border-l-2 transition-colors",
-            isActive 
+            isActive
               ? "border-[#e95420] text-white bg-[#5e2750]"
               : "border-transparent text-[#f6f5f4] hover:bg-[#5e2750]/30 hover:text-[#ffb597]"
           )}
@@ -128,61 +44,44 @@ export function Sidebar({ user }: { user?: { userId: string; name: string; email
   return (
     <aside className="flex h-full w-full flex-col border-r border-[#5e2750] bg-[#2c001e]">
       <div className="flex h-16 items-center border-b border-[#5e2750] px-5 shrink-0">
-        <div className="flex items-center gap-2 font-bold text-xl text-[#ffb597] tracking-tight">
+        <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl text-[#ffb597] tracking-tight">
           <Package className="h-5 w-5 text-[#ffb597]" />
           CGSTOCK
-        </div>
+        </Link>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        <nav className="space-y-6 px-2">
-          
-          <ul className="space-y-0.5">
-            {mainItems.map(renderItem)}
-          </ul>
+        <nav className="space-y-6 px-2" aria-label="Menu principal">
+          {sections.map((section) => {
+            if (section.collapsible) {
+              const open = isMoreOpen || moreHasActive
+              return (
+                <div key={section.id}>
+                  <button
+                    type="button"
+                    onClick={() => setIsMoreOpen(!open)}
+                    aria-expanded={open}
+                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-[#ffb597] hover:bg-[#5e2750]/20 rounded-md transition-colors"
+                  >
+                    <span>{section.title}</span>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+                  </button>
+                  {open && <ul className="space-y-0.5 mt-2">{section.items.map(renderItem)}</ul>}
+                </div>
+              )
+            }
 
-          {visibleEstoqueItems.length > 0 && (
-            <div>
-              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">Estoque</h3>
-              <ul className="space-y-0.5">{visibleEstoqueItems.map(renderItem)}</ul>
-            </div>
-          )}
-
-          {visibleOperacoesItems.length > 0 && (
-            <div>
-              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">Operações</h3>
-              <ul className="space-y-0.5">{visibleOperacoesItems.map(renderItem)}</ul>
-            </div>
-          )}
-
-          {visibleInventarioItems.length > 0 && (
-            <div>
-              <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">Inventário</h3>
-              <ul className="space-y-0.5">{visibleInventarioItems.map(renderItem)}</ul>
-            </div>
-          )}
-
-          {visibleMaisItems.length > 0 && (
-            <div>
-              <button 
-                onClick={() => setIsMoreOpen(!isMoreOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-[#ffb597] hover:bg-[#5e2750]/20 rounded-md transition-colors"
-              >
-                <span>Mais</span>
-                <ChevronDown className={cn("h-4 w-4 transition-transform", isMoreOpen && "rotate-180")} />
-              </button>
-              
-              {isMoreOpen && (
-                <ul className="space-y-0.5 mt-2">{visibleMaisItems.map(renderItem)}</ul>
-              )}
-            </div>
-          )}
-
+            return (
+              <div key={section.id}>
+                {section.title && (
+                  <h3 className="mb-2 px-3 text-[11px] font-bold uppercase tracking-widest text-[#ffb597]">{section.title}</h3>
+                )}
+                <ul className="space-y-0.5">{section.items.map(renderItem)}</ul>
+              </div>
+            )
+          })}
         </nav>
       </div>
-      <button type="button" onClick={() => void (async () => { if (user?.userId) await clearOfflineSnapshots(user.userId).catch(() => undefined); await logoutAction() })()} className="flex items-center gap-3 border-t border-[#5e2750] px-5 py-4 text-sm text-white lg:hidden">
-        <LogOut className="size-4" /> Sair
-      </button>
     </aside>
   )
 }

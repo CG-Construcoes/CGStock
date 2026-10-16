@@ -10,20 +10,23 @@ const SyncUserContext = createContext<string | null>(null)
 
 export function useSyncUserId() { return useContext(SyncUserContext) }
 
-export function SyncProvider({ children, userId }: { children: React.ReactNode; userId: string }) {
+export function SyncProvider({ children, userId }: { children: React.ReactNode; userId: string | null }) {
   const isOnline = useOnlineStatus()
   const [isSyncing, setIsSyncing] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
   const syncing = useRef(false)
 
   const updatePendingCount = useCallback(async () => {
-    if (!localDb) return
+    if (!localDb || !userId) {
+      setPendingCount(0)
+      return
+    }
     const count = await localDb.syncQueue.where('userId').equals(userId).filter(task => task.status === 'PENDING' || task.status === 'ERROR' || task.status === 'CONFLICT').count()
     setPendingCount(count)
   }, [userId])
 
   const syncNow = useCallback(async () => {
-    if (!isOnline || !localDb || syncing.current) return
+    if (!isOnline || !localDb || !userId || syncing.current) return
     syncing.current = true
     let successCount = 0
     try {
@@ -107,6 +110,10 @@ export function SyncProvider({ children, userId }: { children: React.ReactNode; 
   }, [isOnline, syncNow])
 
   useEffect(() => {
+    if (!userId) {
+      setPendingCount(0)
+      return
+    }
     const loadInitialCount = async () => {
       if (!localDb) return
       const count = await localDb.syncQueue.where('userId').equals(userId).filter(task => task.status === 'PENDING' || task.status === 'ERROR' || task.status === 'CONFLICT').count()

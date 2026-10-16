@@ -75,54 +75,54 @@ export default async function ProductStockPage({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estoque Físico</CardTitle>
-            <Package className="h-4 w-4 text-blue-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium truncate">Estoque Físico</CardTitle>
+            <Package className="h-4 w-4 text-blue-500 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{totalQuantity}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total em todas as localizações</p>
+          <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{totalQuantity}</div>
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 truncate">Total nas localizações</p>
           </CardContent>
         </Card>
         
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reservado</CardTitle>
-            <Info className="h-4 w-4 text-yellow-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium truncate">Reservado</CardTitle>
+            <Info className="h-4 w-4 text-yellow-500 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-foreground">{totalReserved}</div>
-            <p className="text-xs text-muted-foreground mt-1">Aguardando saída</p>
+          <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{totalReserved}</div>
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 truncate">Aguardando saída</p>
           </CardContent>
         </Card>
 
-        <Card className="bg-blue-50 border-blue-100">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-blue-900">Disponível</CardTitle>
-            <Box className="h-4 w-4 text-blue-600" />
+        <Card className="bg-blue-50/60 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900/30">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-blue-900 dark:text-blue-300 truncate">Disponível</CardTitle>
+            <Box className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-700">{available}</div>
-            <p className="text-xs text-blue-600/70 mt-1">Livre para uso</p>
+          <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+            <div className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-400">{available}</div>
+            <p className="text-[11px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-1 truncate">Livre para uso</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Parâmetros</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 sm:p-5 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium truncate">Parâmetros</CardTitle>
+            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-1 text-sm">
+          <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+            <div className="flex flex-col gap-0.5 text-xs sm:text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Mínimo:</span>
-                <span className="font-medium">{product.minimumStock}</span>
+                <span className="font-semibold">{product.minimumStock}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Máximo:</span>
-                <span className="font-medium">{product.maximumStock > 0 ? product.maximumStock : 'Não def.'}</span>
+                <span className="font-semibold">{product.maximumStock > 0 ? product.maximumStock : 'Não def.'}</span>
               </div>
             </div>
           </CardContent>

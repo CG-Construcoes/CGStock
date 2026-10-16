@@ -35,7 +35,7 @@ export default async function DivergenceDetailsPage({ params }: { params: Promis
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-4">
-        <BackButton />
+        <BackButton href={`/inventory/${id}/divergences`} />
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold tracking-tight">Análise de Divergência</h2>

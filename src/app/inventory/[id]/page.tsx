@@ -56,7 +56,7 @@ export default async function InventoryDashboardPage({ params }: { params: Promi
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <BackButton />
+          <BackButton href="/inventory" />
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold tracking-tight">{inv.code} - {inv.name}</h2>

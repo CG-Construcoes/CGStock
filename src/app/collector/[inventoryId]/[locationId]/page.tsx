@@ -24,10 +24,41 @@ export default async function CollectorLocationPage({
 
   if (!inv || !loc) notFound()
 
-  // Buscar todos os produtos ativos para permitir bipar qualquer um
-  const products = await db.product.findMany({
-    where: { status: 'ACTIVE' },
-    select: { id: true, code: true, name: true, barcode: true }
+  // Buscar produtos ativos com a quantidade atual no sistema para esta localização
+  const rawProducts = await db.product.findMany({
+    where: {
+      status: 'ACTIVE',
+      OR: [
+        { stocks: { some: { warehouseId: inv.warehouseId } } },
+        { defaultLocation: { warehouseId: inv.warehouseId } },
+        { stocks: { none: {} } }
+      ]
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      barcode: true,
+      unit: { select: { code: true } },
+      stocks: {
+        where: { warehouseId: inv.warehouseId },
+        select: { locationId: true, quantity: true }
+      }
+    },
+    orderBy: { name: 'asc' }
+  })
+
+  const products = rawProducts.map((p) => {
+    const locStock = p.stocks.find((s) => s.locationId === loc.id)
+    return {
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      barcode: p.barcode,
+      unitCode: p.unit?.code || "UN",
+      systemQuantity: locStock ? Number(locStock.quantity) : 0,
+      locationStocks: Object.fromEntries(p.stocks.map((s) => [s.locationId, Number(s.quantity)])),
+    }
   })
 
   return (

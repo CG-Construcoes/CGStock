@@ -28,14 +28,15 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
     activeWarehouseId = activeWhId
   }
 
-  const shell = (
-    <AppShellClient
-      user={session ? { ...session, permissions } : null}
-      warehouses={warehouses}
-      activeWarehouseId={activeWarehouseId}
-    >
-      {children}
-    </AppShellClient>
+  return (
+    <SyncProvider userId={session?.userId ?? null}>
+      <AppShellClient
+        user={session ? { ...session, permissions } : null}
+        warehouses={warehouses}
+        activeWarehouseId={activeWarehouseId}
+      >
+        {children}
+      </AppShellClient>
+    </SyncProvider>
   )
-  return session ? <SyncProvider userId={session.userId}>{shell}</SyncProvider> : shell
 }

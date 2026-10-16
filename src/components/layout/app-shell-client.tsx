@@ -1,6 +1,7 @@
 "use client"
 import { Sidebar } from "./sidebar"
 import { Topbar } from "./topbar"
+import { MobileBottomNav } from "./mobile-nav"
 import { usePathname } from "next/navigation"
 import type { WarehouseOption } from "@/components/ui/warehouse-select-filter"
 
@@ -28,11 +29,12 @@ export function AppShellClient({
       </div>
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Topbar user={user} warehouses={warehouses} activeWarehouseId={activeWarehouseId} />
-        <main className="flex-1 overflow-y-auto min-h-0 min-w-0 px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 min-w-0 px-3 py-4 pb-6 sm:p-6">
           <div className="mx-auto max-w-7xl min-w-0">
             {children}
           </div>
         </main>
+        <MobileBottomNav user={user} warehouses={warehouses} activeWarehouseId={activeWarehouseId} />
       </div>
     </div>
   )

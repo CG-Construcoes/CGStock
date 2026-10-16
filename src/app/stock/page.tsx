@@ -12,6 +12,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip"
 import { formatCurrency, formatNumber, cn } from "@/lib/utils"
 import { StockFilterForm } from "./stock-filter-form"
 import { StockTransitionProvider, StockContentWrapper } from "./stock-transition-context"
+import { PhysicalVolumeCard, type UnitVolumeStat } from "./physical-volume-card"
 
 export default async function StockPage({
   searchParams,
@@ -114,6 +115,12 @@ async function StockContent({
       averageCost: true,
       minimumStock: true,
       maximumStock: true,
+      unit: {
+        select: {
+          code: true,
+          name: true,
+        },
+      },
       stocks: {
         where: wFilter,
         select: {
@@ -134,14 +141,59 @@ async function StockContent({
   const inStockIds: string[] = []
   const alertIds: string[] = []
 
+  const unitMap = new Map<string, UnitVolumeStat>([
+    ["UN", { key: "UN", code: "un", label: "Unidades (UN)", physical: 0, available: 0, reserved: 0, skuCount: 0 }],
+    ["KG", { key: "KG", code: "kg", label: "Peso / Massa (KG)", physical: 0, available: 0, reserved: 0, skuCount: 0 }],
+    ["VOL", { key: "VOL", code: "vol", label: "Volume / Litros (L, M³)", physical: 0, available: 0, reserved: 0, skuCount: 0 }],
+    ["OUTROS", { key: "OUTROS", code: "outros", label: "Outras Medidas (M, CX, SC...)", physical: 0, available: 0, reserved: 0, skuCount: 0 }],
+  ])
+
   for (const p of allMatchingProductsSlim) {
     const pQty = p.stocks.reduce((acc, s) => acc + Number(s.quantity), 0)
     const pRes = p.stocks.reduce((acc, s) => acc + Number(s.reservedQuantity), 0)
+    const pAvail = pQty - pRes
     const cost = Number(p.averageCost || 0)
 
     totalPhysicalQuantity += pQty
     totalReservedQuantity += pRes
     totalStockValue += pQty * cost
+
+    const rawUnitCode = (p.unit?.code || "UN").trim().toUpperCase()
+    const rawUnitName = p.unit?.name?.trim() || rawUnitCode
+
+    // Agrupa nas categorias principais e também mantém a unidade específica caso não seja padrão
+    let bucketKey = "OUTROS"
+    if (["UN", "UND", "UNID", "PC", "PÇ", "PEC"].includes(rawUnitCode)) {
+      bucketKey = "UN"
+    } else if (["KG", "G", "TON", "T"].includes(rawUnitCode)) {
+      bucketKey = "KG"
+    } else if (["L", "LT", "ML", "M3", "M³"].includes(rawUnitCode)) {
+      bucketKey = "VOL"
+    } else {
+      bucketKey = "OUTROS"
+      if (!unitMap.has(rawUnitCode)) {
+        unitMap.set(rawUnitCode, {
+          key: rawUnitCode,
+          code: rawUnitCode.toLowerCase(),
+          label: `${rawUnitName} (${rawUnitCode})`,
+          physical: 0,
+          available: 0,
+          reserved: 0,
+          skuCount: 0,
+        })
+      }
+      const specificBucket = unitMap.get(rawUnitCode)!
+      specificBucket.physical += pQty
+      specificBucket.reserved += pRes
+      specificBucket.available += pAvail
+      if (pQty > 0) specificBucket.skuCount += 1
+    }
+
+    const bucket = unitMap.get(bucketKey)!
+    bucket.physical += pQty
+    bucket.reserved += pRes
+    bucket.available += pAvail
+    if (pQty > 0) bucket.skuCount += 1
 
     if (pQty > 0) {
       totalSkusInStock++
@@ -156,6 +208,8 @@ async function StockContent({
       alertIds.push(p.id)
     }
   }
+
+  const unitStats = Array.from(unitMap.values())
 
   const totalAvailableQuantity = totalPhysicalQuantity - totalReservedQuantity
   const totalProductsCount = allMatchingProductsSlim.length
@@ -294,47 +348,14 @@ async function StockContent({
           </Card>
         </Link>
 
-        {/* Card 2: Volume Físico */}
-        <Link
-          href={clearFilterUrl}
-          title="Ver todos os produtos"
-          className="block rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <Card
-            className={cn(
-              "rounded-md border-border bg-card shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer h-full group/card",
-              !stockFilter && "border-border"
-            )}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="flex items-center gap-1">
-                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider group-hover/card:text-foreground transition-colors">
-                  Volume Físico Total
-                </CardTitle>
-                <InfoTooltip
-                  title="Volume Físico Total"
-                  text="Soma de todas as quantidades físicas (peças, barras, caixas, metros) de materiais estocados no almoxarifado."
-                />
-              </div>
-              <div className="bg-blue-500/10 p-2 rounded-lg text-blue-500">
-                <Boxes className="h-4 w-4 text-blue-500" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-black text-foreground inline-flex items-baseline">
-                <span>{formatNumber(totalPhysicalQuantity)}</span>
-                <span className="text-xs font-normal text-muted-foreground ml-1">un</span>
-                <InfoTooltip
-                  title="O que significa 'un'?"
-                  text="Representa a unidade física de medida (unidades e peças somadas)."
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {formatNumber(totalAvailableQuantity)} disponíveis • {formatNumber(totalReservedQuantity)} reservadas
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
+        {/* Card 2: Volume Físico (Seletor por Unidade/Volume/Peso) */}
+        <PhysicalVolumeCard
+          unitStats={unitStats}
+          totalPhysical={totalPhysicalQuantity}
+          totalAvailable={totalAvailableQuantity}
+          totalReserved={totalReservedQuantity}
+          totalSkus={totalSkusInStock}
+        />
 
         {/* Card 3: Itens com Saldo (Clickable Filter: in_stock) */}
         <Link

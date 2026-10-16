@@ -23,7 +23,14 @@ export async function GET() {
     }),
     db.product.findMany({
       where: { status: 'ACTIVE' },
-      select: { id: true, code: true, barcode: true, name: true },
+      select: {
+        id: true,
+        code: true,
+        barcode: true,
+        name: true,
+        unit: { select: { code: true } },
+        stocks: { select: { locationId: true, quantity: true } }
+      },
       orderBy: { id: 'asc' },
       take: 5001
     })
@@ -35,7 +42,23 @@ export async function GET() {
   return NextResponse.json({
     userId: session.userId,
     expiresAt: session.expiresAt,
-    products,
+    products: products.map((p: {
+      id: string
+      code: string
+      barcode: string | null
+      name: string
+      unit?: { code: string } | null
+      stocks?: { locationId: string; quantity: unknown }[]
+    }) => ({
+      id: p.id,
+      code: p.code,
+      barcode: p.barcode,
+      name: p.name,
+      ...(p.unit?.code ? { unitCode: p.unit.code } : {}),
+      ...(p.stocks
+        ? { locationStocks: Object.fromEntries(p.stocks.map(s => [s.locationId, Number(s.quantity)])) }
+        : {})
+    })),
     inventories: inventories.map(inv => ({
       id: inv.id,
       code: inv.code,

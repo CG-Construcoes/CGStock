@@ -20,6 +20,8 @@ interface WarehouseSelectFilterProps {
   allLabel?: string
   className?: string
   compact?: boolean
+  /** "inline": texto pequeno clicável (usado no topo do celular) */
+  appearance?: "field" | "inline"
 }
 
 export function WarehouseSelectFilter({
@@ -30,6 +32,7 @@ export function WarehouseSelectFilter({
   allLabel = "Todos os Almoxarifados",
   className,
   compact = false,
+  appearance = "field",
 }: WarehouseSelectFilterProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -42,6 +45,14 @@ export function WarehouseSelectFilter({
 
   if (warehouses.length === 1) {
     const single = warehouses[0]
+    if (appearance === "inline") {
+      return (
+        <span className={cn("flex min-w-0 items-center gap-1 text-xs text-muted-foreground", className)}>
+          <Building2 className="h-3 w-3 shrink-0 text-primary" />
+          <span className="truncate">{single.name}</span>
+        </span>
+      )
+    }
     return (
       <div
         className={cn(
@@ -108,6 +119,33 @@ export function WarehouseSelectFilter({
           </div>
         </div>
       )}
+      {appearance === "inline" ? (
+        <div className={cn("relative flex min-w-0 max-w-full items-center gap-1 text-xs font-medium text-primary", className)}>
+          <Building2 className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            {warehouses.find((w) => w.id === selectedWarehouseId)?.name ?? allLabel}
+          </span>
+          {isPending ? (
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+          ) : (
+            <ChevronDown className="h-3 w-3 shrink-0" />
+          )}
+          <select
+            value={selectedWarehouseId}
+            disabled={isPending}
+            onChange={(e) => handleChange(e.target.value)}
+            aria-label="Trocar almoxarifado"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          >
+            <option value="">{allLabel}</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
       <div className={cn("relative inline-flex items-center", className)}>
         <Building2 className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-primary shrink-0 z-10" />
         <select
@@ -136,6 +174,8 @@ export function WarehouseSelectFilter({
           )}
         </div>
       </div>
+      )}
     </>
+
   )
 }
