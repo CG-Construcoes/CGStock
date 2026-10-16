@@ -17,24 +17,29 @@ export function AppShellClient({
   activeWarehouseId?: string
 }) {
   const pathname = usePathname()
+  const isPrintPage = pathname?.includes('/print-badges') || pathname?.includes('/print-labels')
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || isPrintPage) {
     return <>{children}</>
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-background font-sans">
-      <div className="hidden lg:block w-[260px] shrink-0 border-r border-[#5e2750]">
+    <div className="flex h-dvh overflow-hidden bg-background font-sans print:h-auto print:overflow-visible print:bg-white">
+      <div className="hidden lg:block w-[260px] shrink-0 border-r border-[#5e2750] print:hidden">
         <Sidebar user={user} />
       </div>
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <Topbar user={user} warehouses={warehouses} activeWarehouseId={activeWarehouseId} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 min-w-0 px-3 py-4 pb-6 sm:p-6">
-          <div className="mx-auto max-w-7xl min-w-0">
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0 print:h-auto print:overflow-visible">
+        <div className="print:hidden">
+          <Topbar user={user} warehouses={warehouses} activeWarehouseId={activeWarehouseId} />
+        </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain min-h-0 min-w-0 px-3 py-4 pb-6 sm:p-6 print:p-0 print:h-auto print:overflow-visible">
+          <div className="mx-auto max-w-7xl min-w-0 print:max-w-none print:m-0">
             {children}
           </div>
         </main>
-        <MobileBottomNav user={user} warehouses={warehouses} activeWarehouseId={activeWarehouseId} />
+        <div className="print:hidden">
+          <MobileBottomNav user={user} warehouses={warehouses} activeWarehouseId={activeWarehouseId} />
+        </div>
       </div>
     </div>
   )

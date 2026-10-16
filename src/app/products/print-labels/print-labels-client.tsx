@@ -13,10 +13,8 @@ import {
   Sliders,
   Plus,
   Minus,
-  Trash2,
   RotateCcw,
-  Sparkles,
-  Info,
+  Scissors,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -35,7 +33,7 @@ export type ProductLabelItem = {
   warehouses: string[]
 }
 
-type LayoutMode = "COMPACT" | "SHELF" | "TAG" | "THERMAL"
+type GridPreset = "GRID_9" | "GRID_12" | "GRID_6" | "THERMAL"
 
 export function PrintLabelsClient({
   products,
@@ -46,8 +44,8 @@ export function PrintLabelsClient({
   isFiltered: boolean
   totalCount: number
 }) {
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>("COMPACT")
-  const [columns, setColumns] = useState<number>(3)
+  const [gridPreset, setGridPreset] = useState<GridPreset>("GRID_9")
+  const [showCutGuides, setShowCutGuides] = useState<boolean>(true)
 
   // Map of copies per product ID
   const [copiesMap, setCopiesMap] = useState<Record<string, number>>(() => {
@@ -108,14 +106,11 @@ export function PrintLabelsClient({
     window.print()
   }
 
-  // Active columns based on layout
-  const effectiveColumns = layoutMode === "THERMAL" ? 1 : columns
-
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-foreground print:bg-white print:text-black">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-foreground print:bg-white print:text-black print:m-0 print:p-0">
       {/* Barra de Controles Superior - Oculta na Impressão */}
       <header className="print:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border p-4 shadow-sm">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
           {/* Título & Voltar */}
           <div className="flex items-center gap-3">
             <Link href="/products">
@@ -127,7 +122,7 @@ export function PrintLabelsClient({
             <div>
               <h1 className="text-lg font-bold flex items-center gap-2">
                 <Package className="h-5 w-5 text-primary" />
-                Impressão em Lote de Etiquetas (QR Code)
+                Impressão de Etiquetas de Produtos (QR Code)
               </h1>
               <p className="text-xs text-muted-foreground">
                 <strong className="text-foreground">{labelsToPrint.length}</strong> etiqueta(s) a imprimir para{" "}
@@ -139,96 +134,65 @@ export function PrintLabelsClient({
 
           {/* Barra de Opções e Configurações */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Seletor de Modelo */}
+            {/* Seletor de Modelo / Grade */}
             <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs">
               <button
-                onClick={() => {
-                  setLayoutMode("COMPACT")
-                  if (columns === 1) setColumns(3)
-                }}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                  layoutMode === "COMPACT"
-                    ? "bg-background text-foreground shadow-xs"
+                onClick={() => setGridPreset("GRID_9")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  gridPreset === "GRID_9"
+                    ? "bg-background text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
-                title="Adesivo para caixas, gavetas e materiais (50x30mm)"
+                title="3 colunas x 3 linhas = 9 por folha A4. Tamanho grande, fácil de cortar com tesoura"
               >
-                Adesivo (50x30mm)
+                9 por folha (3x3 - Grande) ⭐
               </button>
               <button
-                onClick={() => {
-                  setLayoutMode("SHELF")
-                  if (columns === 1) setColumns(2)
-                }}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                  layoutMode === "SHELF"
-                    ? "bg-background text-foreground shadow-xs"
+                onClick={() => setGridPreset("GRID_12")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  gridPreset === "GRID_12"
+                    ? "bg-background text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
-                title="Etiqueta maior para prateleiras de almoxarifado (80x40mm)"
+                title="3 colunas x 4 linhas = 12 por folha A4. Tamanho médio para caixas e prateleiras"
               >
-                Gôndola / Prateleira
+                12 por folha (3x4 - Médio)
               </button>
               <button
-                onClick={() => {
-                  setLayoutMode("TAG")
-                  if (columns === 1) setColumns(2)
-                }}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                  layoutMode === "TAG"
-                    ? "bg-background text-foreground shadow-xs"
+                onClick={() => setGridPreset("GRID_6")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  gridPreset === "GRID_6"
+                    ? "bg-background text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
-                title="Tag/Plaqueta para ferramentas e máquinas (85x54mm)"
+                title="2 colunas x 3 linhas = 6 por folha A4. Gôndola / Prateleira grande"
               >
-                Tag / Plaqueta
+                6 por folha (2x3 - Gôndola)
               </button>
               <button
-                onClick={() => {
-                  setLayoutMode("THERMAL")
-                  setColumns(1)
-                }}
-                className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                  layoutMode === "THERMAL"
-                    ? "bg-background text-foreground shadow-xs"
+                onClick={() => setGridPreset("THERMAL")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  gridPreset === "THERMAL"
+                    ? "bg-background text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
-                title="Bobina contínua para impressoras térmicas (Zebra, Argox, Elgin)"
+                title="Bobina contínua para impressora térmica (Argox, Zebra)"
               >
                 Térmica (1 Coluna)
               </button>
             </div>
 
-            {/* Colunas para Folha A4 */}
-            {layoutMode !== "THERMAL" && (
-              <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs">
-                <span className="px-2 text-muted-foreground">Colunas:</span>
-                <button
-                  onClick={() => setColumns(2)}
-                  className={`px-2.5 py-1 rounded-md font-medium ${
-                    columns === 2 ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
-                  }`}
-                >
-                  2
-                </button>
-                <button
-                  onClick={() => setColumns(3)}
-                  className={`px-2.5 py-1 rounded-md font-medium ${
-                    columns === 3 ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
-                  }`}
-                >
-                  3
-                </button>
-                <button
-                  onClick={() => setColumns(4)}
-                  className={`px-2.5 py-1 rounded-md font-medium ${
-                    columns === 4 ? "bg-background text-foreground shadow-xs" : "text-muted-foreground"
-                  }`}
-                >
-                  4
-                </button>
-              </div>
-            )}
+            {/* Toggle Linhas para Tesoura */}
+            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showCutGuides}
+                onChange={(e) => setShowCutGuides(e.target.checked)}
+                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+              />
+              <Scissors className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Linhas para Tesoura</span>
+            </label>
 
             {/* Botão de Gestão de Quantidades */}
             <Button
@@ -259,10 +223,10 @@ export function PrintLabelsClient({
         {/* Banner de Dica de Impressão */}
         <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <span>
-            💡 <strong>Dica de Impressão:</strong> Na caixa de diálogo de impressão, defina as <strong>Margens como "Mínimas" ou "Nenhuma"</strong> e marque <strong>"Gráficos de segundo plano"</strong> para máxima nitidez do QR Code.
+            💡 <strong>Configuração Recomendada da Impressora:</strong> Defina <strong>Margens como "Mínimas" ou "Nenhuma"</strong> e marque <strong>"Gráficos de segundo plano"</strong> para que as linhas de corte e o contraste preto e branco saiam 100% nítidos.
           </span>
           <span className="font-mono text-[11px] shrink-0 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30">
-            Papel A4 / Rolo Adesivo
+            Papel A4 {gridPreset === "GRID_9" ? "(9 por folha)" : gridPreset === "GRID_12" ? "(12 por folha)" : ""}
           </span>
         </div>
 
@@ -409,7 +373,7 @@ export function PrintLabelsClient({
       </div>
 
       {/* Área Imprimível (A4 / Térmica) */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-8 print:p-0 print:max-w-none">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 print:p-0 print:max-w-none print:m-0">
         {labelsToPrint.length === 0 ? (
           <div className="py-20 text-center bg-card rounded-xl border border-dashed border-border p-8 print:hidden">
             <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
@@ -429,63 +393,72 @@ export function PrintLabelsClient({
           </div>
         ) : (
           <div
-            className={`grid gap-3 sm:gap-4 print:gap-2 justify-center ${
-              effectiveColumns === 1
-                ? "grid-cols-1 print:grid-cols-1"
-                : effectiveColumns === 2
-                ? "grid-cols-1 sm:grid-cols-2 print:grid-cols-2"
-                : effectiveColumns === 4
-                ? "grid-cols-2 sm:grid-cols-4 print:grid-cols-4"
-                : "grid-cols-1 sm:grid-cols-3 print:grid-cols-3"
+            className={`grid justify-center ${
+              gridPreset === "GRID_9"
+                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-3 print:gap-[3mm]"
+                : gridPreset === "GRID_12"
+                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-2.5 print:gap-[2.5mm]"
+                : gridPreset === "GRID_6"
+                ? "grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 print:gap-[4mm]"
+                : "grid-cols-1 print:grid-cols-1 gap-3 print:gap-[3mm]"
             }`}
           >
             {labelsToPrint.map(({ product, copyIndex, totalCopies }, idx) => {
-              const qrValue = product.code // O leitor de entrega rápida e coletor busca por código de insumo
+              const qrValue = product.code
 
-              // MODELO 1: ADESIVO COMPACTO (50x30mm / 50x35mm)
-              if (layoutMode === "COMPACT" || layoutMode === "THERMAL") {
+              // MODELO 9 POR PÁGINA (3x3 - Grande, Ideal para Tesoura)
+              if (gridPreset === "GRID_9") {
                 return (
                   <div
                     key={`${product.id}-${copyIndex}-${idx}`}
-                    className="bg-white text-slate-950 border-2 border-slate-900 rounded-lg p-2.5 shadow-sm print:shadow-none flex flex-col items-center justify-between text-center break-inside-avoid print:break-inside-avoid w-full max-w-xs mx-auto"
-                    style={{ minHeight: "155px" }}
+                    className={`bg-white text-slate-950 p-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                      showCutGuides
+                        ? "border-2 border-dashed border-slate-400 print:border-slate-800 rounded-lg"
+                        : "border-2 border-slate-900 rounded-lg"
+                    }`}
+                    style={{ minHeight: "220px" }}
                   >
+                    {/* Marcador de tesoura */}
+                    {showCutGuides && (
+                      <div className="absolute -top-2 left-3 bg-white px-1 text-[9px] text-slate-500 print:text-black flex items-center gap-0.5">
+                        <Scissors className="h-2.5 w-2.5" />
+                        <span className="text-[8px] font-mono">corte</span>
+                      </div>
+                    )}
+
                     {/* Cabeçalho */}
                     <div className="w-full border-b border-slate-300 pb-1 mb-1.5 flex items-center justify-between px-1">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-800">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">
                         CG CONSTRUÇÕES
                       </span>
-                      <span className="text-[8px] font-mono font-bold text-slate-600">
+                      <span className="text-[9px] font-mono font-bold text-slate-600">
                         CGSTOCK
                       </span>
                     </div>
 
-                    {/* Conteúdo Central: QR Code à esquerda + Informações à direita */}
-                    <div className="flex items-center gap-2.5 w-full justify-center">
+                    {/* Conteúdo Central: QR Code grande + Detalhes */}
+                    <div className="flex items-center gap-2.5 w-full justify-center my-auto">
                       <div className="p-1 bg-white rounded border border-slate-300 shrink-0">
                         <QRCodeSVG
                           value={qrValue}
-                          size={74}
+                          size={82}
                           level="H"
                           includeMargin={false}
                         />
                       </div>
 
-                      <div className="text-left flex-1 min-w-0 flex flex-col justify-between">
-                        {/* Cód Insumo */}
-                        <div className="inline-block font-mono text-xs font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-1 self-start">
+                      <div className="text-left flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="inline-block font-mono text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded tracking-wide mb-1 self-start">
                           {product.code}
                         </div>
 
-                        {/* Nome do Produto */}
-                        <div className="font-bold text-xs leading-tight line-clamp-2 text-slate-950">
+                        <div className="font-bold text-xs sm:text-sm leading-tight line-clamp-2 text-slate-950">
                           {product.name}
                         </div>
 
-                        {/* Categoria e Unidade */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-slate-600 font-medium mt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-slate-700 font-medium mt-1">
                           {showUnit && (
-                            <span className="font-bold bg-slate-100 border border-slate-200 px-1 rounded text-slate-800">
+                            <span className="font-bold bg-slate-100 border border-slate-300 px-1 rounded text-slate-900">
                               {product.unitCode}
                             </span>
                           )}
@@ -494,7 +467,6 @@ export function PrintLabelsClient({
                           )}
                         </div>
 
-                        {/* Custo Médio Opcional */}
                         {showPrice && product.averageCost && (
                           <div className="text-[9px] font-mono font-bold text-slate-700 mt-0.5">
                             R$ {product.averageCost.toFixed(2)}
@@ -504,9 +476,9 @@ export function PrintLabelsClient({
                     </div>
 
                     {/* Rodapé */}
-                    <div className="w-full border-t border-slate-200 pt-1 mt-1.5 flex items-center justify-between text-[8px] font-mono text-slate-500 px-1">
+                    <div className="w-full border-t border-slate-200 pt-1 mt-1 flex items-center justify-between text-[8px] font-mono text-slate-600 px-1">
                       {showHumanCode && <span className="font-bold truncate">{qrValue}</span>}
-                      <span className="text-[7px] uppercase font-bold text-slate-600 ml-auto">
+                      <span className="text-[8px] uppercase font-bold text-slate-700 ml-auto">
                         {totalCopies > 1 ? `VIA ${copyIndex}/${totalCopies}` : "PROPRIEDADE CG"}
                       </span>
                     </div>
@@ -514,15 +486,85 @@ export function PrintLabelsClient({
                 )
               }
 
-              // MODELO 2: GÔNDOLA / PRATELEIRA (80x40mm)
-              if (layoutMode === "SHELF") {
+              // MODELO 12 POR PÁGINA (3x4 - Médio)
+              if (gridPreset === "GRID_12") {
                 return (
                   <div
                     key={`${product.id}-${copyIndex}-${idx}`}
-                    className="bg-white text-slate-950 border-2 border-slate-900 rounded-lg p-3 shadow-sm print:shadow-none flex flex-col justify-between break-inside-avoid print:break-inside-avoid w-full max-w-sm mx-auto"
-                    style={{ minHeight: "180px" }}
+                    className={`bg-white text-slate-950 p-2 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                      showCutGuides
+                        ? "border border-dashed border-slate-400 print:border-slate-800 rounded-md"
+                        : "border-2 border-slate-900 rounded-md"
+                    }`}
+                    style={{ minHeight: "160px" }}
                   >
-                    {/* Top Header */}
+                    {/* Marcador de tesoura */}
+                    {showCutGuides && (
+                      <div className="absolute -top-1.5 left-2 bg-white px-1 text-[8px] text-slate-500 print:text-black flex items-center gap-0.5">
+                        <Scissors className="h-2 w-2" />
+                      </div>
+                    )}
+
+                    <div className="w-full border-b border-slate-300 pb-0.5 mb-1 flex items-center justify-between px-1">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-800">
+                        CG CONSTRUÇÕES
+                      </span>
+                      <span className="text-[8px] font-mono font-bold text-slate-600">
+                        CGSTOCK
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full justify-center my-auto">
+                      <div className="p-0.5 bg-white rounded border border-slate-300 shrink-0">
+                        <QRCodeSVG
+                          value={qrValue}
+                          size={66}
+                          level="H"
+                          includeMargin={false}
+                        />
+                      </div>
+
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="inline-block font-mono text-[10px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-0.5">
+                          {product.code}
+                        </div>
+                        <div className="font-bold text-[11px] leading-tight line-clamp-2 text-slate-950">
+                          {product.name}
+                        </div>
+                        <div className="flex items-center gap-1 text-[8px] text-slate-600 mt-0.5">
+                          {showUnit && <span className="font-bold">{product.unitCode}</span>}
+                          {showCategory && <span className="truncate">· {product.categoryName}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full border-t border-slate-200 pt-0.5 mt-0.5 flex items-center justify-between text-[7px] font-mono text-slate-500 px-1">
+                      <span className="truncate">{qrValue}</span>
+                      <span className="uppercase font-bold text-slate-700">PRODUTO</span>
+                    </div>
+                  </div>
+                )
+              }
+
+              // MODELO 6 POR PÁGINA (2x3 - Gôndola / Prateleira Grande)
+              if (gridPreset === "GRID_6") {
+                return (
+                  <div
+                    key={`${product.id}-${copyIndex}-${idx}`}
+                    className={`bg-white text-slate-950 p-3.5 flex flex-col justify-between relative break-inside-avoid print:break-inside-avoid ${
+                      showCutGuides
+                        ? "border-2 border-dashed border-slate-400 print:border-slate-800 rounded-xl"
+                        : "border-2 border-slate-900 rounded-xl"
+                    }`}
+                    style={{ minHeight: "230px" }}
+                  >
+                    {showCutGuides && (
+                      <div className="absolute -top-2 left-3 bg-white px-1 text-[9px] text-slate-500 print:text-black flex items-center gap-0.5">
+                        <Scissors className="h-2.5 w-2.5" />
+                        <span className="text-[8px] font-mono">corte</span>
+                      </div>
+                    )}
+
                     <div className="border-b border-slate-300 pb-1 mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <span className="text-[10px] font-black uppercase tracking-wider text-slate-900">
@@ -535,20 +577,16 @@ export function PrintLabelsClient({
                       </span>
                     </div>
 
-                    {/* Main Content */}
-                    <div className="flex items-center justify-between gap-3 flex-1">
+                    <div className="flex items-center justify-between gap-3 flex-1 my-auto">
                       <div className="flex-1 min-w-0 pr-2">
-                        {/* Huge Code */}
-                        <div className="font-mono text-base font-black text-slate-950 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded inline-block tracking-tight mb-1">
+                        <div className="font-mono text-lg font-black text-slate-950 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded inline-block tracking-tight mb-1.5">
                           {product.code}
                         </div>
 
-                        {/* Product Name */}
                         <div className="font-bold text-sm leading-tight text-slate-950 line-clamp-2">
                           {product.name}
                         </div>
 
-                        {/* Category & Unit */}
                         <div className="flex items-center gap-2 text-[10px] text-slate-600 mt-2 font-medium">
                           {showCategory && (
                             <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
@@ -563,77 +601,47 @@ export function PrintLabelsClient({
                         </div>
                       </div>
 
-                      {/* Large QR Code */}
                       <div className="p-1.5 bg-white rounded border border-slate-300 shrink-0">
                         <QRCodeSVG
                           value={qrValue}
-                          size={88}
+                          size={92}
                           level="H"
                           includeMargin={false}
                         />
                       </div>
                     </div>
 
-                    {/* Bottom Shelf Identifier */}
                     <div className="border-t border-slate-200 pt-1 mt-2 flex items-center justify-between text-[8px] font-mono text-slate-500">
-                      <span>BIPE COM O SCANNER OU CÂMERA</span>
+                      <span>BIPE COM SCANNER OU CÂMERA</span>
                       <span className="font-bold">{qrValue}</span>
                     </div>
                   </div>
                 )
               }
 
-              // MODELO 3: TAG / CRACHÁ DE EQUIPAMENTO (85x54mm)
+              // MODELO TÉRMICO (1 Coluna)
               return (
                 <div
                   key={`${product.id}-${copyIndex}-${idx}`}
-                  className="bg-white text-slate-950 border-2 border-slate-900 rounded-xl p-4 shadow-sm print:shadow-none flex flex-col items-center justify-between text-center break-inside-avoid print:break-inside-avoid w-full max-w-xs mx-auto relative"
-                  style={{ minHeight: "260px" }}
+                  className="bg-white text-slate-950 border-2 border-slate-900 rounded-lg p-2.5 flex flex-col items-center justify-between text-center break-inside-avoid print:break-inside-avoid w-full max-w-xs mx-auto"
+                  style={{ minHeight: "150px" }}
                 >
-                  {/* Punch Hole Indicator */}
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border border-dashed border-slate-400 bg-slate-50" />
-
-                  {/* Header */}
-                  <div className="w-full border-b border-slate-300 pb-2 mb-2 pt-3">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-800">
-                      CG CONSTRUÇÕES
-                    </div>
-                    <div className="text-xs font-bold text-slate-900">
-                      IDENTIFICAÇÃO DE MATERIAL & EQUIPAMENTO
+                  <div className="w-full border-b border-slate-300 pb-1 mb-1 flex items-center justify-between">
+                    <span className="text-[9px] font-black">CG CONSTRUÇÕES</span>
+                    <span className="text-[8px] font-mono">CGSTOCK</span>
+                  </div>
+                  <div className="flex items-center gap-2 w-full justify-center my-1">
+                    <QRCodeSVG value={qrValue} size={70} level="H" />
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="font-mono text-xs font-black bg-slate-900 text-white px-1.5 py-0.5 rounded inline-block mb-1">
+                        {product.code}
+                      </div>
+                      <div className="font-bold text-xs leading-tight line-clamp-2">{product.name}</div>
+                      <div className="text-[9px] text-slate-500">{product.unitCode}</div>
                     </div>
                   </div>
-
-                  {/* QR Code */}
-                  <div className="p-2 bg-white rounded-lg border border-slate-300 shadow-xs my-1">
-                    <QRCodeSVG
-                      value={qrValue}
-                      size={105}
-                      level="H"
-                      includeMargin={false}
-                    />
-                  </div>
-
-                  {/* Product Details */}
-                  <div className="w-full my-1">
-                    <div className="font-mono text-sm font-black bg-slate-900 text-white inline-block px-2.5 py-0.5 rounded tracking-wide mb-1">
-                      {product.code}
-                    </div>
-                    <div className="font-bold text-xs leading-tight text-slate-950 line-clamp-2">
-                      {product.name}
-                    </div>
-
-                    <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-600 mt-1 font-medium">
-                      {showCategory && <span>{product.categoryName}</span>}
-                      {showUnit && (
-                        <span className="font-bold font-mono">({product.unitCode})</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="w-full border-t border-slate-200 pt-1 text-[8px] font-mono text-slate-500 flex items-center justify-between">
-                    <span>{qrValue}</span>
-                    <span className="font-bold uppercase text-slate-700">USO INTERNO</span>
+                  <div className="w-full border-t border-slate-200 pt-1 text-[8px] font-mono text-slate-500">
+                    {qrValue}
                   </div>
                 </div>
               )
@@ -648,12 +656,16 @@ export function PrintLabelsClient({
           __html: `
         @media print {
           @page {
-            margin: 0.6cm;
+            margin: 6mm 6mm;
             size: A4 portrait;
           }
-          body {
+          html, body {
             background: white !important;
             color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
