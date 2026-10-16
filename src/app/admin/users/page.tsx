@@ -7,7 +7,10 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const resolvedParams = await searchParams
   const q = resolvedParams?.q || ''
   const users = await db.user.findMany({
-    where: q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : undefined,
+    where: {
+      loginEnabled: true,
+      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : {})
+    },
     include: {
       roles: true,
       warehouseAccesses: { select: { warehouse: { select: { name: true, code: true } } } }

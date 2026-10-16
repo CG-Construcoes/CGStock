@@ -128,7 +128,7 @@ export default async function ProductDetailPage({
             <Package className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold text-foreground mb-4">{totalQuantity}</div>
+            <div className="text-4xl font-bold text-foreground mb-4">{totalQuantity.toLocaleString("pt-BR")}</div>
             
             <div className="space-y-3 pt-4 border-t">
               <h4 className="text-sm font-medium">Localizações (Top 3)</h4>

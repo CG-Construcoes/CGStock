@@ -44,6 +44,7 @@ export function DashboardCharts({ data }: { data: ChartData[] }) {
           contentStyle={{ borderRadius: '4px', border: '1px solid var(--border)', backgroundColor: 'var(--card)', fontSize: '11px', boxShadow: 'none', padding: '8px 12px' }}
           itemStyle={{ fontWeight: 600, padding: 0, margin: 0 }}
           labelStyle={{ color: 'var(--muted-foreground)', marginBottom: '6px' }}
+          formatter={(value: any) => [Number(value || 0).toLocaleString("pt-BR"), ""]}
         />
         <Bar dataKey="entradas" fill="var(--chart-entry)" radius={[2, 2, 0, 0]} barSize={12} />
         <Bar dataKey="saidas" fill="var(--chart-exit)" radius={[2, 2, 0, 0]} barSize={12} />

@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Card, CardContent } from "@/components/ui/card"
-import {  Save, Plus, Trash2, CheckCircle } from "lucide-react"
+import { Save, Plus, Trash2, CheckCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { createReceiptAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { queueOfflineOperation } from "@/lib/offline-sync"
@@ -37,6 +37,9 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
   const [warehouseId, setWarehouseId] = useState("")
   const [items, setItems] = useState<ItemData[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState<"DRAFT" | "COMPLETED" | null>(null)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [pendingAction, setPendingAction] = useState<"DRAFT" | "COMPLETED">("COMPLETED")
 
   const filteredLocations = warehouseId ? locations.filter((l) => l.warehouseId === warehouseId) : []
 
@@ -60,6 +63,9 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    if (isSubmitting || isSuccess) return
+
     if (items.length === 0) {
       toast.error("Adicione pelo menos um produto para o recebimento.")
       return
@@ -70,24 +76,68 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
     }
 
     const formData = new FormData(e.currentTarget)
-    const actionType = (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter instanceof HTMLButtonElement)
-      ? e.nativeEvent.submitter.value || "DRAFT"
-      : "DRAFT"
-    formData.set("actionType", actionType)
 
+    const supplierId = formData.get("supplierId") as string
+    const targetWarehouseId = (formData.get("warehouseId") as string) || warehouseId
+
+    if (!supplierId) {
+      toast.error("Selecione um fornecedor.")
+      return
+    }
+
+    if (!targetWarehouseId) {
+      toast.error("Selecione o almoxarifado destino.")
+      return
+    }
+
+    const invalidItem = items.find(i => !i.productId || !i.locationId || !i.quantity || i.quantity <= 0)
+    if (invalidItem) {
+      if (!invalidItem.productId) {
+        toast.error("Selecione o produto em todos os itens.")
+        return
+      }
+      if (!invalidItem.quantity || invalidItem.quantity <= 0) {
+        toast.error("A quantidade em todos os itens deve ser maior que zero.")
+        return
+      }
+      if (!invalidItem.locationId) {
+        toast.error("Selecione a localização em todos os itens.")
+        return
+      }
+    }
+
+    let actionType: "DRAFT" | "COMPLETED" = pendingAction
+    if (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter) {
+      const btn = (e.nativeEvent.submitter as HTMLElement).closest('button')
+      if (btn && (btn.value === 'DRAFT' || btn.value === 'COMPLETED')) {
+        actionType = btn.value as "DRAFT" | "COMPLETED"
+      }
+    }
+
+    formData.set("actionType", actionType)
     setIsSubmitting(true)
+    setSubmittingAction(actionType)
+
+    const isCompleting = actionType === "COMPLETED"
+    const toastId = toast.loading(
+      isCompleting 
+        ? "Atualizando estoque e registrando entrada..." 
+        : "Salvando rascunho da entrada..."
+    )
 
     if (!navigator.onLine) {
       const payload: Record<string, unknown> = Object.fromEntries(formData.entries())
       payload.items = items
       try {
         await queueOfflineOperation('CREATE_RECEIPT', payload, userId)
-        toast.success("Entrada salva neste dispositivo. Sincronizaremos ao reconectar.")
+        toast.success("Entrada salva neste dispositivo. Sincronizaremos ao reconectar.", { id: toastId })
         setItems([])
         setIsSubmitting(false)
+        setSubmittingAction(null)
       } catch (err) {
-        toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
+        toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"), { id: toastId })
         setIsSubmitting(false)
+        setSubmittingAction(null)
       }
       return
     }
@@ -95,15 +145,33 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
     try {
       const result = await createReceiptAction(formData)
       if (result?.success) {
-        toast.success("Recebimento processado com sucesso!")
-        router.push("/receipts")
+        setIsSuccess(true)
+        toast.success(
+          isCompleting 
+            ? "Recebimento finalizado e estoque atualizado com sucesso!" 
+            : "Rascunho salvo com sucesso!",
+          { id: toastId }
+        )
+        setTimeout(() => {
+          router.push("/receipts")
+        }, 500)
       } else {
-        toast.error(`Erro ao processar recebimento: ${result?.error}`)
+        const errorMap: Record<string, string> = {
+          missing_fields: "Preencha todos os campos obrigatórios.",
+          no_valid_items: "Nenhum item válido para o recebimento.",
+          invalid_location: "Localização informada inválida para o almoxarifado selecionado.",
+          create_failed: "Erro ao registrar o recebimento no banco de dados.",
+          forbidden: "Você não tem permissão para esta ação."
+        }
+        const errorMsg = errorMap[result?.error || ""] || `Erro ao processar recebimento: ${result?.error || 'Erro desconhecido'}`
+        toast.error(errorMsg, { id: toastId })
+        setIsSubmitting(false)
+        setSubmittingAction(null)
       }
     } catch {
-      toast.error("Erro inesperado ao processar recebimento.")
-    } finally {
+      toast.error("Erro inesperado ao processar recebimento.", { id: toastId })
       setIsSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
@@ -265,19 +333,96 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
               )}
             </div>
 
+            {/* Feedback animado quando estiver salvando ou atualizando estoque */}
+            {isSubmitting && (
+              <div className="flex items-center justify-center gap-3 p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-sm font-medium animate-pulse">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>
+                  {submittingAction === "COMPLETED"
+                    ? "Atualizando estoque e registrando movimentações..."
+                    : "Salvando rascunho do recebimento..."}
+                </span>
+              </div>
+            )}
+
+            {isSuccess && (
+              <div className="flex items-center justify-center gap-3 p-3.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
+                <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span>
+                  {submittingAction === "COMPLETED"
+                    ? "Estoque atualizado com sucesso! Redirecionando..."
+                    : "Rascunho salvo com sucesso! Redirecionando..."}
+                </span>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t">
-              <Link href="/receipts" className="w-full sm:w-auto">
-                <Button type="button" variant="outline" className="w-full">Cancelar</Button>
+              <Link href="/receipts" className={cn("w-full sm:w-auto", (isSubmitting || isSuccess) && "pointer-events-none opacity-50")}>
+                <Button type="button" variant="outline" className="w-full" disabled={isSubmitting || isSuccess}>
+                  Cancelar
+                </Button>
               </Link>
               
-              <Button disabled={isSubmitting} type="submit" name="actionType" value="DRAFT" variant="secondary" className="w-full sm:w-auto flex items-center justify-center gap-2">
-                <Save className="h-4 w-4" />
-                Salvar Rascunho
+              <Button 
+                disabled={isSubmitting || isSuccess} 
+                type="submit" 
+                name="actionType" 
+                value="DRAFT" 
+                variant="secondary" 
+                onClick={() => setPendingAction("DRAFT")}
+                onPointerDown={() => setPendingAction("DRAFT")}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 transition-all duration-200"
+              >
+                {isSubmitting && submittingAction === "DRAFT" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Salvando Rascunho...</span>
+                  </>
+                ) : isSuccess && submittingAction === "DRAFT" ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    <span>Rascunho Salvo!</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    <span>Salvar Rascunho</span>
+                  </>
+                )}
               </Button>
 
-              <Button disabled={isSubmitting} type="submit" name="actionType" value="COMPLETED" className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-                <CheckCircle className="h-4 w-4" />
-                Finalizar e Atualizar Estoque
+              <Button 
+                disabled={isSubmitting || isSuccess} 
+                type="submit" 
+                name="actionType" 
+                value="COMPLETED" 
+                onClick={() => setPendingAction("COMPLETED")}
+                onPointerDown={() => setPendingAction("COMPLETED")}
+                className={cn(
+                  "w-full sm:w-auto flex items-center justify-center gap-2 transition-all duration-200 text-white font-medium",
+                  isSubmitting && submittingAction === "COMPLETED"
+                    ? "bg-emerald-600/90 shadow-md ring-2 ring-emerald-500/50 cursor-wait opacity-95"
+                    : isSuccess && submittingAction === "COMPLETED"
+                    ? "bg-emerald-600 shadow-md"
+                    : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800"
+                )}
+              >
+                {isSubmitting && submittingAction === "COMPLETED" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    <span>Atualizando Estoque...</span>
+                  </>
+                ) : isSuccess && submittingAction === "COMPLETED" ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-white" />
+                    <span>Estoque Atualizado!</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Finalizar e Atualizar Estoque</span>
+                  </>
+                )}
               </Button>
             </div>
           </form>

@@ -23,10 +23,12 @@ import {
   FileDown,
   Plug,
   PackagePlus,
+  PackageMinus,
   ClipboardPlus,
   ScanLine,
   Undo2,
   Search,
+  HardHat,
   type LucideIcon,
 } from "lucide-react"
 
@@ -103,6 +105,7 @@ export function createAccess(user: NavUser) {
     }
     if (item.name === "Gestão Central") return hasPerm("USER_VIEW")
     if (item.name === "Usuários") return hasPerm("USER_VIEW") || hasPerm("USER_MANAGE")
+    if (item.name === "Funcionários") return hasPerm("USER_VIEW") || hasPerm("USER_MANAGE") || hasPerm("STOCK_EXIT")
     return hasPerm(item.perm)
   }
 
@@ -149,7 +152,7 @@ export function getNavSections(user: NavUser): NavSection[] {
         { name: "Entradas", href: "/receipts", icon: ArrowDownToLine, description: "Registrar o que chegou", perm: "STOCK_ENTRY" },
         { name: "Saídas", href: "/issues", icon: ArrowUpFromLine, description: "Histórico do que saiu", perm: "STOCK_EXIT" },
         { name: "Movimentações", href: "/movements", icon: ArrowRightLeft, description: "Tudo o que entrou e saiu", perm: "STOCK_VIEW" },
-        { name: "Entrega Rápida", href: "/quick-issue", icon: Zap, description: "Entregar um item para alguém", perm: "STOCK_EXIT" },
+        { name: "Registrar Saída", href: "/quick-issue", icon: Zap, description: "Saída rápida de material para alguém", perm: "STOCK_EXIT" },
         { name: "Ajuste Manual", href: "/adjustments/new", icon: SlidersHorizontal, description: "Corrigir uma quantidade", perm: "STOCK_ENTRY" },
         REQUESTS,
         { name: "Devoluções", href: "/returns", icon: RotateCcw, description: "Itens que voltaram ao estoque", perm: "STOCK_ENTRY" },
@@ -171,6 +174,7 @@ export function getNavSections(user: NavUser): NavSection[] {
       items: requester
         ? [{ name: "Central de Ajuda", href: "/help", icon: HelpCircle, description: "Tire suas dúvidas" }]
         : [
+            { name: "Funcionários", href: "/admin/employees", icon: HardHat, description: "Equipe de campo e crachás para capacete", perm: "USER_VIEW" },
             { name: "Importar", href: "/import", icon: FolderSync, description: "Trazer dados de uma planilha", perm: "ADMIN_ONLY" },
             { name: "Exportar", href: "/export", icon: FileDown, description: "Baixar dados em planilha", perm: "REPORT_EXPORT" },
             { name: "Relatórios", href: "/reports", icon: BarChart3, description: "Listas e gráficos para imprimir", perm: "REPORT_VIEW" },
@@ -199,7 +203,7 @@ export function getQuickActions(user: NavUser): QuickAction[] {
         { name: "Meus pedidos", href: "/requests", icon: ClipboardList, description: "Acompanhar requisições", anyPerm: ["REQUEST_CREATE", "REQUEST_APPROVE", "REQUEST_FULFILL"] },
       ]
     : [
-        { name: "Entregar item", href: "/quick-issue", icon: Zap, description: "Saída rápida para uma pessoa", perm: "STOCK_EXIT" },
+        { name: "Registrar saída", href: "/quick-issue", icon: PackageMinus, description: "Saída rápida para uma pessoa", perm: "STOCK_EXIT" },
         { name: "Registrar entrada", href: "/receipts/new", icon: PackagePlus, description: "Chegou material novo", perm: "STOCK_ENTRY" },
         { name: "Consultar estoque", href: "/stock", icon: Search, description: "Ver quanto tem de cada item", perm: "STOCK_VIEW" },
         { name: "Pedir material", href: "/requests/new", icon: ClipboardPlus, description: "Fazer uma requisição", perm: "REQUEST_CREATE" },

@@ -45,12 +45,15 @@ export async function loginAction(prevState: unknown, formData: FormData) {
     include: { roles: true }
   })
 
-  const passwordMatch = user ? await bcrypt.compare(password, user.passwordHash) : false
+  const passwordMatch =
+    user && user.passwordHash && user.loginEnabled
+      ? await bcrypt.compare(password, user.passwordHash)
+      : false
 
   const recordAttempt = (success: boolean) =>
     db.loginAttempt.create({ data: { email, ip, success } })
 
-  if (!user || !passwordMatch) {
+  if (!user || !passwordMatch || !user.email) {
     await recordAttempt(false)
     if (user) {
       await logAudit("LOGIN_FAILED", "User", user.id, { email }, user.id)
@@ -74,7 +77,7 @@ export async function loginAction(prevState: unknown, formData: FormData) {
   await createSession(
     user.id,
     user.name,
-    user.email,
+    user.email!,
     user.roles.map(r => r.name),
     user.mustChangePassword,
     user.sessionVersion

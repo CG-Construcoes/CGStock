@@ -10,7 +10,7 @@ import { AlertCircle, Loader2 } from "lucide-react"
 type User = {
   id: string
   name: string
-  email: string
+  email?: string | null
   qrToken?: string | null
   qrStatus?: string
   roles: { id: string, name: string }[]
@@ -56,7 +56,7 @@ export function EditUserForm({ user, roles, worksites, warehouses }: { user: Use
           id="email" 
           name="email" 
           type="email" 
-          defaultValue={user.email}
+          defaultValue={user.email || ""}
           placeholder="carlos@cgconstrucoes.com" 
           required 
           className="bg-muted/50 focus-visible:ring-primary border-border"

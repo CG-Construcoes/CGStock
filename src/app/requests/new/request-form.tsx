@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Save, Plus, Trash2, Send } from "lucide-react"
+import { Save, Plus, Trash2, Send, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { createRequestAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
@@ -25,6 +25,8 @@ type RequestItemData = {
 export default function RequestForm({ warehouses, products, userId, sessionExpiresAt }: any) {
   const [items, setItems] = useState<RequestItemData[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<string>("PENDING_APPROVAL")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -37,11 +39,14 @@ export default function RequestForm({ warehouses, products, userId, sessionExpir
       return
     }
     const formData = new FormData(e.currentTarget)
-    const actionType = (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter instanceof HTMLButtonElement)
-      ? e.nativeEvent.submitter.value || 'DRAFT'
-      : 'DRAFT'
+    let actionType = pendingAction
+    if (e.nativeEvent instanceof SubmitEvent && e.nativeEvent.submitter) {
+      const btn = (e.nativeEvent.submitter as HTMLElement).closest('button')
+      if (btn && btn.value) actionType = btn.value
+    }
     formData.set('actionType', actionType)
     setIsSubmitting(true)
+    setSubmittingAction(actionType)
 
     if (!navigator.onLine) {
       const payload: Record<string, unknown> = {
@@ -59,6 +64,7 @@ export default function RequestForm({ warehouses, products, userId, sessionExpir
         toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
       } finally {
         setIsSubmitting(false)
+        setSubmittingAction(null)
       }
       return
     }
@@ -67,6 +73,7 @@ export default function RequestForm({ warehouses, products, userId, sessionExpir
       await handleAction(createRequestAction)(formData)
     } finally {
       setIsSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
@@ -208,17 +215,50 @@ export default function RequestForm({ warehouses, products, userId, sessionExpir
 
             <div className="flex justify-end gap-3 pt-6 border-t">
               <Link href="/requests">
-                <Button type="button" variant="outline">Cancelar</Button>
+                <Button type="button" variant="outline" disabled={isSubmitting}>Cancelar</Button>
               </Link>
               
-              <Button type="submit" name="actionType" value="DRAFT" variant="secondary" disabled={isSubmitting} className="flex items-center gap-2">
-                <Save className="h-4 w-4" />
-                Salvar Rascunho
+              <Button 
+                type="submit" 
+                name="actionType" 
+                value="DRAFT" 
+                variant="secondary" 
+                disabled={isSubmitting} 
+                onClick={() => setPendingAction("DRAFT")}
+                className="flex items-center gap-2"
+              >
+                {isSubmitting && submittingAction === "DRAFT" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Salvando Rascunho...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Salvar Rascunho
+                  </>
+                )}
               </Button>
 
-              <Button type="submit" name="actionType" value="PENDING_APPROVAL" disabled={isSubmitting} className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Send className="h-4 w-4" />
-                Enviar Requisição
+              <Button 
+                type="submit" 
+                name="actionType" 
+                value="PENDING_APPROVAL" 
+                disabled={isSubmitting} 
+                onClick={() => setPendingAction("PENDING_APPROVAL")}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {isSubmitting && submittingAction === "PENDING_APPROVAL" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Enviando Requisição...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4" />
+                    Enviar Requisição
+                  </>
+                )}
               </Button>
             </div>
           </form>

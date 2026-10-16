@@ -11,15 +11,17 @@ datasource db {
 model User {
   id                   String                @id @default(uuid())
   name                 String
-  email                String                @unique
-  passwordHash         String
+  email                String?               @unique
+  passwordHash         String?
+  document             String?
+  phone                String?
   roles                Role[]
   status               String                @default("ACTIVE") // ACTIVE, INACTIVE
   mustChangePassword   Boolean               @default(false)
   sessionVersion       Int                   @default(0)
   temporaryPasswordExpiresAt DateTime?
   employeeCode         String?               @unique
-  loginEnabled         Boolean               @default(true)
+  loginEnabled         Boolean               @default(false)
   allWarehouseAccess   Boolean               @default(false)
 
   

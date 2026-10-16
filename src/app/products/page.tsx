@@ -119,7 +119,7 @@ export default async function ProductsPage({
       <div className="grid grid-cols-2 sm:grid-cols-3 divide-x divide-border bg-card border border-border shadow-sm">
         <div className="min-w-0 p-3 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total (Tipos)</span>
-          <span className="text-lg font-bold text-foreground leading-none mt-1">{totalCount}</span>
+          <span className="text-lg font-bold text-foreground leading-none mt-1">{totalCount.toLocaleString('pt-BR')}</span>
         </div>
         <div className="min-w-0 p-3 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Estoque (Unidades)</span>
@@ -146,7 +146,7 @@ export default async function ProductsPage({
                   <ProductActions productId={product.id} productCode={product.code} productName={product.name} hasUpdate={hasUpdate} hasDelete={hasDelete} />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span>{quantity} {product.unit.code} em estoque</span>
+                  <span>{quantity.toLocaleString('pt-BR')} {product.unit.code} em estoque</span>
                   <span className={product.status === 'ACTIVE' ? 'text-emerald-600' : 'text-muted-foreground'}>{product.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>
                 </div>
               </div>
@@ -204,7 +204,7 @@ export default async function ProductsPage({
                         {product.unit.code}
                       </TableCell>
                       <TableCell className="px-4 py-2 text-right font-medium">
-                        {totalStock}
+                        {totalStock.toLocaleString('pt-BR')}
                       </TableCell>
                       <TableCell className="px-4 py-2 text-right text-muted-foreground">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
@@ -237,7 +237,7 @@ export default async function ProductsPage({
         {/* Footer / Pagination */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 bg-muted/20 mt-auto">
           <div className="text-sm text-muted-foreground">
-            Total de <strong>{totalCount}</strong> produtos encontrados
+            Total de <strong>{totalCount.toLocaleString('pt-BR')}</strong> produtos encontrados
           </div>
           
           {totalPages > 1 && (

@@ -57,7 +57,10 @@ export default async function DivergencesHubPage(props: {
     warehouseWhere,
   } = await resolveWarehouseContext(resolvedParams.warehouseId)
 
-  const baseInventoryWhere: Prisma.InventoryDivergenceWhereInput = {}
+  // Exibir apenas itens que foram efetivamente coletados/bipados no inventário
+  const baseInventoryWhere: Prisma.InventoryDivergenceWhereInput = {
+    countedQuantity: { gt: 0 }
+  }
   if (warehouseWhere) {
     baseInventoryWhere.inventory = { warehouseId: warehouseWhere.warehouseId }
   }
@@ -71,7 +74,7 @@ export default async function DivergencesHubPage(props: {
     ]
   }
 
-  // Contagens por status para os cards clicáveis
+  // Contagens por status para os cards clicáveis (apenas itens bipados)
   const [
     pendingCount,
     reviewedCount,
@@ -85,7 +88,13 @@ export default async function DivergencesHubPage(props: {
     db.inventoryDivergence.count({ where: { ...baseInventoryWhere, status: { in: ["APPROVED", "ADJUSTED"] } } }),
     db.inventoryDivergence.count({ where: { ...baseInventoryWhere, status: "REJECTED" } }),
     db.inventoryDivergence.count({ where: baseInventoryWhere }),
-    db.inventoryDivergence.count({ where: { ...baseInventoryWhere, status: "PENDING", countedQuantity: 0 } }),
+    db.inventoryDivergence.count({
+      where: {
+        ...(warehouseWhere ? { inventory: { warehouseId: warehouseWhere.warehouseId } } : {}),
+        status: "PENDING",
+        countedQuantity: 0,
+      },
+    }),
   ])
 
   const filteredWhere: Prisma.InventoryDivergenceWhereInput = { ...baseInventoryWhere }

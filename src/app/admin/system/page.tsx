@@ -89,15 +89,15 @@ export default async function SystemHealthPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
               <span className="font-medium text-gray-700">Produtos Cadastrados</span>
-              <span className="font-bold">{totalProducts.toLocaleString()}</span>
+              <span className="font-bold">{totalProducts.toLocaleString("pt-BR")}</span>
             </div>
             <div className="flex items-center justify-between border-b pb-2">
               <span className="font-medium text-gray-700">Movimentações Históricas</span>
-              <span className="font-bold">{totalMovements.toLocaleString()}</span>
+              <span className="font-bold">{totalMovements.toLocaleString("pt-BR")}</span>
             </div>
             <div className="flex items-center justify-between pb-2">
               <span className="font-medium text-gray-700">Logs de Auditoria</span>
-              <span className="font-bold">{totalLogs.toLocaleString()}</span>
+              <span className="font-bold">{totalLogs.toLocaleString("pt-BR")}</span>
             </div>
           </div>
         </CardContent>

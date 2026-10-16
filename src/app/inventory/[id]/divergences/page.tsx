@@ -19,6 +19,9 @@ export default async function DivergencesPage({ params }: { params: Promise<{ id
     where: { id, ...await warehouseIdFilter() },
     include: {
       divergences: {
+        where: {
+          countedQuantity: { gt: 0 }
+        },
         include: {
           product: true,
           location: true

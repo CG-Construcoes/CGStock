@@ -82,7 +82,7 @@ export default async function ProductStockPage({
             <Package className="h-4 w-4 text-blue-500 shrink-0" />
           </CardHeader>
           <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-            <div className="text-2xl sm:text-3xl font-bold text-foreground">{totalQuantity}</div>
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{totalQuantity.toLocaleString("pt-BR")}</div>
             <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 truncate">Total nas localizações</p>
           </CardContent>
         </Card>
@@ -93,7 +93,7 @@ export default async function ProductStockPage({
             <Info className="h-4 w-4 text-yellow-500 shrink-0" />
           </CardHeader>
           <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-            <div className="text-2xl sm:text-3xl font-bold text-foreground">{totalReserved}</div>
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{totalReserved.toLocaleString("pt-BR")}</div>
             <p className="text-[11px] sm:text-xs text-muted-foreground mt-1 truncate">Aguardando saída</p>
           </CardContent>
         </Card>
@@ -104,7 +104,7 @@ export default async function ProductStockPage({
             <Box className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
           </CardHeader>
           <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-            <div className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-400">{available}</div>
+            <div className="text-2xl sm:text-3xl font-bold text-blue-700 dark:text-blue-400">{available.toLocaleString("pt-BR")}</div>
             <p className="text-[11px] sm:text-xs text-blue-600/80 dark:text-blue-400/80 mt-1 truncate">Livre para uso</p>
           </CardContent>
         </Card>

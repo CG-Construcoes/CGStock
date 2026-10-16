@@ -155,8 +155,8 @@ export default async function DashboardPage(props: {
 
   type ChartRow = { day: Date, type: string, total: number }
 
-  const divPendingWhere: Prisma.InventoryDivergenceWhereInput = { status: 'PENDING' }
-  const divReviewedWhere: Prisma.InventoryDivergenceWhereInput = { status: 'REVIEWED' }
+  const divPendingWhere: Prisma.InventoryDivergenceWhereInput = { status: 'PENDING', countedQuantity: { gt: 0 } }
+  const divReviewedWhere: Prisma.InventoryDivergenceWhereInput = { status: 'REVIEWED', countedQuantity: { gt: 0 } }
   if (wFilter) {
     divPendingWhere.inventory = { warehouseId: wFilter.warehouseId }
     divReviewedWhere.inventory = { warehouseId: wFilter.warehouseId }
@@ -330,7 +330,7 @@ export default async function DashboardPage(props: {
               </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-              <div className="text-2xl sm:text-3xl font-black text-foreground">{pendingDivergencesCount}</div>
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{pendingDivergencesCount.toLocaleString("pt-BR")}</div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Pendentes</p>
                 <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
@@ -350,7 +350,7 @@ export default async function DashboardPage(props: {
               </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-              <div className="text-2xl sm:text-3xl font-black text-foreground">{pendingApprovalsCount}</div>
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{pendingApprovalsCount.toLocaleString("pt-BR")}</div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Aprovação</p>
                 <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
@@ -370,7 +370,7 @@ export default async function DashboardPage(props: {
               </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-              <div className="text-2xl sm:text-3xl font-black text-foreground">{inTransitTransfersCount}</div>
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{inTransitTransfersCount.toLocaleString("pt-BR")}</div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Trânsito</p>
                 <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
@@ -390,7 +390,7 @@ export default async function DashboardPage(props: {
               </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
-              <div className="text-2xl sm:text-3xl font-black text-foreground">{totalProducts}</div>
+              <div className="text-2xl sm:text-3xl font-black text-foreground">{totalProducts.toLocaleString("pt-BR")}</div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-[11px] sm:text-xs text-muted-foreground truncate">Cadastrados</p>
                 <span className="text-[11px] font-semibold text-primary opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center">
@@ -468,7 +468,7 @@ export default async function DashboardPage(props: {
                       <div className={`shrink-0 font-black text-lg ${
                         isPositive ? 'text-success' : 'text-destructive'
                       }`}>
-                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
+                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR')}
                       </div>
                     </Link>
                   )

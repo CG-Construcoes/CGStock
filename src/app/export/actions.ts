@@ -126,7 +126,7 @@ export async function exportInventoryData(inventoryId: string) {
       where: { inventoryId },
       include: { items: { include: { product: true } }, location: true }
     }),
-    db.inventoryDivergence.findMany({ where: { inventoryId } })
+    db.inventoryDivergence.findMany({ where: { inventoryId, countedQuantity: { gt: 0 } } })
   ])
   const expectedByLocationProduct = new Map(
     divergences.map(d => [`${d.locationId}:${d.productId}`, d.systemQuantity])

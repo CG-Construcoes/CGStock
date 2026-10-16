@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, UserPlus, Printer, FileUp } from "lucide-react"
+import { Search, UserPlus, Printer, FileUp, HardHat } from "lucide-react"
 import Link from "next/link"
 import { UserActions } from "./user-actions"
 
 type UserListItem = {
   id: string
   name: string
-  email: string
+  email: string | null
   status: string
   createdAt: Date | string
   roles: { id: string; name: string }[]
@@ -72,6 +72,23 @@ export function UsersClient({ users }: { users: UserListItem[] }) {
             </Button>
           </Link>
         </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl border border-blue-500/20 bg-blue-500/5 text-sm">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+            <HardHat className="h-5 w-5" />
+          </div>
+          <div>
+            <span className="font-semibold text-foreground">Equipe de Campo & Etiquetas de Capacete:</span>
+            <p className="text-muted-foreground text-xs">Os funcionários operacionais da obra ficam organizados na tela dedicada para não poluir os acessos de login.</p>
+          </div>
+        </div>
+        <Link href="/admin/employees">
+          <Button size="sm" variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/10 shrink-0 gap-1.5">
+            Ver Funcionários &rarr;
+          </Button>
+        </Link>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 bg-card  p-4 rounded-md border border-border shadow-sm">

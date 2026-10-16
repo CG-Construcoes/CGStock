@@ -76,7 +76,7 @@ export async function createInventoryAction(formData: FormData) {
 
 export async function finishInventoryAction(inventoryId: string) {
   const session = await requireActionPermission('INVENTORY_REVIEW')
-  await consolidateInventory(inventoryId, session.userId)
+  await consolidateInventory(inventoryId, session.userId, { onlyCountedItems: true })
   revalidatePath(`/inventory/${inventoryId}`)
   revalidatePath(`/inventory/${inventoryId}/divergences`)
   revalidatePath("/inventory")

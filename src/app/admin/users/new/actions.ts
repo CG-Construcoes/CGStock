@@ -57,6 +57,7 @@ export async function createUserAction(prevState: { error?: string } | null, for
             connect: roleIds.map(id => ({ id }))
           },
           status: "ACTIVE",
+          loginEnabled: true,
           allWarehouseAccess: accessMode === 'ALL',
           warehouseAccesses: accessMode === 'SELECTED' ? { create: warehouseIds.map(warehouseId => ({ warehouseId, grantedById: session.userId })) } : undefined,
           mustChangePassword: formData.get("mustChangePassword") === "true"

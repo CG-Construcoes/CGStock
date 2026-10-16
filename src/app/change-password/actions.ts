@@ -31,8 +31,8 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
     include: { roles: true }
   })
 
-  if (!user) {
-    return { error: "Usuário não encontrado." }
+  if (!user || !user.passwordHash || !user.email) {
+    return { error: "Usuário sem credenciais de acesso." }
   }
 
   const passwordMatch = await bcrypt.compare(currentPassword, user.passwordHash)
@@ -54,7 +54,7 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
   })
 
   // Renew session to remove mustChangePassword flag
-  await createSession(updatedUser.id, updatedUser.name, updatedUser.email, updatedUser.roles.map(r => r.name), false, updatedUser.sessionVersion)
+  await createSession(updatedUser.id, updatedUser.name, updatedUser.email!, updatedUser.roles.map(r => r.name), false, updatedUser.sessionVersion)
 
   return { success: true }
 }

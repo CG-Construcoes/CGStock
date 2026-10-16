@@ -41,7 +41,7 @@ export function ConfirmReceiptButton({ receiptId }: { receiptId: string }) {
         className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-        {loading ? "Processando..." : "Confirmar Recebimento"}
+        {loading ? "Atualizando Estoque..." : "Confirmar Recebimento"}
       </Button>
     </div>
   )

@@ -257,11 +257,9 @@ export async function consolidateInventory(
       }
     }
 
-    // Por padrão, se o inventário for PARTIAL ou CYCLE_COUNT (ou se solicitado explicitamente),
-    // compara APENAS os produtos que foram efetivamente bipados/coletados.
-    // Apenas inventários explicitamente marcados como FULL (e sem override onlyCountedItems)
-    // consideram itens não bipados como saldo 0.
-    const isPartialScope = options?.onlyCountedItems ?? (inv.type !== 'FULL')
+    // Por padrão, compara APENAS os produtos que foram efetivamente bipados/coletados na contagem.
+    // Produtos não bipados permanecem inalterados no estoque e não geram falsas divergências.
+    const isPartialScope = options?.onlyCountedItems ?? true
 
     const locationIds = inv.locations.map(l => l.locationId)
     const systemStocks = await tx.stock.findMany({

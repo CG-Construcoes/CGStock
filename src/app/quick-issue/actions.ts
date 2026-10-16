@@ -15,9 +15,23 @@ export async function verifyEmployeeQR(qrToken: string) {
     return { error: "Não autorizado." }
   }
   
-  // 1. Localizar usuário pelo token
-  const employee = await db.user.findUnique({
-    where: { qrToken },
+  const trimmed = qrToken.trim()
+  const cleanDigits = trimmed.replace(/\D/g, "")
+  const withoutEmpPrefix = trimmed.replace(/^EMP-/i, "")
+
+  // 1. Localizar usuário pelo token QR, código de funcionário, CPF, e-mail ou ID
+  const employee = await db.user.findFirst({
+    where: {
+      OR: [
+        { qrToken: trimmed },
+        { qrToken: `EMP-${trimmed}` },
+        { employeeCode: trimmed },
+        { employeeCode: withoutEmpPrefix },
+        { email: trimmed },
+        { id: trimmed },
+        ...(cleanDigits.length >= 8 ? [{ document: cleanDigits }, { document: trimmed }] : []),
+      ]
+    },
     include: {
       worksiteAccesses: {
         include: { worksite: true }
@@ -25,22 +39,20 @@ export async function verifyEmployeeQR(qrToken: string) {
     }
   })
   
-  if (!employee) return { error: "Funcionário não encontrado ou QR inválido." }
+  if (!employee) return { error: "Funcionário não encontrado ou código inválido." }
   if (employee.status !== "ACTIVE") return { error: "Funcionário inativo." }
-  if (employee.qrStatus !== "ACTIVE") return { error: "QR Code revogado." }
+  if (employee.qrToken === trimmed && employee.qrStatus !== "ACTIVE") return { error: "QR Code revogado." }
   
-  // 2. Verificar se o funcionário tem alguma obra autorizada
-  if (employee.worksiteAccesses.length === 0) {
-    return { error: "Funcionário sem obra autorizada vinculada." }
+  // 2. Obra autorizada do funcionário ou obra ativa padrão
+  let worksite: any = null
+  if (employee.worksiteAccesses.length > 0) {
+    worksite = employee.worksiteAccesses[0].worksite
+  } else {
+    worksite = await db.worksite.findFirst({ where: { status: "ACTIVE" } })
   }
   
-  // Para a Entrega Rápida, usaremos a primeira obra dele (ou a principal)
-  // Em uma evolução futura, podemos listar e deixar ele escolher se tiver várias.
-  const primaryAccess = employee.worksiteAccesses[0]
-  const worksite = primaryAccess.worksite
-  
-  if (worksite.status !== "ACTIVE") {
-    return { error: "Obra do funcionário está inativa." }
+  if (!worksite || worksite.status !== "ACTIVE") {
+    return { error: "Nenhuma obra ativa encontrada para este funcionário." }
   }
   
   // 3. Pegar um almoxarifado padrão dessa obra para registrar a saída
@@ -59,6 +71,8 @@ export async function verifyEmployeeQR(qrToken: string) {
       id: employee.id,
       name: employee.name,
       email: employee.email,
+      employeeCode: employee.employeeCode,
+      document: employee.document,
     },
     worksite: {
       id: worksite.id,
