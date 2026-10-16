@@ -8,6 +8,7 @@ import {
   ProductsFilterForm,
   ProductsContentWrapper,
 } from "./products-filter-client"
+import { ProductsTableClient } from "./products-table-client"
 import { cn } from "@/lib/utils"
 import { Prisma } from "@prisma/client"
 import { resolveWarehouseContext } from "@/lib/dal"
@@ -131,134 +132,51 @@ export default async function ProductsPage({
         </div>
       </div>
 
-      {/* Main Data Table */}
-      <div className="flex-1 bg-card border border-border overflow-hidden flex flex-col shadow-sm">
-        <div className="divide-y divide-border md:hidden">
-          {productsList.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Nenhum produto encontrado com os filtros atuais.</p> : productsList.map(product => {
-            const quantity = product.stocks.reduce((sum, stock) => sum + Number(stock.quantity), 0)
-            return (
-              <div key={product.id} className="space-y-3 p-4">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <Link href={`/products/${product.id}`} className="block break-words font-semibold text-foreground hover:underline">{product.name}</Link>
-                    <p className="mt-1 break-all text-xs text-muted-foreground">{product.code} · {product.category.name}</p>
-                  </div>
-                  <ProductActions productId={product.id} productCode={product.code} productName={product.name} hasUpdate={hasUpdate} hasDelete={hasDelete} />
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span>{quantity.toLocaleString('pt-BR')} {product.unit.code} em estoque</span>
-                  <span className={product.status === 'ACTIVE' ? 'text-emerald-600' : 'text-muted-foreground'}>{product.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div className="hidden md:block overflow-x-auto">
-          <Table className="w-full text-sm">
-            <TableHeader className="bg-muted/50">
-              <TableRow className="border-b border-border">
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[120px]">Cód.Insumo</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground">Produto</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[150px]">Categoria</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[80px] text-center">Unid.</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[100px] text-right">Estoque</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[120px] text-right">Valor</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[100px] text-center">Status</TableHead>
-                <TableHead className="h-10 px-4 font-semibold text-muted-foreground w-[80px] text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {productsList.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    Nenhum produto encontrado com os filtros atuais.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                productsList.map((product) => {
-                  const totalStock = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
-                  const totalValue = totalStock * Number(product.averageCost || 0)
-                  const warehouseName = product.stocks[0]?.warehouse?.name
-                  return (
-                    <TableRow 
-                      key={product.id}
-                      className="border-b border-border hover:bg-muted/20"
-                    >
-                      <TableCell className="px-4 py-2 font-mono text-muted-foreground">{product.code}</TableCell>
-                      <TableCell className="px-4 py-2">
-                        <div className="flex flex-col">
-                          <Link href={`/products/${product.id}`} className="font-medium text-foreground hover:underline">
-                            {product.name}
-                          </Link>
-                          {!selectedWarehouseId && warehouseName && (
-                            <span className="text-[11px] text-muted-foreground">
-                              {warehouseName}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-muted-foreground">
-                        {product.category.name}
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-center text-muted-foreground">
-                        {product.unit.code}
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-right font-medium">
-                        {totalStock.toLocaleString('pt-BR')}
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-right text-muted-foreground">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue)}
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-center">
-                        <span className={cn(
-                          "text-xs font-medium",
-                          product.status === 'ACTIVE' ? "text-emerald-600" : "text-muted-foreground"
-                        )}>
-                          {product.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="px-4 py-2 text-right">
-                        <ProductActions 
-                          productId={product.id} 
-                          productCode={product.code} 
-                          productName={product.name}
-                          hasUpdate={hasUpdate}
-                          hasDelete={hasDelete}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        
-        {/* Footer / Pagination */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 bg-muted/20 mt-auto">
-          <div className="text-sm text-muted-foreground">
-            Total de <strong>{totalCount.toLocaleString('pt-BR')}</strong> produtos encontrados
-          </div>
-          
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground mr-2">
-                Página {page} de {totalPages}
-              </span>
-              <Link href={page > 1 ? `/products?${new URLSearchParams({ ...resolvedSearchParams, page: String(page - 1) }).toString()}` : '#'}>
-                <Button variant="outline" size="sm" disabled={page <= 1} className="h-8 text-xs">
-                  Anterior
-                </Button>
-              </Link>
-              <Link href={page < totalPages ? `/products?${new URLSearchParams({ ...resolvedSearchParams, page: String(page + 1) }).toString()}` : '#'}>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} className="h-8 text-xs">
-                  Próxima
-                </Button>
-              </Link>
+      {/* Main Data Table with Multi-Selection & Batch Print */}
+      <ProductsTableClient
+        products={productsList.map((product) => {
+          const totalStock = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
+          return {
+            id: product.id,
+            code: product.code,
+            name: product.name,
+            category: { id: product.category.id, name: product.category.name },
+            unit: { id: product.unit.id, code: product.unit.code, name: product.unit.name },
+            status: product.status,
+            averageCost: product.averageCost ? Number(product.averageCost) : null,
+            totalStock,
+            warehouseName: product.stocks[0]?.warehouse?.name,
+          }
+        })}
+        hasUpdate={hasUpdate}
+        hasDelete={hasDelete}
+        selectedWarehouseId={selectedWarehouseId}
+        paginationSlot={
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 bg-muted/20 mt-auto">
+            <div className="text-sm text-muted-foreground">
+              Total de <strong>{totalCount.toLocaleString('pt-BR')}</strong> produtos encontrados
             </div>
-          )}
-        </div>
-      </div>
+            
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground mr-2">
+                  Página {page} de {totalPages}
+                </span>
+                <Link href={page > 1 ? `/products?${new URLSearchParams({ ...resolvedSearchParams, page: String(page - 1) }).toString()}` : '#'}>
+                  <Button variant="outline" size="sm" disabled={page <= 1} className="h-8 text-xs">
+                    Anterior
+                  </Button>
+                </Link>
+                <Link href={page < totalPages ? `/products?${new URLSearchParams({ ...resolvedSearchParams, page: String(page + 1) }).toString()}` : '#'}>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} className="h-8 text-xs">
+                    Próxima
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        }
+      />
         </ProductsContentWrapper>
       </div>
     </ProductsTransitionProvider>

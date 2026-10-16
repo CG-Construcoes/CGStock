@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Search, Plus, Loader2, ChevronDown } from "lucide-react"
+import { Search, Plus, Loader2, ChevronDown, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { setActiveWarehouseAction } from "@/app/auth-actions"
@@ -202,6 +202,28 @@ export function ProductsFilterForm({
       </Button>
 
       <div className="h-6 w-px bg-border hidden sm:block mx-1"></div>
+
+      {(() => {
+        const printParams = new URLSearchParams()
+        if (search) printParams.set("q", search)
+        if (selectedWarehouseId && selectedWarehouseId !== "ALL") printParams.set("warehouseId", selectedWarehouseId)
+        if (categoryId) printParams.set("category", categoryId)
+        if (status) printParams.set("status", status)
+        const printUrl = `/products/print-labels${printParams.toString() ? `?${printParams.toString()}` : ""}`
+        return (
+          <Link href={printUrl}>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 px-3 text-sm flex items-center gap-2 text-foreground hover:bg-muted"
+              title="Imprimir etiquetas de todos os produtos do filtro atual"
+            >
+              <Printer className="h-4 w-4 text-primary" />
+              <span className="hidden md:inline">Imprimir Etiquetas</span>
+            </Button>
+          </Link>
+        )
+      })()}
 
       {hasCreate && (
         <Link href="/products/new">

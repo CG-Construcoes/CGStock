@@ -48,21 +48,32 @@ export function ProductActions({ productId, productCode, productName, hasUpdate 
           />
         </div>
         
-        <div className="mt-8 flex justify-between gap-3 print-hidden">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowQrModal(false)}
-            className="rounded-md flex-1 text-black border-gray-300 hover:bg-gray-100"
-          >
-            Fechar
-          </Button>
-          <Button 
-            onClick={handlePrint}
-            className="rounded-md flex-1 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center justify-center gap-2"
-          >
-            <Printer className="h-4 w-4" />
-            Imprimir
-          </Button>
+        <div className="mt-8 flex flex-col gap-2 print-hidden">
+          <div className="flex justify-between gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowQrModal(false)}
+              className="rounded-md flex-1 text-black border-gray-300 hover:bg-gray-100"
+            >
+              Fechar
+            </Button>
+            <Button 
+              onClick={handlePrint}
+              className="rounded-md flex-1 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm flex items-center justify-center gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir Rápido
+            </Button>
+          </div>
+          <Link href={`/products/print-labels?ids=${productId}`} className="w-full">
+            <Button 
+              type="button"
+              variant="secondary"
+              className="w-full text-xs text-slate-700 hover:text-slate-900 border border-slate-200"
+            >
+              Mais Formatos & Cópias (Adesivo, Gôndola, Tag) &rarr;
+            </Button>
+          </Link>
         </div>
       </div>
     </div>
@@ -97,8 +108,14 @@ export function ProductActions({ productId, productCode, productName, hasUpdate 
             className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground hover:bg-muted  mt-1"
           >
             <QrCode className="h-4 w-4 text-primary" />
-            Etiqueta (QR Code)
+            Visualizar QR Code
           </button>
+          <Link href={`/products/print-labels?ids=${productId}`}>
+            <button className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground hover:bg-muted mt-1">
+              <Printer className="h-4 w-4 text-primary" />
+              Imprimir Etiqueta
+            </button>
+          </Link>
           {hasDelete && (
             <button 
               onClick={async () => {
