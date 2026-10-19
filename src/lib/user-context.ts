@@ -10,20 +10,48 @@ export type UserSecurityContext = {
   allWarehouseAccess: boolean
 }
 
+const TTL_MS = 30_000
+const memoryCache = new Map<string, { value: UserSecurityContext | null; expiresAt: number }>()
+
+export function invalidateUserSecurityCache(userId?: string) {
+  if (userId) {
+    memoryCache.delete(userId)
+  } else {
+    memoryCache.clear()
+  }
+}
+
 /**
  * Contexto de segurança do usuário (status, versão de sessão, perfis e
- * permissões). Dedup por request via React cache: múltiplas chamadas na
- * mesma renderização custam apenas uma query.
+ * permissões). Dedup por request via React cache e cache curto em memória
+ * para evitar round-trips repetidos a cada navegação.
  */
 export const getUserSecurityContext = cache(async (userId: string): Promise<UserSecurityContext | null> => {
+  const isTest = process.env.NODE_ENV === "test"
+  if (!isTest) {
+    const cached = memoryCache.get(userId)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value
+    }
+  }
+
   const user = await db.user.findUnique({
     where: { id: userId },
-    include: {
+    select: {
+      status: true,
+      sessionVersion: true,
+      mustChangePassword: true,
+      allWarehouseAccess: true,
       roles: {
-        include: {
+        select: {
+          name: true,
           permissions: {
-            include: {
-              permission: true
+            select: {
+              permission: {
+                select: {
+                  key: true
+                }
+              }
             }
           }
         }
@@ -31,9 +59,12 @@ export const getUserSecurityContext = cache(async (userId: string): Promise<User
     }
   })
 
-  if (!user) return null
+  if (!user) {
+    if (!isTest) memoryCache.set(userId, { value: null, expiresAt: Date.now() + 5_000 })
+    return null
+  }
 
-  return {
+  const ctx: UserSecurityContext = {
     status: user.status,
     sessionVersion: user.sessionVersion,
     roleNames: user.roles.map(r => r.name),
@@ -43,4 +74,10 @@ export const getUserSecurityContext = cache(async (userId: string): Promise<User
     mustChangePassword: user.mustChangePassword,
     allWarehouseAccess: user.allWarehouseAccess
   }
+
+  if (!isTest) {
+    memoryCache.set(userId, { value: ctx, expiresAt: Date.now() + TTL_MS })
+  }
+
+  return ctx
 })

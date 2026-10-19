@@ -17,27 +17,34 @@ export function DashboardCharts({ data }: { data: ChartData[] }) {
     )
   }
 
+  const maxVal = data.reduce((max, item) => Math.max(max, item.entradas || 0, item.saidas || 0), 0)
+  const topTickEstimate = Math.max(maxVal * 1.5, 100)
+  const formattedMax = Math.ceil(topTickEstimate).toLocaleString("pt-BR")
+  const yAxisWidth = Math.max(54, formattedMax.length * 8 + 18)
+
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} barGap={2} margin={{ top: 10, right: 12, left: 4, bottom: 0 }}>
+      <BarChart data={data} barGap={2} margin={{ top: 10, right: 12, left: 8, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="currentColor" className="text-border opacity-30" />
         <XAxis 
           dataKey="name" 
           stroke="currentColor" 
-          className="text-muted-foreground text-[10px] font-medium"
+          className="text-muted-foreground font-medium"
+          tick={{ fontSize: 11, fill: "currentColor" }}
           tickLine={false} 
           axisLine={false} 
           tickMargin={12}
         />
         <YAxis 
           stroke="currentColor" 
-          className="text-muted-foreground text-[10px] font-medium"
+          className="text-muted-foreground font-medium"
+          tick={{ fontSize: 11, fill: "currentColor" }}
           tickLine={false} 
           axisLine={false} 
           tickFormatter={(value) => Number(value).toLocaleString("pt-BR")}
           tickMargin={6}
           tickCount={4}
-          width={56}
+          width={yAxisWidth}
         />
         <Tooltip 
           cursor={{ fill: 'currentColor', className: 'text-muted opacity-5' }}

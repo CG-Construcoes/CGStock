@@ -11,18 +11,20 @@ export default async function NewReturnPage() {
   await requirePermissionPage('STOCK_ENTRY')
   const session = await getValidatedSession()
   if (!session) redirect("/login")
-  const scope = await warehouseScopeIds()
+  const [scope, wFilter] = await Promise.all([warehouseScopeIds(), warehouseIdFilter()])
   const [warehouses, products, requests] = await Promise.all([
     db.warehouse.findMany({
       where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
-      include: { locations: true }
+      select: { id: true, name: true, locations: { select: { id: true, code: true } } }
     }),
     db.product.findMany({
       where: { status: 'ACTIVE' },
-      include: { unit: true }
+      select: { id: true, code: true, name: true, unitId: true },
+      orderBy: { name: 'asc' }
     }),
     db.materialRequest.findMany({
-      where: { status: { in: ['FULFILLED', 'PARTIALLY_FULFILLED'] }, ...await warehouseIdFilter() }
+      where: { status: { in: ['FULFILLED', 'PARTIALLY_FULFILLED'] }, ...wFilter },
+      select: { id: true, requestNumber: true }
     })
   ])
 

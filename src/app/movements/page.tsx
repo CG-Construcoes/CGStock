@@ -46,33 +46,39 @@ export default async function MovementsPage(props: {
     ]
   }
 
-  const [movements, totalCount, products] = await Promise.all([
+  const [movements, totalCount, products, agg] = await Promise.all([
     db.stockMovement.findMany({
       where,
       include: {
-        product: { include: { unit: true } },
-        location: { include: { warehouse: true } },
-        performedBy: true
+        product: { select: { id: true, code: true, name: true, unit: { select: { code: true } } } },
+        location: { select: { id: true, code: true, warehouse: { select: { name: true } } } },
+        performedBy: { select: { id: true, name: true } }
       },
       orderBy: { createdAt: 'desc' },
       skip,
       take: pageSize
     }),
     db.stockMovement.count({ where }),
-    db.product.findMany({ select: { id: true, code: true, name: true }, orderBy: { name: 'asc' } }),
+    db.product.findMany({
+      where: { movements: { some: warehouseWhere || {} } },
+      select: { id: true, code: true, name: true },
+      orderBy: { name: 'asc' },
+      take: 250
+    }),
+    productParam
+      ? db.stockMovement.groupBy({
+          by: ['type'],
+          where,
+          _sum: { quantity: true }
+        })
+      : Promise.resolve(null),
   ])
 
   const totalPages = Math.ceil(totalCount / pageSize)
 
   // Calculate summary if only 1 product is selected
   let summary = null
-  if (productParam) {
-    const agg = await db.stockMovement.groupBy({
-      by: ['type'],
-      where,
-      _sum: { quantity: true }
-    })
-    
+  if (agg) {
     let totalIn = 0
     let totalOut = 0
     agg.forEach(a => {

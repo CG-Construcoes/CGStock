@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { BackButton } from "@/components/ui/back-button"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { createAdjustmentAction } from "./actions"
@@ -91,18 +92,15 @@ export function AdjustmentClient({ warehouses, products, userId, sessionExpiresA
             
             <div className="space-y-2">
               <Label>Produto *</Label>
-              <select 
-                value={formData.productId} 
-                onChange={(e) => setFormData(f => ({ ...f, productId: e.target.value }))}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">Selecione um produto...</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.code} - {p.name} ({p.category?.name})
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                options={products.map(p => ({
+                  value: p.id,
+                  label: `${p.code} - ${p.name}${p.category?.name ? ` (${p.category.name})` : ""}`
+                }))}
+                value={formData.productId}
+                onChange={(val) => setFormData(f => ({ ...f, productId: val }))}
+                placeholder="Selecione um produto..."
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -99,21 +99,48 @@ export async function requirePageAnyPermission(...keys: PermissionKey[]): Promis
 const ALL_WAREHOUSES = Symbol("ALL_WAREHOUSES")
 type WarehouseScope = typeof ALL_WAREHOUSES | string[]
 
+const SCOPE_TTL_MS = 30_000
+const scopeMemoryCache = new Map<string, { value: WarehouseScope; expiresAt: number }>()
+const warehousesMemoryCache = new Map<string, { value: AccessibleWarehouse[]; expiresAt: number }>()
+
+export function invalidateWarehouseCache(userId?: string) {
+  if (userId) {
+    scopeMemoryCache.delete(userId)
+    warehousesMemoryCache.delete(userId)
+  } else {
+    scopeMemoryCache.clear()
+    warehousesMemoryCache.clear()
+  }
+}
+
 /**
  * IDs dos almoxarifados aos quais o usuário tem acesso, ou o símbolo
  * ALL_WAREHOUSES quando o usuário é ADMIN ou tem acesso total explícito.
  * Dedup por request.
  */
 export const getWarehouseScope = cache(async (userId: string): Promise<WarehouseScope> => {
+  const isTest = process.env.NODE_ENV === "test"
+  if (!isTest) {
+    const cached = scopeMemoryCache.get(userId)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value
+    }
+  }
+
   const ctx = await getUserSecurityContext(userId)
   if (!ctx) return []
-  if (ctx.roleNames.includes("ADMIN") || ctx.allWarehouseAccess) return ALL_WAREHOUSES
+  if (ctx.roleNames.includes("ADMIN") || ctx.allWarehouseAccess) {
+    if (!isTest) scopeMemoryCache.set(userId, { value: ALL_WAREHOUSES, expiresAt: Date.now() + SCOPE_TTL_MS })
+    return ALL_WAREHOUSES
+  }
 
   const accesses = await db.userWarehouseAccess.findMany({
     where: { userId },
     select: { warehouseId: true },
   })
-  return accesses.map(a => a.warehouseId)
+  const result = accesses.map(a => a.warehouseId)
+  if (!isTest) scopeMemoryCache.set(userId, { value: result, expiresAt: Date.now() + SCOPE_TTL_MS })
+  return result
 })
 
 export async function getAccessibleWarehouseIds(userId?: string): Promise<string[] | null> {
@@ -161,27 +188,43 @@ export type AccessibleWarehouse = {
  */
 export const getAccessibleWarehouses = cache(async (userId?: string): Promise<AccessibleWarehouse[]> => {
   const user = userId ?? (await requireUser()).session.userId
+  const isTest = process.env.NODE_ENV === "test"
+  if (!isTest) {
+    const cached = warehousesMemoryCache.get(user)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value
+    }
+  }
+
   const scope = await getWarehouseScope(user)
+  let list: AccessibleWarehouse[]
   if (scope === ALL_WAREHOUSES) {
-    return db.warehouse.findMany({
+    list = await db.warehouse.findMany({
       where: { status: "ACTIVE" },
       select: { id: true, name: true, code: true },
       orderBy: { name: "asc" },
     })
+  } else if (scope.length === 0) {
+    list = []
+  } else {
+    list = await db.warehouse.findMany({
+      where: { status: "ACTIVE", id: { in: scope } },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    })
   }
-  if (scope.length === 0) return []
-  return db.warehouse.findMany({
-    where: { status: "ACTIVE", id: { in: scope } },
-    select: { id: true, name: true, code: true },
-    orderBy: { name: "asc" },
-  })
+
+  if (!isTest) {
+    warehousesMemoryCache.set(user, { value: list, expiresAt: Date.now() + SCOPE_TTL_MS })
+  }
+  return list
 })
 
 /**
  * Retorna o ID do almoxarifado selecionado no filtro global (cookie),
  * validado contra as permissões do usuário, ou "" (todos os permitidos).
  */
-export async function getActiveWarehouseId(userId?: string): Promise<string> {
+export const getActiveWarehouseId = cache(async (userId?: string): Promise<string> => {
   try {
     const cookieStore = await cookies()
     const cookieVal = cookieStore.get(ACTIVE_WAREHOUSE_COOKIE)?.value || ""
@@ -193,13 +236,13 @@ export async function getActiveWarehouseId(userId?: string): Promise<string> {
   } catch {
     return ""
   }
-}
+})
 
 /**
  * Resolve o filtro efetivo de almoxarifado combinando o parâmetro de URL (se informado),
  * o cookie global de almoxarifado ativo e o escopo de segurança do usuário.
  */
-export async function resolveWarehouseContext(
+export const resolveWarehouseContext = cache(async (
   paramWarehouseId?: string | null,
   userId?: string
 ): Promise<{
@@ -207,7 +250,7 @@ export async function resolveWarehouseContext(
   selectedWarehouseId: string
   effectiveScopeIds: string[] | null
   warehouseWhere: { warehouseId: { in: string[] } } | undefined
-}> {
+}> => {
   const user = userId ?? (await requireUser()).session.userId
   const [warehouses, baseScope, activeCookieId] = await Promise.all([
     getAccessibleWarehouses(user),
@@ -239,4 +282,4 @@ export async function resolveWarehouseContext(
     effectiveScopeIds,
     warehouseWhere,
   }
-}
+})

@@ -53,41 +53,74 @@ export default async function ProductsPage({
   const page = parseInt(resolvedSearchParams.page as string) || 1
   const pageSize = 50
 
-  const [productsList, totalCount, categories, allProductsSlim] = await Promise.all([
-    db.product.findMany({
-      where,
-      include: {
-        category: true,
-        unit: true,
-        stocks: { where: wFilter, include: { warehouse: { select: { name: true, code: true } } } }
-      },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * pageSize,
-      take: pageSize
-    }),
-    db.product.count({ where }),
-    db.productCategory.findMany({ orderBy: { name: 'asc' } }),
-    // Optimized slim fetch for summary cards
-    db.product.findMany({
-      where,
-      select: {
-        averageCost: true,
-        stocks: { where: wFilter, select: { quantity: true } }
-      }
-    })
-  ])
+  const effectiveScopeIds = selectedWarehouseId
+    ? [selectedWarehouseId]
+    : wFilter
+    ? wFilter.warehouseId.in
+    : null
+  const isEmptyScope = effectiveScopeIds !== null && effectiveScopeIds.length === 0
 
-  // Calculate summaries efficiently
-  let grandTotalValue = 0
-  let totalItemsInStock = 0
+  const conditions: Prisma.Sql[] = []
+  if (search) {
+    conditions.push(Prisma.sql`(p.name ILIKE ${`%${search}%`} OR p.code ILIKE ${`%${search}%`})`)
+  }
+  if (categoryId) {
+    conditions.push(Prisma.sql`p."categoryId" = ${categoryId}`)
+  }
+  if (status) {
+    conditions.push(Prisma.sql`p.status = ${status}`)
+  }
+  if (effectiveScopeIds !== null && effectiveScopeIds.length > 0) {
+    conditions.push(
+      Prisma.sql`EXISTS (SELECT 1 FROM "Stock" sx WHERE sx."productId" = p.id AND sx."warehouseId" IN (${Prisma.join(effectiveScopeIds)}))`
+    )
+  }
 
-  allProductsSlim.forEach(product => {
-    const totalStock = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
-    const cost = Number(product.averageCost || 0)
-    grandTotalValue += totalStock * cost
-    totalItemsInStock += totalStock
-  })
-  
+  const whereSql = conditions.length > 0
+    ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`
+    : Prisma.empty
+
+  const stockJoinSql = effectiveScopeIds === null
+    ? Prisma.sql`LEFT JOIN "Stock" s ON s."productId" = p.id`
+    : effectiveScopeIds.length > 0
+    ? Prisma.sql`LEFT JOIN "Stock" s ON s."productId" = p.id AND s."warehouseId" IN (${Prisma.join(effectiveScopeIds)})`
+    : Prisma.sql`LEFT JOIN "Stock" s ON FALSE`
+
+  type ProductSummaryRow = {
+    totalCount: number
+    totalItemsInStock: number
+    grandTotalValue: number
+  }
+
+  const [productsList, categories, summaryRows] = isEmptyScope
+    ? [[], await db.productCategory.findMany({ orderBy: { name: 'asc' } }), [{ totalCount: 0, totalItemsInStock: 0, grandTotalValue: 0 }]]
+    : await Promise.all([
+        db.product.findMany({
+          where,
+          include: {
+            category: true,
+            unit: true,
+            stocks: { where: wFilter, include: { warehouse: { select: { name: true, code: true } } } }
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize
+        }),
+        db.productCategory.findMany({ orderBy: { name: 'asc' } }),
+        db.$queryRaw<ProductSummaryRow[]>`
+          SELECT
+            COUNT(DISTINCT p.id)::int AS "totalCount",
+            COALESCE(SUM(s.quantity), 0)::float8 AS "totalItemsInStock",
+            COALESCE(SUM(s.quantity * COALESCE(p."averageCost", 0)), 0)::float8 AS "grandTotalValue"
+          FROM "Product" p
+          ${stockJoinSql}
+          ${whereSql}
+        `
+      ])
+
+  const totalCount = Number(summaryRows[0]?.totalCount || 0)
+  const totalItemsInStock = Number(summaryRows[0]?.totalItemsInStock || 0)
+  const grandTotalValue = Number(summaryRows[0]?.grandTotalValue || 0)
   const totalPages = Math.ceil(totalCount / pageSize)
 
   return (

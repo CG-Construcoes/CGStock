@@ -86,8 +86,14 @@ export function ProductsFilterForm({
       setLoadingLabel(wh ? `Carregando "${wh.name}"...` : "Filtrando produtos...")
     }
 
-    startTransition(async () => {
-      await setActiveWarehouseAction(!wId || wId === "ALL" ? "ALL" : wId)
+    startTransition(() => {
+      if (typeof document !== "undefined") {
+        if (!wId || wId === "ALL") {
+          document.cookie = "cgstock_active_warehouse=; path=/; max-age=0; SameSite=Lax"
+        } else {
+          document.cookie = `cgstock_active_warehouse=${encodeURIComponent(wId)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        }
+      }
       const qs = params.toString()
       router.push(qs ? `/products?${qs}` : "/products")
     })

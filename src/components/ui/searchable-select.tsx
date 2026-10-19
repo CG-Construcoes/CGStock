@@ -104,25 +104,32 @@ export function SearchableSelect({
                   Nenhum resultado encontrado.
                 </div>
               ) : (
-                filteredOptions.map((option) => (
-                  <div
-                    key={option.value}
-                    className={cn(
-                      "relative flex cursor-pointer select-none items-center rounded-sm py-3 md:py-1.5 pl-10 md:pl-8 pr-4 md:pr-2 text-base md:text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                      value === option.value && "bg-accent/50 text-accent-foreground font-medium"
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onChange(option.value)
-                      setIsOpen(false)
-                    }}
-                  >
-                    <span className="absolute left-3 md:left-2 flex h-5 w-5 md:h-3.5 md:w-3.5 items-center justify-center">
-                      {value === option.value && <Check className="h-5 w-5 md:h-4 md:w-4" />}
-                    </span>
-                    {option.label}
-                  </div>
-                ))
+                <>
+                  {filteredOptions.slice(0, 80).map((option) => (
+                    <div
+                      key={option.value}
+                      className={cn(
+                        "relative flex cursor-pointer select-none items-center rounded-sm py-3 md:py-1.5 pl-10 md:pl-8 pr-4 md:pr-2 text-base md:text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                        value === option.value && "bg-accent/50 text-accent-foreground font-medium"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onChange(option.value)
+                        setIsOpen(false)
+                      }}
+                    >
+                      <span className="absolute left-3 md:left-2 flex h-5 w-5 md:h-3.5 md:w-3.5 items-center justify-center">
+                        {value === option.value && <Check className="h-5 w-5 md:h-4 md:w-4" />}
+                      </span>
+                      {option.label}
+                    </div>
+                  ))}
+                  {filteredOptions.length > 80 && (
+                    <div className="py-2 px-3 text-center text-xs text-muted-foreground border-t border-border/50 mt-1">
+                      Mostrando 80 de {filteredOptions.length.toLocaleString("pt-BR")} — digite para filtrar
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

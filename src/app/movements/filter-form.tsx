@@ -32,7 +32,7 @@ export function MovementsFilterForm({
     customLabel?: string
   ) => {
     setLoadingLabel(customLabel || "Filtrando movimentações...")
-    startTransition(async () => {
+    startTransition(() => {
       const params = new URLSearchParams(searchParams.toString())
 
       if (nextValues.q) params.set("q", nextValues.q)
@@ -46,16 +46,20 @@ export function MovementsFilterForm({
 
       if (nextValues.warehouseId && nextValues.warehouseId !== "ALL") {
         params.set("warehouseId", nextValues.warehouseId)
-        await setActiveWarehouseAction(nextValues.warehouseId)
+        if (typeof document !== "undefined") {
+          document.cookie = `cgstock_active_warehouse=${encodeURIComponent(nextValues.warehouseId)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        }
       } else {
         params.delete("warehouseId")
-        await setActiveWarehouseAction("ALL")
+        if (typeof document !== "undefined") {
+          document.cookie = "cgstock_active_warehouse=; path=/; max-age=0; SameSite=Lax"
+        }
       }
 
       params.delete("page")
 
-      router.push(`/movements?${params.toString()}`)
-      router.refresh()
+      const qs = params.toString()
+      router.push(qs ? `/movements?${qs}` : "/movements")
     })
   }
 
@@ -70,10 +74,11 @@ export function MovementsFilterForm({
     setProductId("")
     setWarehouseId("")
     setLoadingLabel("Limpando filtros...")
-    startTransition(async () => {
-      await setActiveWarehouseAction("ALL")
+    startTransition(() => {
+      if (typeof document !== "undefined") {
+        document.cookie = "cgstock_active_warehouse=; path=/; max-age=0; SameSite=Lax"
+      }
       router.push("/movements")
-      router.refresh()
     })
   }
 

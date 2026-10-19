@@ -37,9 +37,16 @@ export function StockFilterForm({
     const selectedWh = warehouses.find((w) => w.id === wId)
     setLoadingWarehouseName(selectedWh ? selectedWh.name : wId ? null : "Todos os Almoxarifados")
 
-    startTransition(async () => {
-      await setActiveWarehouseAction(wId || "ALL")
-      router.push(`/stock?${searchParams.toString()}`)
+    startTransition(() => {
+      if (typeof document !== "undefined") {
+        if (!wId || wId === "ALL") {
+          document.cookie = "cgstock_active_warehouse=; path=/; max-age=0; SameSite=Lax"
+        } else {
+          document.cookie = `cgstock_active_warehouse=${encodeURIComponent(wId)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        }
+      }
+      const qs = searchParams.toString()
+      router.push(qs ? `/stock?${qs}` : "/stock")
     })
   }
 

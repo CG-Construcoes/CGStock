@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Save, Plus, PackageX } from "lucide-react"
 import Link from "next/link"
 import { createReturnAction } from "../actions"
@@ -139,12 +140,13 @@ export function ReturnForm({ warehouses, products, requests, userId, sessionExpi
             <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
               <div className="col-span-2 space-y-2">
                 <label className="text-xs font-medium">Produto</label>
-                <Select required value={item.productId} onChange={e => updateItem(item.id, { productId: e.target.value })}>
-                  <option value="">Selecione...</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.code} - {p.name}</option>
-                  ))}
-                </Select>
+                <SearchableSelect
+                  required
+                  options={products.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))}
+                  value={item.productId}
+                  onChange={val => updateItem(item.id, { productId: val })}
+                  placeholder="Selecione..."
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-medium">Qtd</label>

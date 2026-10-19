@@ -90,46 +90,105 @@ async function StockContent({
   page: number
   pageSize: number
 }) {
-  const wFilter: Prisma.StockWhereInput = {}
-  if (effectiveWarehouseIds !== null) {
-    wFilter.warehouseId = { in: effectiveWarehouseIds }
+  const isEmptyScope = effectiveWarehouseIds !== null && effectiveWarehouseIds.length === 0
+
+  type UnitBucketRow = {
+    unitCode: string
+    unitName: string
+    totalProducts: number
+    skusInStock: number
+    zeroStockCount: number
+    lowStockCount: number
+    physical: number
+    reserved: number
+    stockValue: number
   }
 
-  const productWhere: Prisma.ProductWhereInput = {}
-  if (q) {
-    productWhere.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { code: { contains: q, mode: "insensitive" } },
-    ]
+  type StockPageRow = {
+    id: string
+    code: string
+    name: string
+    minimumStock: number
+    maximumStock: number
+    averageCost: number
+    categoryName: string
+    unitCode: string
+    warehouseName: string | null
+    totalQuantity: number
+    totalReserved: number
   }
 
-  if (effectiveWarehouseIds !== null) {
-    productWhere.stocks = { some: wFilter }
-  }
+  const searchCondition = q
+    ? Prisma.sql`WHERE (p.name ILIKE ${`%${q}%`} OR p.code ILIKE ${`%${q}%`})`
+    : Prisma.empty
 
-  // Fetch all slim items to compute KPIs and category ID collections
-  const allMatchingProductsSlim = await db.product.findMany({
-    where: productWhere,
-    select: {
-      id: true,
-      averageCost: true,
-      minimumStock: true,
-      maximumStock: true,
-      unit: {
-        select: {
-          code: true,
-          name: true,
-        },
-      },
-      stocks: {
-        where: wFilter,
-        select: {
-          quantity: true,
-          reservedQuantity: true,
-        },
-      },
-    },
-  })
+  const stockJoin = effectiveWarehouseIds === null
+    ? Prisma.sql`LEFT JOIN "Stock" s ON s."productId" = p.id`
+    : Prisma.sql`INNER JOIN "Stock" s ON s."productId" = p.id AND s."warehouseId" IN (${Prisma.join(effectiveWarehouseIds)})`
+
+  const havingCondition = stockFilter === "in_stock"
+    ? Prisma.sql`HAVING COALESCE(SUM(s.quantity), 0) > 0`
+    : stockFilter === "alerts"
+    ? Prisma.sql`HAVING COALESCE(SUM(s.quantity), 0) = 0 OR (COALESCE(SUM(s.quantity), 0) > 0 AND p."minimumStock" > 0 AND COALESCE(SUM(s.quantity), 0) <= p."minimumStock")`
+    : Prisma.empty
+
+  const [unitRows, pageRows] = isEmptyScope
+    ? [[], []] as [UnitBucketRow[], StockPageRow[]]
+    : await Promise.all([
+        db.$queryRaw<UnitBucketRow[]>`
+          WITH prod_totals AS (
+            SELECT
+              p.id,
+              COALESCE(p."averageCost", 0)::float8 AS cost,
+              p."minimumStock",
+              UPPER(TRIM(COALESCE(u.code, 'UN'))) AS unit_code,
+              TRIM(COALESCE(u.name, COALESCE(u.code, 'UN'))) AS unit_name,
+              COALESCE(SUM(s.quantity), 0)::float8 AS qty,
+              COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS res
+            FROM "Product" p
+            LEFT JOIN "ProductUnit" u ON u.id = p."unitId"
+            ${stockJoin}
+            ${searchCondition}
+            GROUP BY p.id, u.code, u.name
+          )
+          SELECT
+            unit_code AS "unitCode",
+            MAX(unit_name) AS "unitName",
+            COUNT(*)::int AS "totalProducts",
+            COUNT(*) FILTER (WHERE qty > 0)::int AS "skusInStock",
+            COUNT(*) FILTER (WHERE qty = 0)::int AS "zeroStockCount",
+            COUNT(*) FILTER (WHERE qty > 0 AND "minimumStock" > 0 AND qty <= "minimumStock")::int AS "lowStockCount",
+            COALESCE(SUM(qty), 0)::float8 AS "physical",
+            COALESCE(SUM(res), 0)::float8 AS "reserved",
+            COALESCE(SUM(qty * cost), 0)::float8 AS "stockValue"
+          FROM prod_totals
+          GROUP BY unit_code
+        `,
+        db.$queryRaw<StockPageRow[]>`
+          SELECT
+            p.id,
+            p.code,
+            p.name,
+            p."minimumStock",
+            p."maximumStock",
+            COALESCE(p."averageCost", 0)::float8 AS "averageCost",
+            c.name AS "categoryName",
+            u.code AS "unitCode",
+            MAX(w.name) AS "warehouseName",
+            COALESCE(SUM(s.quantity), 0)::float8 AS "totalQuantity",
+            COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS "totalReserved"
+          FROM "Product" p
+          INNER JOIN "ProductCategory" c ON c.id = p."categoryId"
+          INNER JOIN "ProductUnit" u ON u.id = p."unitId"
+          ${stockJoin}
+          LEFT JOIN "Warehouse" w ON w.id = s."warehouseId"
+          ${searchCondition}
+          GROUP BY p.id, c.name, u.code
+          ${havingCondition}
+          ORDER BY p.name ASC
+          LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+        `,
+      ])
 
   let totalStockValue = 0
   let totalPhysicalQuantity = 0
@@ -137,9 +196,7 @@ async function StockContent({
   let totalSkusInStock = 0
   let lowStockCount = 0
   let zeroStockCount = 0
-
-  const inStockIds: string[] = []
-  const alertIds: string[] = []
+  let totalProductsCount = 0
 
   const unitMap = new Map<string, UnitVolumeStat>([
     ["UN", { key: "UN", code: "un", label: "Unidades (UN)", physical: 0, available: 0, reserved: 0, skuCount: 0 }],
@@ -148,20 +205,22 @@ async function StockContent({
     ["OUTROS", { key: "OUTROS", code: "outros", label: "Outras Medidas (M, CX, SC...)", physical: 0, available: 0, reserved: 0, skuCount: 0 }],
   ])
 
-  for (const p of allMatchingProductsSlim) {
-    const pQty = p.stocks.reduce((acc, s) => acc + Number(s.quantity), 0)
-    const pRes = p.stocks.reduce((acc, s) => acc + Number(s.reservedQuantity), 0)
+  for (const row of unitRows) {
+    const pQty = Number(row.physical || 0)
+    const pRes = Number(row.reserved || 0)
     const pAvail = pQty - pRes
-    const cost = Number(p.averageCost || 0)
 
+    totalProductsCount += Number(row.totalProducts || 0)
     totalPhysicalQuantity += pQty
     totalReservedQuantity += pRes
-    totalStockValue += pQty * cost
+    totalStockValue += Number(row.stockValue || 0)
+    totalSkusInStock += Number(row.skusInStock || 0)
+    zeroStockCount += Number(row.zeroStockCount || 0)
+    lowStockCount += Number(row.lowStockCount || 0)
 
-    const rawUnitCode = (p.unit?.code || "UN").trim().toUpperCase()
-    const rawUnitName = p.unit?.name?.trim() || rawUnitCode
+    const rawUnitCode = (row.unitCode || "UN").trim().toUpperCase()
+    const rawUnitName = row.unitName?.trim() || rawUnitCode
 
-    // Agrupa nas categorias principais e também mantém a unidade específica caso não seja padrão
     let bucketKey = "OUTROS"
     if (["UN", "UND", "UNID", "PC", "PÇ", "PEC"].includes(rawUnitCode)) {
       bucketKey = "UN"
@@ -186,70 +245,31 @@ async function StockContent({
       specificBucket.physical += pQty
       specificBucket.reserved += pRes
       specificBucket.available += pAvail
-      if (pQty > 0) specificBucket.skuCount += 1
+      specificBucket.skuCount += Number(row.skusInStock || 0)
     }
 
     const bucket = unitMap.get(bucketKey)!
     bucket.physical += pQty
     bucket.reserved += pRes
     bucket.available += pAvail
-    if (pQty > 0) bucket.skuCount += 1
-
-    if (pQty > 0) {
-      totalSkusInStock++
-      inStockIds.push(p.id)
-    }
-
-    if (pQty === 0) {
-      zeroStockCount++
-      alertIds.push(p.id)
-    } else if (p.minimumStock > 0 && pQty <= p.minimumStock) {
-      lowStockCount++
-      alertIds.push(p.id)
-    }
+    bucket.skuCount += Number(row.skusInStock || 0)
   }
 
   const unitStats = Array.from(unitMap.values())
-
   const totalAvailableQuantity = totalPhysicalQuantity - totalReservedQuantity
-  const totalProductsCount = allMatchingProductsSlim.length
 
-  // Filter products by selected card if active
-  let targetProductIds: string[] | null = null
-  if (stockFilter === "in_stock") {
-    targetProductIds = inStockIds
-  } else if (stockFilter === "alerts") {
-    targetProductIds = alertIds
-  }
-
-  const filteredWhere: Prisma.ProductWhereInput = {
-    ...productWhere,
-    ...(targetProductIds !== null ? { id: { in: targetProductIds } } : {}),
-  }
-
-  const [displayTotalCount, products] = await Promise.all([
-    targetProductIds !== null ? Promise.resolve(targetProductIds.length) : db.product.count({ where: productWhere }),
-    db.product.findMany({
-      where: filteredWhere,
-      include: {
-        category: true,
-        unit: true,
-        stocks: {
-          where: wFilter,
-          include: { location: true, warehouse: { select: { name: true, code: true } } },
-        },
-      },
-      orderBy: { name: "asc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-  ])
+  const displayTotalCount =
+    stockFilter === "in_stock"
+      ? totalSkusInStock
+      : stockFilter === "alerts"
+      ? lowStockCount + zeroStockCount
+      : totalProductsCount
 
   const totalPages = Math.ceil(displayTotalCount / pageSize)
 
-  const stockData = products.map((p) => {
-    const totalQuantity = p.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
-    const totalReserved = p.stocks.reduce((acc, stock) => acc + Number(stock.reservedQuantity), 0)
+  const stockData = pageRows.map((p) => {
+    const totalQuantity = Number(p.totalQuantity || 0)
+    const totalReserved = Number(p.totalReserved || 0)
     const available = totalQuantity - totalReserved
     const unitCost = Number(p.averageCost || 0)
     const totalValue = totalQuantity * unitCost
@@ -271,7 +291,16 @@ async function StockContent({
     }
 
     return {
-      product: p,
+      product: {
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        minimumStock: p.minimumStock,
+        maximumStock: p.maximumStock,
+        category: { name: p.categoryName },
+        unit: { code: p.unitCode },
+        stocks: p.warehouseName ? [{ warehouse: { name: p.warehouseName } }] : [],
+      },
       totalQuantity,
       totalReserved,
       available,
@@ -404,7 +433,7 @@ async function StockContent({
                   </span>
                 ) : (
                   <span className="text-[10px] font-medium text-muted-foreground/60 group-hover/card:text-emerald-500 transition-colors">
-                    Filtrar 376 →
+                    Filtrar →
                   </span>
                 )}
               </div>

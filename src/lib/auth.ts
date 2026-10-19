@@ -1,7 +1,8 @@
+import { cache } from "react"
 import { jwtVerify, SignJWT } from "jose"
 import { cookies } from "next/headers"
 import { jwtKey } from "./auth-secret"
-import { getUserSecurityContext } from "./user-context"
+import { getUserSecurityContext, invalidateUserSecurityCache } from "./user-context"
 
 export type SessionPayload = {
   userId: string
@@ -54,6 +55,7 @@ export async function createSession(userId: string, name: string, email: string,
   }
 
   const session = await encrypt(payload)
+  invalidateUserSecurityCache(userId)
 
   const cookieStore = await cookies()
   cookieStore.set("session", session, {
@@ -65,14 +67,15 @@ export async function createSession(userId: string, name: string, email: string,
   })
 }
 
-export async function getSession() {
+export const getSession = cache(async () => {
   const cookieStore = await cookies()
   const session = cookieStore.get("session")?.value
   if (!session) return null
   return await decrypt(session)
-}
+})
 
 export async function deleteSession() {
+  invalidateUserSecurityCache()
   const cookieStore = await cookies()
   cookieStore.delete("session")
 }
@@ -82,7 +85,7 @@ export async function deleteSession() {
  * sessão do token corresponder à do banco (ou seja, não foi revogada).
  * Usar em pontos sensíveis: mutations, dados protegidos.
  */
-export async function getValidatedSession(): Promise<SessionPayload | null> {
+export const getValidatedSession = cache(async (): Promise<SessionPayload | null> => {
   const session = await getSession()
   if (!session) return null
 
@@ -92,4 +95,4 @@ export async function getValidatedSession(): Promise<SessionPayload | null> {
   if (session.sessionVersion !== undefined && ctx.sessionVersion !== session.sessionVersion) return null
 
   return session
-}
+})

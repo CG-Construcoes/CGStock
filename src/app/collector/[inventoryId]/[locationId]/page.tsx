@@ -14,15 +14,19 @@ export default async function CollectorLocationPage({
   const session = (await getValidatedSession())!
   const { inventoryId, locationId } = await params
   
-  const inv = await db.inventory.findFirst({
-    where: { id: inventoryId, ...await warehouseIdFilter(), locations: { some: { locationId } } }
-  })
+  const wFilter = await warehouseIdFilter()
+  const [inv, loc] = await Promise.all([
+    db.inventory.findFirst({
+      where: { id: inventoryId, ...wFilter, locations: { some: { locationId } } },
+      select: { id: true, warehouseId: true }
+    }),
+    db.warehouseLocation.findUnique({
+      where: { id: locationId },
+      select: { id: true, code: true, warehouseId: true }
+    })
+  ])
 
-  const loc = await db.warehouseLocation.findFirst({
-    where: { id: locationId, warehouseId: inv?.warehouseId ?? '' }
-  })
-
-  if (!inv || !loc) notFound()
+  if (!inv || !loc || loc.warehouseId !== inv.warehouseId) notFound()
 
   // Buscar produtos ativos com a quantidade atual no sistema para esta localização
   const rawProducts = await db.product.findMany({

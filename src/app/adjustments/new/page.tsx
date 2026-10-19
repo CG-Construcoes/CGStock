@@ -15,17 +15,18 @@ export default async function NewAdjustmentPage() {
   if (!session) redirect("/login")
 
   const scope = await warehouseScopeIds()
-  const warehouses = await db.warehouse.findMany({
-    where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
-    orderBy: { name: 'asc' },
-    include: { locations: true }
-  })
-
-  const products = await db.product.findMany({
-    where: { status: 'ACTIVE' },
-    orderBy: { name: 'asc' },
-    select: { id: true, code: true, name: true, category: { select: { name: true } } }
-  })
+  const [warehouses, products] = await Promise.all([
+    db.warehouse.findMany({
+      where: { status: 'ACTIVE', id: { in: scope ?? undefined } },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, locations: { select: { id: true, code: true, name: true } } }
+    }),
+    db.product.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, category: { select: { name: true } } }
+    })
+  ])
 
   return <AdjustmentClient warehouses={warehouses} products={products} userId={session.userId} sessionExpiresAt={new Date(session.expiresAt).toISOString()} />
 }

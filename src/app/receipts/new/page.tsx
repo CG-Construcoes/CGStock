@@ -8,11 +8,13 @@ export default async function NewReceiptPage() {
   await requirePermissionPage('STOCK_ENTRY')
   const session = (await getValidatedSession())!
 
-  const scope = await warehouseScopeIds()
-  const suppliers = await db.supplier.findMany({ where: { status: 'ACTIVE' }, orderBy: { name: 'asc' } })
-  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } } })
-  const products = await db.product.findMany({ where: { status: 'ACTIVE' }, include: { unit: true } })
-  const locations = await db.warehouseLocation.findMany({ where: { status: 'ACTIVE', ...await warehouseIdFilter() } })
+  const [scope, wFilter] = await Promise.all([warehouseScopeIds(), warehouseIdFilter()])
+  const [suppliers, warehouses, products, locations] = await Promise.all([
+    db.supplier.findMany({ where: { status: 'ACTIVE' }, select: { id: true, name: true, document: true }, orderBy: { name: 'asc' } }),
+    db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } }, select: { id: true, name: true } }),
+    db.product.findMany({ where: { status: 'ACTIVE' }, select: { id: true, code: true, name: true, averageCost: true }, orderBy: { name: 'asc' } }),
+    db.warehouseLocation.findMany({ where: { status: 'ACTIVE', ...wFilter }, select: { id: true, code: true, name: true, warehouseId: true } }),
+  ])
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">

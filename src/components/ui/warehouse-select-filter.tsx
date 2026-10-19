@@ -72,19 +72,17 @@ export function WarehouseSelectFilter({
     const selectedWh = warehouses.find((w) => w.id === newWarehouseId)
     setLoadingName(selectedWh ? selectedWh.name : allLabel)
 
-    startTransition(async () => {
-      if (syncGlobalCookie) {
-        await setActiveWarehouseAction(newWarehouseId || "ALL")
+    startTransition(() => {
+      if (syncGlobalCookie && typeof document !== "undefined") {
+        if (!newWarehouseId || newWarehouseId === "ALL") {
+          document.cookie = "cgstock_active_warehouse=; path=/; max-age=0; SameSite=Lax"
+        } else {
+          document.cookie = `cgstock_active_warehouse=${encodeURIComponent(newWarehouseId)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`
+        }
       }
 
       const params = new URLSearchParams(searchParams.toString())
-      if (params.has(paramName)) {
-        if (newWarehouseId) {
-          params.set(paramName, newWarehouseId)
-        } else {
-          params.delete(paramName)
-        }
-      } else if (!syncGlobalCookie) {
+      if (params.has(paramName) || !syncGlobalCookie) {
         if (newWarehouseId) {
           params.set(paramName, newWarehouseId)
         } else {
@@ -98,8 +96,12 @@ export function WarehouseSelectFilter({
       }
 
       const queryStr = params.toString()
-      router.push(queryStr ? `${pathname}?${queryStr}` : pathname)
-      router.refresh()
+      const currentQueryStr = searchParams.toString()
+      if (queryStr !== currentQueryStr) {
+        router.push(queryStr ? `${pathname}?${queryStr}` : pathname)
+      } else {
+        router.refresh()
+      }
     })
   }
 

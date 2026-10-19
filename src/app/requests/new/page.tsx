@@ -10,11 +10,14 @@ export default async function NewRequestPage() {
   const session = await getValidatedSession()
   if (!session) redirect("/login")
   const scope = await warehouseScopeIds()
-  const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } } })
-  const products = await db.product.findMany({ 
-    where: { status: 'ACTIVE' },
-    include: { unit: true } 
-  })
+  const [warehouses, products] = await Promise.all([
+    db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } }, select: { id: true, name: true } }),
+    db.product.findMany({ 
+      where: { status: 'ACTIVE' },
+      select: { id: true, code: true, name: true, unitId: true, unit: { select: { id: true, code: true } } },
+      orderBy: { name: 'asc' }
+    })
+  ])
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

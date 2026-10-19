@@ -119,17 +119,23 @@ export default async function DashboardPage(props: {
   if (!session) redirect("/login")
   const roles = session.roles || []
 
-  const resolvedParams = props?.searchParams ? await props.searchParams : {}
-  const baseWFilter = await warehouseIdFilter(session.userId)
-  const baseScopeIds = await warehouseScopeIds(session.userId)
-
-  // Busca almoxarifados acessíveis e cookie global (com fallback seguro para mocks de teste)
-  const warehouses = "getAccessibleWarehouses" in dal && typeof dal.getAccessibleWarehouses === "function"
-    ? (await dal.getAccessibleWarehouses(session.userId)) || []
-    : []
-  const cookieWhId = "getActiveWarehouseId" in dal && typeof dal.getActiveWarehouseId === "function"
-    ? (await dal.getActiveWarehouseId(session.userId)) || ""
-    : ""
+  const [
+    resolvedParams,
+    baseWFilter,
+    baseScopeIds,
+    warehouses,
+    cookieWhId,
+  ] = await Promise.all([
+    props?.searchParams ? props.searchParams : Promise.resolve({} as { warehouseId?: string }),
+    warehouseIdFilter(session.userId),
+    warehouseScopeIds(session.userId),
+    "getAccessibleWarehouses" in dal && typeof dal.getAccessibleWarehouses === "function"
+      ? dal.getAccessibleWarehouses(session.userId).then(res => res || [])
+      : Promise.resolve([]),
+    "getActiveWarehouseId" in dal && typeof dal.getActiveWarehouseId === "function"
+      ? dal.getActiveWarehouseId(session.userId).then(res => res || "")
+      : Promise.resolve(""),
+  ])
 
   const rawSelectedId = resolvedParams.warehouseId !== undefined ? resolvedParams.warehouseId : cookieWhId
   const selectedWarehouseId = rawSelectedId && (
@@ -420,7 +426,7 @@ export default async function DashboardPage(props: {
               Ver relatório →
             </Link>
           </div>
-          <div className="px-2 pt-4 pb-4 h-[250px] min-h-[250px] w-full">
+          <div className="px-3 sm:px-4 pt-4 pb-4 h-[250px] min-h-[250px] w-full">
             <DashboardCharts data={chartData} />
           </div>
         </Card>
