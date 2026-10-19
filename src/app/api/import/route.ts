@@ -164,7 +164,7 @@ export async function POST(request: Request) {
 
       const stockCreates: Prisma.StockCreateManyInput[] = []
       const stockUpdates: { id: string, quantity: number }[] = []
-      const movementCreates: Prisma.StockMovementCreateManyInput[] = []
+      let stockAdjustmentsCount = 0
 
       for (const r of rows) {
         const productId = productByCode.get(r.code)
@@ -196,19 +196,7 @@ export async function POST(request: Request) {
             quantity: r.quantity
           })
         }
-
-        movementCreates.push({
-          productId,
-          warehouseId: warehouse.id,
-          locationId: location.id,
-          type: difference > 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
-          quantity: Math.abs(difference),
-          unitCost: r.averageCost,
-          totalCost: r.averageCost * Math.abs(difference),
-          referenceType: 'INVENTORY_ADJUSTMENT',
-          reason: 'Importação de Planilha Excel',
-          performedById: session.userId
-        })
+        stockAdjustmentsCount++
       }
 
       if (stockCreates.length > 0) {
@@ -217,15 +205,12 @@ export async function POST(request: Request) {
       for (const s of stockUpdates) {
         await tx.stock.update({ where: { id: s.id }, data: { quantity: s.quantity } })
       }
-      if (movementCreates.length > 0) {
-        await tx.stockMovement.createMany({ data: movementCreates })
-      }
 
       return {
         processed: rows.length,
         created: toCreate.length,
         updated: toUpdate.length,
-        stockAdjustments: movementCreates.length
+        stockAdjustments: stockAdjustmentsCount
       }
     }, {
       timeout: 120000

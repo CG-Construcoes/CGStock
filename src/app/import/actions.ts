@@ -189,27 +189,7 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
           const diff = targetQty - currentWarehouseQty
 
           if (diff > 0) {
-            // Planilha tem MAIS do que o sistema: adiciona apenas a diferença
-            const moveType = currentWarehouseQty === 0 ? 'ENTRY' : 'ADJUSTMENT_IN'
-            const reason = currentWarehouseQty === 0
-              ? 'Importação inicial de estoque'
-              : `Sincronização via importação (${currentWarehouseQty} → ${targetQty})`
-
-            await tx.stockMovement.create({
-              data: {
-                productId: product.id,
-                warehouseId,
-                locationId,
-                type: moveType,
-                quantity: diff,
-                unitCost,
-                referenceType: 'IMPORT_BATCH',
-                referenceId: batch.id,
-                reason,
-                performedById: session.userId,
-              }
-            })
-
+            // Planilha tem MAIS do que o sistema: adiciona apenas a diferença no saldo (sem gerar histórico de movimentação)
             await tx.stock.upsert({
               where: {
                 productId_locationId: {
@@ -237,7 +217,7 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
               actionMessage = `Estoque ajustado: ${currentWarehouseQty} → ${targetQty} (+${diff})`
             }
           } else if (diff < 0) {
-            // Planilha tem MENOS do que o sistema: reduz a diferença para igualar à planilha
+            // Planilha tem MENOS do que o sistema: reduz a diferença para igualar à planilha (sem gerar histórico de movimentação)
             let remainingToDeduct = Math.abs(diff)
 
             // Prioriza deduzir da localização padrão primeiro, depois das demais localizações do almoxarifado
@@ -253,21 +233,6 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
 
               const deductFromLoc = Math.min(st.quantity, remainingToDeduct)
               remainingToDeduct -= deductFromLoc
-
-              await tx.stockMovement.create({
-                data: {
-                  productId: product.id,
-                  warehouseId,
-                  locationId: st.locationId,
-                  type: 'ADJUSTMENT_OUT',
-                  quantity: -deductFromLoc,
-                  unitCost,
-                  referenceType: 'IMPORT_BATCH',
-                  referenceId: batch.id,
-                  reason: `Sincronização via importação (${currentWarehouseQty} → ${targetQty})`,
-                  performedById: session.userId,
-                }
-              })
 
               await tx.stock.update({
                 where: { id: st.id },
