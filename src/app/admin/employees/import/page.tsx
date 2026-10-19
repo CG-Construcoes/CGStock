@@ -7,7 +7,7 @@ export const metadata = {
 }
 
 export default async function EmployeeImportPage() {
-  await requireAnyPermissionPage("USER_MANAGE", "CONFIG_MANAGE")
+  await requireAnyPermissionPage("USER_MANAGE", "CONFIG_MANAGE", "PRODUCT_CREATE", "STOCK_EXIT")
 
   const worksites = await db.worksite.findMany({
     where: { status: "ACTIVE" },

@@ -2,10 +2,20 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireActionPermission } from "@/lib/action-guard"
+import { requireSession } from "@/lib/action-guard"
+import { hasAnyPermission } from "@/lib/permissions"
 import { logAudit } from "@/lib/audit"
-import { getValidatedSession } from "@/lib/auth"
 import crypto from "crypto"
+
+async function requireEmployeeManagePermission() {
+  const session = await requireSession()
+  if (session.roles?.includes("ADMIN")) return session
+  const allowed = await hasAnyPermission("USER_MANAGE", "PRODUCT_CREATE", "STOCK_EXIT")
+  if (!allowed) {
+    throw new Error("Sem permissão para gerenciar colaboradores.")
+  }
+  return session
+}
 
 export type EmployeeBatchItem = {
   employeeCode?: string | null
@@ -22,7 +32,7 @@ export async function importEmployeesBatchAction(
 ) {
   let session
   try {
-    session = await requireActionPermission('USER_MANAGE')
+    session = await requireEmployeeManagePermission()
   } catch {
     return { success: false, message: "Sem permissão para gerenciar funcionários." }
   }
@@ -220,7 +230,7 @@ export async function importEmployeesBatchAction(
 export async function createEmployeeAction(formData: FormData) {
   let session
   try {
-    session = await requireActionPermission('USER_MANAGE')
+    session = await requireEmployeeManagePermission()
   } catch {
     return { error: "Sem permissão." }
   }
@@ -294,7 +304,7 @@ export async function updateEmployeeAction(
 ) {
   let session
   try {
-    session = await requireActionPermission('USER_MANAGE')
+    session = await requireEmployeeManagePermission()
   } catch {
     return { error: "Sem permissão." }
   }
@@ -359,7 +369,7 @@ export async function updateEmployeeAction(
 export async function toggleEmployeeStatusAction(employeeId: string) {
   let session
   try {
-    session = await requireActionPermission('USER_MANAGE')
+    session = await requireEmployeeManagePermission()
   } catch {
     return { error: "Sem permissão." }
   }
@@ -393,7 +403,7 @@ export async function toggleEmployeeStatusAction(employeeId: string) {
 export async function regenerateEmployeeQrAction(employeeId: string) {
   let session
   try {
-    session = await requireActionPermission('USER_MANAGE')
+    session = await requireEmployeeManagePermission()
   } catch {
     return { error: "Sem permissão." }
   }

@@ -7,7 +7,7 @@ import { requirePageUser } from "@/lib/dal"
 
 export default async function EditUserPage(props: { params: Promise<{ id: string }> }) {
   const actor = await requirePageUser()
-  if (!actor.ctx.roleNames.includes('ADMIN')) redirect('/unauthorized')
+  if (!actor.ctx.roleNames.includes('ADMIN') && !actor.ctx.permissionKeys.has('USER_MANAGE')) redirect('/unauthorized')
   const params = await props.params;
   const user = await db.user.findUnique({
     where: { id: params.id },

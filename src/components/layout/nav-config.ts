@@ -69,8 +69,10 @@ export type QuickAction = {
 
 const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrador",
+  "ENC. ADM": "Enc. Administrativo",
   GESTOR: "Gestor",
   ALMOXARIFE: "Almoxarife",
+  "AUX. ALMOXARIFADO": "Aux. Almoxarifado",
   CONFERENTE: "Conferente",
   SOLICITANTE: "Solicitante",
 }

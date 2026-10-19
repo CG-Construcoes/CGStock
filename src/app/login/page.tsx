@@ -54,13 +54,14 @@ export default function LoginPage() {
               <form action={formAction} className="space-y-5">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-zinc-300" htmlFor="email">
-                    E-mail Corporativo
+                    E-mail ou CPF
                   </label>
                   <Input
                     id="email"
                     name="email"
-                    type="email"
-                    placeholder="admin@estok.com"
+                    type="text"
+                    autoComplete="username"
+                    placeholder="E-mail corporativo ou CPF"
                     required
                     className="h-11 bg-[#45364d] border-[#6b4c68] text-white focus-visible:ring-[#ffb597] placeholder:text-zinc-500"
                   />

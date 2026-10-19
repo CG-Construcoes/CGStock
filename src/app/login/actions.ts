@@ -40,10 +40,23 @@ export async function loginAction(prevState: unknown, formData: FormData) {
     return { error: `Muitas tentativas de login. Tente novamente em ${LOCKOUT_WINDOW_MINUTES} minutos.` }
   }
 
-  const user = await db.user.findUnique({
-    where: { email },
-    include: { roles: true }
-  })
+  const cleanDigits = email.replace(/\D/g, "")
+  const user = email.includes("@")
+    ? await db.user.findUnique({
+        where: { email },
+        include: { roles: true }
+      })
+    : await db.user.findFirst({
+        where: {
+          loginEnabled: true,
+          OR: [
+            ...(cleanDigits.length >= 11 ? [{ document: cleanDigits }] : []),
+            { email },
+            ...(cleanDigits ? [{ employeeCode: cleanDigits }] : []),
+          ]
+        },
+        include: { roles: true }
+      })
 
   const passwordMatch =
     user && user.passwordHash && user.loginEnabled

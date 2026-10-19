@@ -98,12 +98,14 @@ export function ImportClient({ warehouses }: { warehouses: Warehouse[] }) {
 
       toast.info("Analisando arquivo e criando lote...")
 
-      const rows = jsonData.map(row => ({
-        productCode: row.Material || row.Código || row.code || '',
-        productName: row['Especificação'] || row.Nome || row.name || '',
-        quantity: row.Quantidade || row.quantity || 0,
-        unitCost: row['Pr. Unitário'] || row['Valor'] || row.unitCost || null
-      }))
+      const rows = jsonData
+        .map(row => ({
+          productCode: String(row.Material || row.Código || row.code || '').trim(),
+          productName: String(row['Especificação'] || row.Nome || row.name || '').trim(),
+          quantity: row.Quantidade || row.quantity || 0,
+          unitCost: row['Pr. Unitário'] || row['Valor'] || row.unitCost || null
+        }))
+        .filter(r => r.productCode !== '' || r.productName !== '')
 
       const result = await createImportBatchAction(warehouseId, rows)
       

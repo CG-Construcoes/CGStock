@@ -23,7 +23,7 @@ export async function importEmployeesAction(rows: EmployeeImportRow[]) {
   let updated = 0
   let errors = []
 
-  const defaultPasswordHash = await bcrypt.hash("CGStock@2026", 10)
+  const defaultPasswordHash = await bcrypt.hash("123456", 10)
 
   // O perfil padrão de usuário básico (role normal)
   const defaultRole = await db.role.findFirst({

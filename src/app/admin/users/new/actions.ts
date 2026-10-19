@@ -5,15 +5,15 @@ import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { validatePasswordStrength } from "@/lib/password-policy"
-import { requireAdmin } from "@/lib/action-guard"
+import { requireActionPermission } from "@/lib/action-guard"
 import { logAuditStrict } from "@/lib/audit"
 
 export async function createUserAction(prevState: { error?: string } | null, formData: FormData) {
   let session
   try {
-    session = await requireAdmin()
+    session = await requireActionPermission("USER_MANAGE")
   } catch {
-    return { error: "Sem permissão. Apenas administradores podem criar usuários." }
+    return { error: "Sem permissão para cadastrar usuários." }
   }
 
   const name = formData.get("name") as string
