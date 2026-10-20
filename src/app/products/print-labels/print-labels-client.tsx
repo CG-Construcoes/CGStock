@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { QRCodeSVG } from "qrcode.react"
 import {
@@ -102,8 +102,32 @@ export function PrintLabelsClient({
     return list
   }, [products, copiesMap])
 
+  useEffect(() => {
+    let prevTitle = ""
+    const handleBeforePrint = () => {
+      prevTitle = document.title
+      document.title = ""
+    }
+    const handleAfterPrint = () => {
+      if (prevTitle) {
+        document.title = prevTitle
+      }
+    }
+    window.addEventListener("beforeprint", handleBeforePrint)
+    window.addEventListener("afterprint", handleAfterPrint)
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint)
+      window.removeEventListener("afterprint", handleAfterPrint)
+    }
+  }, [])
+
   const handlePrint = () => {
+    const prevTitle = document.title
+    document.title = ""
     window.print()
+    setTimeout(() => {
+      document.title = prevTitle
+    }, 1000)
   }
 
   return (
@@ -373,7 +397,7 @@ export function PrintLabelsClient({
       </div>
 
       {/* Área Imprimível (A4 / Térmica) */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 print:p-0 print:max-w-none print:m-0">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 print:p-[8mm] print:m-0 print:max-w-none print:w-full">
         {labelsToPrint.length === 0 ? (
           <div className="py-20 text-center bg-card rounded-xl border border-dashed border-border p-8 print:hidden">
             <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
@@ -395,9 +419,9 @@ export function PrintLabelsClient({
           <div
             className={`grid justify-center ${
               gridPreset === "GRID_9"
-                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-3 print:gap-[3mm]"
+                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-3 print:gap-[2.5mm]"
                 : gridPreset === "GRID_12"
-                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-2.5 print:gap-[2.5mm]"
+                ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 print:grid-cols-3 gap-2.5 print:gap-[2mm]"
                 : gridPreset === "GRID_6"
                 ? "grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 print:gap-[4mm]"
                 : "grid-cols-1 print:grid-cols-1 gap-3 print:gap-[3mm]"
@@ -411,23 +435,23 @@ export function PrintLabelsClient({
                 return (
                   <div
                     key={`${product.id}-${copyIndex}-${idx}`}
-                    className={`bg-white text-slate-950 p-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                    className={`bg-white text-slate-950 p-2 sm:p-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
                       showCutGuides
                         ? "border-2 border-dashed border-slate-400 print:border-slate-800 rounded-lg"
                         : "border-2 border-slate-900 rounded-lg"
                     }`}
-                    style={{ minHeight: "220px" }}
+                    style={{ minHeight: "185px", height: "auto" }}
                   >
                     {/* Marcador de tesoura */}
                     {showCutGuides && (
-                      <div className="absolute -top-2 left-3 bg-white px-1 text-[9px] text-slate-500 print:text-black flex items-center gap-0.5">
+                      <div className="absolute top-0 left-2.5 -translate-y-1/2 bg-white px-1.5 text-[8px] text-slate-500 print:text-black flex items-center gap-1 z-10 pointer-events-none rounded">
                         <Scissors className="h-2.5 w-2.5" />
-                        <span className="text-[8px] font-mono">corte</span>
+                        <span className="text-[7px] font-mono font-bold uppercase tracking-wider">corte</span>
                       </div>
                     )}
 
                     {/* Cabeçalho */}
-                    <div className="w-full border-b border-slate-300 pb-1 mb-1.5 flex items-center justify-between px-1">
+                    <div className="w-full border-b border-slate-300 pb-1 mb-1.5 flex items-center justify-between px-1 pt-0.5">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">
                         CG CONSTRUÇÕES
                       </span>
@@ -436,27 +460,27 @@ export function PrintLabelsClient({
                       </span>
                     </div>
 
-                    {/* Conteúdo Central: QR Code grande + Detalhes */}
-                    <div className="flex items-center gap-2.5 w-full justify-center my-auto">
+                    {/* Conteúdo Central: QR Code + Detalhes */}
+                    <div className="flex items-center gap-2 w-full justify-start my-auto overflow-hidden">
                       <div className="p-1 bg-white rounded border border-slate-300 shrink-0">
                         <QRCodeSVG
                           value={qrValue}
-                          size={82}
-                          level="H"
+                          size={64}
+                          level="M"
                           includeMargin={false}
                         />
                       </div>
 
-                      <div className="text-left flex-1 min-w-0 flex flex-col justify-center">
-                        <div className="inline-block font-mono text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded tracking-wide mb-1 self-start">
+                      <div className="text-left flex-1 min-w-0 pl-1 flex flex-col justify-center overflow-hidden">
+                        <div className="inline-flex items-center font-mono text-[9.5px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-1 self-start whitespace-nowrap leading-none">
                           {product.code}
                         </div>
 
-                        <div className="font-bold text-xs sm:text-sm leading-tight line-clamp-2 text-slate-950">
+                        <div className="font-bold text-[11px] leading-tight text-slate-950 break-words line-clamp-3">
                           {product.name}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-slate-700 font-medium mt-1">
+                        <div className="flex flex-wrap items-center gap-1 text-[8.5px] text-slate-700 font-medium mt-1">
                           {showUnit && (
                             <span className="font-bold bg-slate-100 border border-slate-300 px-1 rounded text-slate-900">
                               {product.unitCode}
@@ -468,7 +492,7 @@ export function PrintLabelsClient({
                         </div>
 
                         {showPrice && product.averageCost && (
-                          <div className="text-[9px] font-mono font-bold text-slate-700 mt-0.5">
+                          <div className="text-[8.5px] font-mono font-bold text-slate-700 mt-0.5">
                             R$ {product.averageCost.toFixed(2)}
                           </div>
                         )}
@@ -477,7 +501,7 @@ export function PrintLabelsClient({
 
                     {/* Rodapé */}
                     <div className="w-full border-t border-slate-200 pt-1 mt-1 flex items-center justify-between text-[8px] font-mono text-slate-600 px-1">
-                      {showHumanCode && <span className="font-bold truncate">{qrValue}</span>}
+                      {showHumanCode && <span className="font-bold truncate max-w-[100px]">{qrValue}</span>}
                       <span className="text-[8px] uppercase font-bold text-slate-700 ml-auto">
                         {totalCopies > 1 ? `VIA ${copyIndex}/${totalCopies}` : "PROPRIEDADE CG"}
                       </span>
@@ -656,8 +680,8 @@ export function PrintLabelsClient({
           __html: `
         @media print {
           @page {
-            margin: 6mm 6mm;
-            size: A4 portrait;
+            margin: 0 !important;
+            size: ${gridPreset === "THERMAL" ? "auto" : "A4 portrait"};
           }
           html, body {
             background: white !important;

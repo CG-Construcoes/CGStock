@@ -74,20 +74,26 @@ export default async function PrintBadgesPage({
         }
         @media print {
           @page {
-            margin: 1cm;
-            size: A4;
+            margin: 0 !important;
+            size: A4 portrait;
           }
-          body {
+          html, body {
             background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           .print-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.5cm;
             justify-items: center;
+            padding: 8mm !important;
+            margin: 0 !important;
+            width: 100% !important;
           }
           .print-item {
             page-break-inside: avoid;
+            break-inside: avoid;
           }
         }
       `}} />

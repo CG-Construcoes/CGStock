@@ -24,27 +24,51 @@ export function ProductActions({ productId, productCode, productName, hasUpdate 
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [isOpen])
 
+  useEffect(() => {
+    let prevTitle = ""
+    const handleBeforePrint = () => {
+      prevTitle = document.title
+      document.title = ""
+    }
+    const handleAfterPrint = () => {
+      if (prevTitle) {
+        document.title = prevTitle
+      }
+    }
+    window.addEventListener("beforeprint", handleBeforePrint)
+    window.addEventListener("afterprint", handleAfterPrint)
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint)
+      window.removeEventListener("afterprint", handleAfterPrint)
+    }
+  }, [])
+
   const handlePrint = () => {
+    const prevTitle = document.title
+    document.title = ""
     setTimeout(() => {
       window.print()
+      setTimeout(() => {
+        document.title = prevTitle
+      }, 1000)
     }, 100)
   }
 
   const qrModalContent = showQrModal ? (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60    ">
-      <div className="w-full max-w-sm rounded-md bg-white p-8 shadow-sm border border-gray-200    text-black print-exact">
-        <div className="text-center mb-6">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 print:bg-transparent print:static">
+      <div className="w-full max-w-sm rounded-md bg-white p-6 shadow-sm border border-gray-200 text-black print-exact">
+        <div className="text-center mb-4">
           <h2 className="text-lg font-black tracking-tight">{productCode}</h2>
-          <p className="text-sm text-gray-500 line-clamp-2 mt-1">{productName}</p>
+          <p className="text-sm text-gray-700 break-words line-clamp-3 mt-1 font-medium">{productName}</p>
         </div>
         
-        <div className="flex justify-center bg-white p-4 rounded-md border-2 border-dashed border-gray-200">
+        <div className="flex justify-center bg-white p-3 rounded-md border-2 border-dashed border-gray-300">
           <QRCodeSVG 
             value={productCode} 
-            size={200}
+            size={180}
             bgColor={"#ffffff"}
             fgColor={"#000000"}
-            level={"H"}
+            level={"M"}
           />
         </div>
         
