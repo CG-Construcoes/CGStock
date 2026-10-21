@@ -265,7 +265,7 @@ export function PrintBadgesClient({
               return (
                 <div
                   key={`${emp.id}-${copyIndex}-${idx}`}
-                  className={`bg-white text-slate-950 p-2 sm:p-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                  className={`bg-white text-slate-950 p-2 sm:p-2.5 px-3 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
                     showCutGuides
                       ? "border-2 border-dashed border-slate-400 print:border-slate-800 rounded-lg"
                       : "border-2 border-slate-900 rounded-lg"
@@ -290,34 +290,34 @@ export function PrintBadgesClient({
                     </span>
                   </div>
 
-                  {/* Conteúdo Central: QR Code + Detalhes sem cortes */}
-                  <div className="flex items-center gap-2 w-full justify-start my-auto overflow-hidden">
+                  {/* Conteúdo Central: Centralizado e com folga da borda direita */}
+                  <div className="flex items-center justify-center gap-2.5 w-full my-auto overflow-hidden px-1">
                     <div className="p-1 bg-white rounded border border-slate-300 shrink-0">
                       <QRCodeSVG
                         value={qrValue}
-                        size={64}
+                        size={60}
                         level="M"
                         includeMargin={false}
                       />
                     </div>
 
-                    <div className="text-left flex-1 min-w-0 pl-1 flex flex-col justify-center overflow-hidden">
+                    <div className="text-left flex-1 min-w-0 pr-1 flex flex-col justify-center overflow-hidden">
                       {emp.employeeCode && (
                         <div className="inline-flex items-center font-mono text-[9.5px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-1 self-start whitespace-nowrap leading-none">
                           MAT: {emp.employeeCode}
                         </div>
                       )}
-                      <div className="font-bold text-[11px] leading-tight text-slate-950 break-words line-clamp-3">
+                      <div className="font-bold text-[10.5px] leading-tight text-slate-950 break-words line-clamp-3">
                         {emp.name}
                       </div>
                       {cpfFormatted && (
-                        <div className="font-mono text-[9px] text-slate-900 mt-1 font-bold whitespace-nowrap tracking-tight leading-none flex items-center">
-                          <span className="font-sans text-[7.5px] font-semibold text-slate-500 mr-1 uppercase">CPF:</span>
+                        <div className="font-mono text-[8.5px] text-slate-900 mt-1 font-bold whitespace-nowrap tracking-tight leading-none flex items-center">
+                          <span className="font-sans text-[7px] font-semibold text-slate-500 mr-1 uppercase">CPF:</span>
                           <span>{cpfFormatted}</span>
                         </div>
                       )}
                       {emp.phone && (
-                        <div className="font-mono text-[8.5px] text-slate-600 mt-1 whitespace-nowrap leading-none">
+                        <div className="font-mono text-[8px] text-slate-600 mt-1 whitespace-nowrap leading-none">
                           {formatPhone(emp.phone)}
                         </div>
                       )}
@@ -364,17 +364,17 @@ export function PrintBadgesClient({
                   </div>
 
                   {/* Conteúdo Central com bastante espaço horizontal */}
-                  <div className="flex items-center gap-3 w-full justify-start my-auto">
+                  <div className="flex items-center justify-center gap-3 w-full my-auto px-1">
                     <div className="p-1 bg-white rounded border border-slate-300 shrink-0">
                       <QRCodeSVG
                         value={qrValue}
-                        size={72}
+                        size={70}
                         level="M"
                         includeMargin={false}
                       />
                     </div>
 
-                    <div className="text-left flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="text-left flex-1 min-w-0 pr-1 flex flex-col justify-center">
                       {emp.employeeCode && (
                         <div className="inline-flex items-center font-mono text-xs font-black bg-slate-900 text-white px-2 py-0.5 rounded tracking-wide mb-1 self-start whitespace-nowrap">
                           MAT: {emp.employeeCode}
@@ -384,13 +384,13 @@ export function PrintBadgesClient({
                         {emp.name}
                       </div>
                       {cpfFormatted && (
-                        <div className="font-mono text-[10.5px] text-slate-900 mt-1 font-bold whitespace-nowrap tracking-tight">
-                          <span className="font-sans text-[8.5px] font-semibold text-slate-500 mr-1 uppercase">CPF:</span>
+                        <div className="font-mono text-[10px] text-slate-900 mt-1 font-bold whitespace-nowrap tracking-tight">
+                          <span className="font-sans text-[8px] font-semibold text-slate-500 mr-1 uppercase">CPF:</span>
                           {cpfFormatted}
                         </div>
                       )}
                       {emp.phone && (
-                        <div className="font-mono text-[9.5px] text-slate-600 mt-0.5 whitespace-nowrap">
+                        <div className="font-mono text-[9px] text-slate-600 mt-0.5 whitespace-nowrap">
                           {formatPhone(emp.phone)}
                         </div>
                       )}
@@ -411,7 +411,7 @@ export function PrintBadgesClient({
               return (
                 <div
                   key={`${emp.id}-${copyIndex}-${idx}`}
-                  className={`bg-white text-slate-950 p-2 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                  className={`bg-white text-slate-950 p-2 sm:p-2.5 px-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
                     showCutGuides
                       ? "border border-dashed border-slate-400 print:border-slate-800 rounded-md"
                       : "border-2 border-slate-900 rounded-md"
@@ -435,34 +435,34 @@ export function PrintBadgesClient({
                     </span>
                   </div>
 
-                  {/* Conteúdo Central */}
-                  <div className="flex items-center gap-1.5 w-full justify-start my-auto">
+                  {/* Conteúdo Central: Centralizado e com folga da borda direita */}
+                  <div className="flex items-center justify-center gap-2 w-full my-auto px-1">
                     <div className="p-0.5 bg-white rounded border border-slate-300 shrink-0">
                       <QRCodeSVG
                         value={qrValue}
-                        size={56}
+                        size={50}
                         level="M"
                         includeMargin={false}
                       />
                     </div>
 
-                    <div className="text-left flex-1 min-w-0 pl-1">
+                    <div className="text-left flex-1 min-w-0 pr-1 flex flex-col justify-center">
                       {emp.employeeCode && (
-                        <div className="inline-flex items-center font-mono text-[8.5px] font-extrabold bg-slate-900 text-white px-1 py-0.5 rounded tracking-wide mb-0.5 whitespace-nowrap leading-none">
+                        <div className="inline-flex items-center font-mono text-[8px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-0.5 self-start whitespace-nowrap leading-none">
                           MAT: {emp.employeeCode}
                         </div>
                       )}
-                      <div className="font-bold text-[10px] leading-tight break-words line-clamp-2 text-slate-950">
+                      <div className="font-bold text-[9.5px] leading-[1.15] break-words line-clamp-3 text-slate-950">
                         {emp.name}
                       </div>
                       {cpfFormatted && (
-                        <div className="font-mono text-[8.5px] text-slate-700 mt-0.5 font-bold whitespace-nowrap tracking-tight leading-none">
-                          <span className="font-sans text-[7px] font-medium text-slate-500 mr-0.5 uppercase">CPF:</span>
-                          {cpfFormatted}
+                        <div className="font-mono text-[8px] text-slate-800 mt-0.5 font-bold whitespace-nowrap tracking-tighter leading-none flex items-center">
+                          <span className="font-sans text-[6.5px] font-semibold text-slate-500 mr-0.5 uppercase">CPF:</span>
+                          <span>{cpfFormatted}</span>
                         </div>
                       )}
                       {emp.phone && (
-                        <div className="font-mono text-[8px] text-slate-500 mt-0.5 whitespace-nowrap leading-none">
+                        <div className="font-mono text-[7.5px] text-slate-500 mt-0.5 whitespace-nowrap leading-none">
                           {formatPhone(emp.phone)}
                         </div>
                       )}

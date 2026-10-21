@@ -435,7 +435,7 @@ export function PrintLabelsClient({
                 return (
                   <div
                     key={`${product.id}-${copyIndex}-${idx}`}
-                    className={`bg-white text-slate-950 p-2 sm:p-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                    className={`bg-white text-slate-950 p-2 sm:p-2.5 px-3 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
                       showCutGuides
                         ? "border-2 border-dashed border-slate-400 print:border-slate-800 rounded-lg"
                         : "border-2 border-slate-900 rounded-lg"
@@ -461,26 +461,26 @@ export function PrintLabelsClient({
                     </div>
 
                     {/* Conteúdo Central: QR Code + Detalhes */}
-                    <div className="flex items-center gap-2 w-full justify-start my-auto overflow-hidden">
+                    <div className="flex items-center justify-center gap-2.5 w-full my-auto overflow-hidden px-1">
                       <div className="p-1 bg-white rounded border border-slate-300 shrink-0">
                         <QRCodeSVG
                           value={qrValue}
-                          size={64}
+                          size={60}
                           level="M"
                           includeMargin={false}
                         />
                       </div>
 
-                      <div className="text-left flex-1 min-w-0 pl-1 flex flex-col justify-center overflow-hidden">
+                      <div className="text-left flex-1 min-w-0 pr-1 flex flex-col justify-center overflow-hidden">
                         <div className="inline-flex items-center font-mono text-[9.5px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-1 self-start whitespace-nowrap leading-none">
                           {product.code}
                         </div>
 
-                        <div className="font-bold text-[11px] leading-tight text-slate-950 break-words line-clamp-3">
+                        <div className="font-bold text-[10.5px] leading-tight text-slate-950 break-words line-clamp-3">
                           {product.name}
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-1 text-[8.5px] text-slate-700 font-medium mt-1">
+                        <div className="flex flex-wrap items-center gap-1 text-[8px] text-slate-700 font-medium mt-1">
                           {showUnit && (
                             <span className="font-bold bg-slate-100 border border-slate-300 px-1 rounded text-slate-900">
                               {product.unitCode}
@@ -492,7 +492,7 @@ export function PrintLabelsClient({
                         </div>
 
                         {showPrice && product.averageCost && (
-                          <div className="text-[8.5px] font-mono font-bold text-slate-700 mt-0.5">
+                          <div className="text-[8px] font-mono font-bold text-slate-700 mt-0.5">
                             R$ {product.averageCost.toFixed(2)}
                           </div>
                         )}
@@ -515,21 +515,21 @@ export function PrintLabelsClient({
                 return (
                   <div
                     key={`${product.id}-${copyIndex}-${idx}`}
-                    className={`bg-white text-slate-950 p-2 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
+                    className={`bg-white text-slate-950 p-2 sm:p-2.5 px-2.5 flex flex-col justify-between text-center relative break-inside-avoid print:break-inside-avoid ${
                       showCutGuides
                         ? "border border-dashed border-slate-400 print:border-slate-800 rounded-md"
                         : "border-2 border-slate-900 rounded-md"
                     }`}
-                    style={{ minHeight: "160px" }}
+                    style={{ minHeight: "145px" }}
                   >
                     {/* Marcador de tesoura */}
                     {showCutGuides && (
-                      <div className="absolute -top-1.5 left-2 bg-white px-1 text-[8px] text-slate-500 print:text-black flex items-center gap-0.5">
+                      <div className="absolute top-0 left-2 -translate-y-1/2 bg-white px-1 text-[7px] text-slate-500 print:text-black flex items-center gap-0.5 z-10 pointer-events-none rounded">
                         <Scissors className="h-2 w-2" />
                       </div>
                     )}
 
-                    <div className="w-full border-b border-slate-300 pb-0.5 mb-1 flex items-center justify-between px-1">
+                    <div className="w-full border-b border-slate-300 pb-0.5 mb-1 flex items-center justify-between px-1 pt-0.5">
                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-800">
                         CG CONSTRUÇÕES
                       </span>
@@ -538,24 +538,24 @@ export function PrintLabelsClient({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 w-full justify-center my-auto">
+                    <div className="flex items-center justify-center gap-2 w-full my-auto px-1">
                       <div className="p-0.5 bg-white rounded border border-slate-300 shrink-0">
                         <QRCodeSVG
                           value={qrValue}
-                          size={66}
-                          level="H"
+                          size={50}
+                          level="M"
                           includeMargin={false}
                         />
                       </div>
 
-                      <div className="text-left flex-1 min-w-0">
-                        <div className="inline-block font-mono text-[10px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-0.5">
+                      <div className="text-left flex-1 min-w-0 pr-1">
+                        <div className="inline-flex items-center font-mono text-[8px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded tracking-wide mb-0.5 whitespace-nowrap leading-none">
                           {product.code}
                         </div>
-                        <div className="font-bold text-[11px] leading-tight line-clamp-2 text-slate-950">
+                        <div className="font-bold text-[9.5px] leading-[1.15] break-words line-clamp-3 text-slate-950">
                           {product.name}
                         </div>
-                        <div className="flex items-center gap-1 text-[8px] text-slate-600 mt-0.5">
+                        <div className="flex items-center gap-1 text-[7.5px] text-slate-600 mt-0.5">
                           {showUnit && <span className="font-bold">{product.unitCode}</span>}
                           {showCategory && <span className="truncate">· {product.categoryName}</span>}
                         </div>
