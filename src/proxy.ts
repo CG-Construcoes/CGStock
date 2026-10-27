@@ -91,9 +91,10 @@ export default async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
-    if (isLoginPage) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
+    // Nota: /login NÃO é redirecionado para /dashboard aqui. O proxy só
+    // verifica a assinatura do JWT — um cookie válido de outro ambiente/banco
+    // entraria em loop (login → dashboard → login) porque a página valida o
+    // usuário no banco. A página de login faz essa checagem ela mesma.
 
     return withSecurityHeaders(request)
   } catch {
