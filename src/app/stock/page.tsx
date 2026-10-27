@@ -193,7 +193,7 @@ async function StockContent({
           ${searchCondition}
           GROUP BY p.id, c.name, u.code
           ${havingCondition}
-          ORDER BY p.name ASC
+          ORDER BY (p.name LIKE '!%') ASC, p.name ASC
           LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
         `,
       ])

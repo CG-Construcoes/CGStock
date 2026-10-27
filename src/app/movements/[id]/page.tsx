@@ -126,7 +126,7 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
             <div className="flex flex-col justify-center items-end border-l pl-6">
               <p className="text-sm text-muted-foreground mb-1">Quantidade</p>
               <div className={`text-4xl font-black flex items-center ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))}
+                {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
               </div>
             </div>
           </CardContent>

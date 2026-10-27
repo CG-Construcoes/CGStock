@@ -102,15 +102,15 @@ export default async function MovementsPage(props: {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-card  p-4 rounded-md border border-border shadow-sm  ">
             <p className="text-sm font-semibold text-muted-foreground">Entradas Totais</p>
-            <p className="text-3xl font-black text-success mt-1">+{summary.totalIn}</p>
+            <p className="text-3xl font-black text-success mt-1">+{summary.totalIn.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</p>
           </div>
           <div className="bg-card  p-4 rounded-md border border-border shadow-sm  ">
             <p className="text-sm font-semibold text-muted-foreground">Saídas Totais</p>
-            <p className="text-3xl font-black text-destructive mt-1">-{summary.totalOut}</p>
+            <p className="text-3xl font-black text-destructive mt-1">-{summary.totalOut.toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</p>
           </div>
           <div className="bg-card  p-4 rounded-md border border-border shadow-sm  ">
             <p className="text-sm font-semibold text-muted-foreground">Movimentações no Filtro</p>
-            <p className="text-3xl font-black text-foreground mt-1">{totalCount}</p>
+            <p className="text-3xl font-black text-foreground mt-1">{totalCount.toLocaleString('pt-BR')}</p>
           </div>
         </div>
       )}
@@ -159,7 +159,7 @@ export default async function MovementsPage(props: {
                     <div>
                       <span className="text-xs text-muted-foreground block">Qtd</span>
                       <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
+                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
                       </span>
                     </div>
                     <div>
@@ -193,7 +193,7 @@ export default async function MovementsPage(props: {
               <TableHead>Data/Hora</TableHead>
               <TableHead>Produto</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead className="text-right">Qtd</TableHead>
+              <TableHead className="text-center">Qtd</TableHead>
               <TableHead>Local / Origem</TableHead>
               <TableHead>Documento</TableHead>
               <TableHead>Usuário</TableHead>
@@ -227,8 +227,8 @@ export default async function MovementsPage(props: {
                         {typeLabel}
                       </Badge>
                     </TableCell>
-                    <TableCell className={`text-right font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity))} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
+                    <TableCell className={`text-center font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">{mov.location.code}</div>
