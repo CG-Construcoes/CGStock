@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePedidoSheet } from '@/lib/pedido-parser'
+import { parsePedidoSheet, resolvePedidoProduct, scoreNameMatch } from '@/lib/pedido-parser'
 
 const PEDIDO_HEADER = [
   'Item', 'Sol', 'Sit', 'Especificação', 'Insumo-Sub', 'Ec', 'Unid', 'Quantidade',
@@ -55,5 +55,33 @@ describe('parsePedidoSheet — planilha de pedido exportada do Informakon', () =
   it('retorna vazio para planilha que não é pedido', () => {
     const rows = [['Código', 'Descrição do Material'], ['001', 'ABC']]
     expect(parsePedidoSheet(rows)).toEqual([])
+  })
+})
+
+describe('resolvePedidoProduct — multi-fonte MGA/CV', () => {
+  const catalogo = [
+    { id: 'p-mga', code: '000209-000', name: 'BATENTE DE PEROBA PARA PORTA 1FL.' },
+    { id: 'p-cv', code: '000209-000-CV', name: 'ANEL DE VEDAÇÃO PARA VASO SANITÁRIO' },
+    { id: 'p-so', code: '005266-000', name: 'INTERRUPTOR 3 TECLAS PARALELOS' },
+  ]
+
+  it('escolhe o produto da fonte certa pela especificação do pedido', () => {
+    const item = { productCode: '000209-000', productName: 'ANEL DE VEDAÇÃO PARA VASO SANITÁRIO - FORNECIMENTO CG', quantity: 1, unitCost: 10.5, unitCode: 'UN', totalValue: 10.5 }
+    expect(resolvePedidoProduct(item, catalogo)?.id).toBe('p-cv')
+  })
+
+  it('casa direto quando só existe um candidato', () => {
+    const item = { productCode: '005266-000', productName: 'QUALQUER', quantity: 1, unitCost: 1, unitCode: 'UN', totalValue: 1 }
+    expect(resolvePedidoProduct(item, catalogo)?.id).toBe('p-so')
+  })
+
+  it('não casa quando nome diverge de todos os candidatos', () => {
+    const item = { productCode: '000209-000', productName: 'CABO FLEXÍVEL 750V', quantity: 1, unitCost: 1, unitCode: 'UN', totalValue: 1 }
+    expect(resolvePedidoProduct(item, catalogo)).toBeNull()
+  })
+
+  it('scoreNameMatch mede sobreposição de palavras significativas', () => {
+    expect(scoreNameMatch('ANEL DE VEDAÇÃO PARA VASO SANITÁRIO', 'ANEL DE VEDAÇÃO PARA VASO SANITÁRIO')).toBe(1)
+    expect(scoreNameMatch('ANEL DE VEDAÇÃO', 'BATENTE DE PEROBA')).toBeLessThan(0.4)
   })
 })

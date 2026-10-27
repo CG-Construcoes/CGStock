@@ -15,7 +15,7 @@ import { formatCurrency, cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { queueOfflineOperation } from "@/lib/offline-sync"
-import { parsePedidoSheet } from "@/lib/pedido-parser"
+import { parsePedidoSheet, resolvePedidoProduct } from "@/lib/pedido-parser"
 
 type ItemData = {
   id: string
@@ -76,13 +76,14 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
         return
       }
 
-      const byCode = new Map(products.map((p) => [p.code.trim().toUpperCase(), p]))
       const locationId = defaultLocationId()
       const novos: ItemData[] = []
       const naoEncontrados: string[] = []
 
       for (const it of parsed) {
-        const product = byCode.get(it.productCode.trim().toUpperCase())
+        // resolvePedidoProduct escolhe entre code / code-MGA / code-CV pelo
+        // nome mais parecido com a especificação do pedido (multi-fonte)
+        const product = resolvePedidoProduct(it, products)
         if (!product) {
           naoEncontrados.push(it.productCode)
           continue

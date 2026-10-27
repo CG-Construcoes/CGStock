@@ -112,3 +112,58 @@ export function parsePedidoSheet(rows: unknown[][]): PedidoItem[] {
   }
   return out
 }
+
+// ---------- casamento do código Insumo-Sub com o catálogo CGStok ----------
+
+const STOP = new Set(['de', 'da', 'do', 'para', 'com', 'em', 'e', 'a', 'o', 'p', 'x'])
+
+function tokens(v: string): Set<string> {
+  return new Set(
+    norm(v)
+      .split(' ')
+      .filter(t => t.length > 1 && !STOP.has(t)),
+  )
+}
+
+/**
+ * Similaridade 0..1 entre a especificação do pedido e o nome do produto —
+ * proporção de palavras significativas da especificação presentes no nome.
+ * Resolve a ambiguidade multi-fonte: "000209-000" é um produto no MGA e
+ * outro no CV; a especificação do pedido aponta o correto.
+ */
+export function scoreNameMatch(pedidoSpec: string, productName: string): number {
+  const want = tokens(pedidoSpec)
+  if (want.size === 0) return 0
+  const have = tokens(productName)
+  let hit = 0
+  for (const t of want) if (have.has(t)) hit++
+  return hit / want.size
+}
+
+export type PedidoProductCandidate = { id: string; code: string; name: string }
+
+/**
+ * Escolhe o produto para um item do pedido considerando os sufixos de fonte
+ * (`-MGA`, `-CV`): coleta todos os candidatos com mesmo código natural e
+ * devolve o de maior similaridade de nome, se passar no limiar.
+ */
+export function resolvePedidoProduct(
+  item: PedidoItem,
+  products: PedidoProductCandidate[],
+  minScore = 0.4,
+): PedidoProductCandidate | null {
+  const nat = item.productCode.trim().toUpperCase()
+  const candidates = products.filter(p => {
+    const c = p.code.trim().toUpperCase()
+    return c === nat || c === `${nat}-MGA` || c === `${nat}-CV`
+  })
+  if (candidates.length === 0) return null
+  if (candidates.length === 1) return candidates[0]
+  let best: PedidoProductCandidate | null = null
+  let bestScore = 0
+  for (const c of candidates) {
+    const s = scoreNameMatch(item.productName, c.name)
+    if (s > bestScore) { bestScore = s; best = c }
+  }
+  return bestScore >= minScore ? best : null
+}
