@@ -18,6 +18,7 @@ export type ProductRowItem = {
   averageCost: number | null
   totalStock: number
   warehouseName?: string | null
+  warehouseCount?: number
 }
 
 export function ProductsTableClient({
@@ -227,7 +228,9 @@ export function ProductsTableClient({
                           </Link>
                           {!selectedWarehouseId && product.warehouseName && (
                             <span className="text-[11px] text-muted-foreground">
-                              {product.warehouseName}
+                              {(product.warehouseCount ?? 1) > 1
+                                ? `em ${product.warehouseCount} almoxarifados`
+                                : product.warehouseName}
                             </span>
                           )}
                         </div>

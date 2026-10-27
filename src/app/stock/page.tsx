@@ -44,6 +44,12 @@ export default async function StockPage({
           <p className="text-muted-foreground text-sm">
             Acompanhe a disponibilidade física, reservas e valor monetário dos materiais.
           </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Informação direta de:{" "}
+            <span className="font-semibold text-foreground">
+              {selectedWarehouse ? selectedWarehouse.name : `Todos os almoxarifados (${warehouses.length})`}
+            </span>
+          </p>
         </div>
       </div>
 
@@ -114,6 +120,7 @@ async function StockContent({
     categoryName: string
     unitCode: string
     warehouseName: string | null
+    warehouseCount: number
     totalQuantity: number
     totalReserved: number
   }
@@ -175,6 +182,7 @@ async function StockContent({
             c.name AS "categoryName",
             u.code AS "unitCode",
             MAX(w.name) AS "warehouseName",
+            COUNT(DISTINCT s."warehouseId")::int AS "warehouseCount",
             COALESCE(SUM(s.quantity), 0)::float8 AS "totalQuantity",
             COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS "totalReserved"
           FROM "Product" p
@@ -300,6 +308,7 @@ async function StockContent({
         category: { name: p.categoryName },
         unit: { code: p.unitCode },
         stocks: p.warehouseName ? [{ warehouse: { name: p.warehouseName } }] : [],
+        warehouseCount: p.warehouseCount,
       },
       totalQuantity,
       totalReserved,
@@ -753,7 +762,9 @@ async function StockContent({
                           </Link>
                           {!selectedWarehouseId && data.product.stocks[0]?.warehouse?.name && (
                             <span className="text-[11px] text-muted-foreground truncate block">
-                              {data.product.stocks[0].warehouse.name}
+                              {data.product.warehouseCount > 1
+                                ? `em ${data.product.warehouseCount} almoxarifados`
+                                : data.product.stocks[0].warehouse.name}
                             </span>
                           )}
                         </div>

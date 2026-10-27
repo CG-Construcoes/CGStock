@@ -791,6 +791,8 @@ model SyncRun {
 // reconciliacao por hash e deteccao de exclusoes mesmo sem rowversion.
 model InfMirror {
   id            String    @id @default(uuid())
+  // base Informakon de origem (ex.: 'MGA', 'CV') — multi-fonte
+  source        String    @default("CV")
   entity        String
   sourceKey     String
   hash          String
@@ -801,7 +803,7 @@ model InfMirror {
   lastSeenAt    DateTime  @default(now())
   deletedAt     DateTime?
 
-  @@unique([entity, sourceKey])
-  @@index([entity, deletedAt])
-  @@index([entity, projectedHash])
+  @@unique([source, entity, sourceKey])
+  @@index([source, entity, deletedAt])
+  @@index([source, entity, projectedHash])
 }

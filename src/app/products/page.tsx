@@ -130,11 +130,12 @@ export default async function ProductsPage({
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 border border-border shadow-sm">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-foreground">Produtos</h2>
-            {selectedWarehouse && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Filtrado por: <span className="font-semibold text-foreground">{selectedWarehouse.name}</span>
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Informação direta de:{" "}
+              <span className="font-semibold text-foreground">
+                {selectedWarehouse ? selectedWarehouse.name : `Todos os almoxarifados (${warehouses.length})`}
+              </span>
+            </p>
           </div>
 
           <ProductsFilterForm
@@ -179,6 +180,7 @@ export default async function ProductsPage({
             averageCost: product.averageCost ? Number(product.averageCost) : null,
             totalStock,
             warehouseName: product.stocks[0]?.warehouse?.name,
+            warehouseCount: product.stocks.length,
           }
         })}
         hasUpdate={hasUpdate}

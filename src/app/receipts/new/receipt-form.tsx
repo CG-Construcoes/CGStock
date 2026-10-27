@@ -1,19 +1,21 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Save, Plus, Trash2, CheckCircle, Loader2 } from "lucide-react"
+import { Save, Plus, Trash2, CheckCircle, Loader2, FileUp, X } from "lucide-react"
 import Link from "next/link"
+import * as XLSX from "xlsx"
 import { createReceiptAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { formatCurrency, cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { queueOfflineOperation } from "@/lib/offline-sync"
+import { parsePedidoSheet } from "@/lib/pedido-parser"
 
 type ItemData = {
   id: string
@@ -40,11 +42,76 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
   const [submittingAction, setSubmittingAction] = useState<"DRAFT" | "COMPLETED" | null>(null)
   const [isSuccess, setIsSuccess] = useState(false)
   const [pendingAction, setPendingAction] = useState<"DRAFT" | "COMPLETED">("COMPLETED")
+  const [isImportingPedido, setIsImportingPedido] = useState(false)
+  const [unmatchedCodes, setUnmatchedCodes] = useState<string[]>([])
+  const pedidoFileRef = useRef<HTMLInputElement>(null)
 
   const filteredLocations = warehouseId ? locations.filter((l) => l.warehouseId === warehouseId) : []
 
+  const defaultLocationId = () => {
+    if (filteredLocations.length === 0) return ""
+    const geral = filteredLocations.find((l) => /geral/i.test(`${l.code} ${l.name}`))
+    return (geral ?? filteredLocations[0]).id
+  }
+
   const addItem = () => {
     setItems([...items, { id: crypto.randomUUID(), productId: "", locationId: "", quantity: 1, unitCost: 0 }])
+  }
+
+  const handlePedidoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    setIsImportingPedido(true)
+    try {
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: "array" })
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      const grid = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: null })
+      const parsed = parsePedidoSheet(grid)
+
+      if (parsed.length === 0) {
+        toast.error("Nenhum item de pedido encontrado. Verifique se a planilha foi exportada do Informakon.")
+        return
+      }
+
+      const byCode = new Map(products.map((p) => [p.code.trim().toUpperCase(), p]))
+      const locationId = defaultLocationId()
+      const novos: ItemData[] = []
+      const naoEncontrados: string[] = []
+
+      for (const it of parsed) {
+        const product = byCode.get(it.productCode.trim().toUpperCase())
+        if (!product) {
+          naoEncontrados.push(it.productCode)
+          continue
+        }
+        novos.push({
+          id: crypto.randomUUID(),
+          productId: product.id,
+          locationId,
+          quantity: it.quantity,
+          unitCost: it.unitCost ?? 0,
+        })
+      }
+
+      setItems((prev) => [...prev, ...novos])
+      setUnmatchedCodes(naoEncontrados)
+
+      if (naoEncontrados.length > 0) {
+        toast.warning(
+          `${novos.length} itens importados. ${naoEncontrados.length} insumos não encontrados no cadastro (lista abaixo).`,
+          { duration: 6000 }
+        )
+      } else {
+        toast.success(`${novos.length} itens importados do pedido. Confira as quantidades antes de finalizar.`)
+      }
+    } catch {
+      toast.error("Não foi possível ler a planilha do pedido.")
+    } finally {
+      setIsImportingPedido(false)
+    }
   }
 
   const removeItem = (id: string) => {
@@ -230,10 +297,46 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
                 <h3 className="text-lg font-medium">Itens da Entrada</h3>
-                <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={!warehouseId}>
-                  <Plus className="h-4 w-4 mr-2" /> Adicionar Produto
-                </Button>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={pedidoFileRef}
+                    type="file"
+                    accept=".xls,.xlsx"
+                    className="hidden"
+                    onChange={handlePedidoFile}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => pedidoFileRef.current?.click()}
+                    disabled={!warehouseId || isImportingPedido}
+                    title="Importar itens de um pedido exportado do Informakon (.xlsx)"
+                  >
+                    {isImportingPedido ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileUp className="h-4 w-4 mr-2" />
+                    )}
+                    Pedido do Informakon
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={!warehouseId}>
+                    <Plus className="h-4 w-4 mr-2" /> Adicionar Produto
+                  </Button>
+                </div>
               </div>
+
+              {unmatchedCodes.length > 0 && (
+                <div className="p-3 bg-amber-50 text-amber-800 text-sm rounded-md border border-amber-200 flex items-start gap-2">
+                  <div className="flex-1">
+                    <span className="font-medium">{unmatchedCodes.length} insumo(s) do pedido sem cadastro ativo:</span>
+                    <span className="ml-1 break-all">{unmatchedCodes.join(", ")}</span>
+                  </div>
+                  <button type="button" onClick={() => setUnmatchedCodes([])} className="text-amber-600 hover:text-amber-800 shrink-0">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
 
               {!warehouseId && (
                 <div className="p-4 bg-yellow-50 text-yellow-700 text-sm rounded-md border border-yellow-200">
