@@ -11,6 +11,7 @@ import * as XLSX from "xlsx"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { createImportBatchAction } from "./actions"
+import { parseImportSheet } from "@/lib/import-parser"
 import { clearWarehouseDataAction } from "../admin/warehouses/actions"
 
 type Warehouse = { id: string, name: string, code: string }
@@ -89,23 +90,15 @@ export function ImportClient({ warehouses }: { warehouses: Warehouse[] }) {
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
       
-      const jsonData = XLSX.utils.sheet_to_json<any>(worksheet)
+      const grid = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: null })
+      const rows = parseImportSheet(grid)
 
-      if (jsonData.length === 0) {
-        toast.error("A planilha está vazia.")
+      if (rows.length === 0) {
+        toast.error("Não foi possível ler a planilha. Verifique se há uma linha de cabeçalho com Código e Descrição/Especificação.")
         return
       }
 
       toast.info("Analisando arquivo e criando lote...")
-
-      const rows = jsonData
-        .map(row => ({
-          productCode: String(row.Material || row.Código || row.code || '').trim(),
-          productName: String(row['Especificação'] || row.Nome || row.name || '').trim(),
-          quantity: row.Quantidade || row.quantity || 0,
-          unitCost: row['Pr. Unitário'] || row['Valor'] || row.unitCost || null
-        }))
-        .filter(r => r.productCode !== '' || r.productName !== '')
 
       const result = await createImportBatchAction(warehouseId, rows)
       
@@ -281,7 +274,7 @@ export function ImportClient({ warehouses }: { warehouses: Warehouse[] }) {
           </h3>
           
           <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-            Suportamos arquivos .xls e .xlsx. A planilha deve conter as colunas: Material, Especificação, Unidade, Quantidade, Pr. Unitário, Estq.Mínimo.
+            Suportamos arquivos .xls e .xlsx nos dois formatos: relatório de estoque (Material, Especificação, Unidade, Quantidade, Pr. Unitário, Estq.Mínimo) ou lista/catálogo de materiais (Código, Descrição do Material, Unid., Categoria, Quantidade, Preço Unit.).
           </p>
           <input 
             type="file" 

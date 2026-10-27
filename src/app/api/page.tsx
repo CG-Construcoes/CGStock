@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Code2, Webhook, Key, ExternalLink } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
 import { requirePermissionPage } from "@/lib/permissions"
+import { InformakonSyncCard } from "./informakon-sync-card"
 
 export default async function ApiPage() {
   await requirePermissionPage('CONFIG_MANAGE')
@@ -22,7 +23,9 @@ export default async function ApiPage() {
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <InformakonSyncCard />
+
         <Card className="relative overflow-hidden border-dashed">
           <div className="absolute inset-0 bg-muted/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
             <Badge className="bg-gray-900">Em Breve</Badge>

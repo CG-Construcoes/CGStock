@@ -22,6 +22,9 @@ export async function createImportBatchAction(warehouseId: string, rows: any[]) 
             productName: r.productName ? String(r.productName).trim() : 'N/A',
             quantity: Number(r.quantity) || 0,
             unitCost: r.unitCost != null && r.unitCost !== '' ? Number(r.unitCost) : null,
+            unitCode: r.unitCode ? String(r.unitCode).trim().toUpperCase() : null,
+            categoryName: r.categoryName ? String(r.categoryName).trim() : null,
+            minimumStock: r.minimumStock != null && r.minimumStock !== '' ? Number(r.minimumStock) : null,
             status: 'PENDING'
           }))
         }
@@ -119,19 +122,56 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
 
   // Create missing products in bulk if needed (exclusivos deste almoxarifado)
   const missingCodes = productCodes.filter(code => !productMap.has(code))
-  if (missingCodes.length > 0 && defaultCategory && defaultUnit) {
+  if (missingCodes.length > 0) {
+    // Resolve unidades e categorias informadas na planilha (cria as que faltam)
+    const sheetUnitCodes = [...new Set(rowsToProcess.map(r => r.unitCode).filter((u): u is string => !!u))]
+    const sheetCategoryNames = [...new Set(rowsToProcess.map(r => r.categoryName).filter((c): c is string => !!c))]
+
+    const existingUnits = sheetUnitCodes.length
+      ? await db.productUnit.findMany({ where: { code: { in: sheetUnitCodes } } })
+      : []
+    const unitMap = new Map(existingUnits.map(u => [u.code, u.id]))
+    const missingUnits = sheetUnitCodes.filter(c => !unitMap.has(c))
+    if (missingUnits.length > 0) {
+      await db.productUnit.createMany({
+        data: missingUnits.map(code => ({ code, name: code })),
+        skipDuplicates: true,
+      })
+      const created = await db.productUnit.findMany({ where: { code: { in: missingUnits } } })
+      created.forEach(u => unitMap.set(u.code, u.id))
+    }
+
+    const existingCategories = sheetCategoryNames.length
+      ? await db.productCategory.findMany({ where: { name: { in: sheetCategoryNames } } })
+      : []
+    const categoryMap = new Map(existingCategories.map(c => [c.name, c.id]))
+    const missingCategories = sheetCategoryNames.filter(n => !categoryMap.has(n))
+    if (missingCategories.length > 0) {
+      await db.productCategory.createMany({
+        data: missingCategories.map(name => ({ name })),
+        skipDuplicates: true,
+      })
+      const created = await db.productCategory.findMany({ where: { name: { in: missingCategories } } })
+      created.forEach(c => categoryMap.set(c.name, c.id))
+    }
+
     const newProductsData = missingCodes.map(code => {
       const row = rowsToProcess.find(r => r.productCode === code)!
       const cost = row.unitCost != null ? Number(row.unitCost) : null
+      const minStock = row.minimumStock != null ? Number(row.minimumStock) : null
       return {
         code,
         name: row.productName || code,
-        categoryId: defaultCategory.id,
-        unitId: defaultUnit.id,
+        categoryId: (row.categoryName && categoryMap.get(row.categoryName)) || defaultCategory?.id,
+        unitId: (row.unitCode && unitMap.get(row.unitCode)) || defaultUnit?.id,
         defaultLocationId: locationId,
         averageCost: cost != null && cost > 0 ? cost : null,
+        minimumStock: minStock != null && minStock > 0 ? minStock : undefined,
       }
-    })
+    }).filter(p => p.categoryId && p.unitId) as {
+      code: string; name: string; categoryId: string; unitId: string;
+      defaultLocationId: string; averageCost: number | null; minimumStock: number | undefined
+    }[]
 
     await db.product.createMany({
       data: newProductsData,

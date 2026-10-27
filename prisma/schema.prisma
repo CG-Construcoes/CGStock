@@ -94,13 +94,14 @@ model RolePermission {
 }
 
 model ProductCategory {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  description String?
-  status      String    @default("ACTIVE")
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  name          String    @unique
+  description   String?
+  status        String    @default("ACTIVE")
+  informakonKey String?   @unique
+  products      Product[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model ProductUnit {
@@ -109,6 +110,7 @@ model ProductUnit {
   name          String
   description   String?
   status        String                @default("ACTIVE")
+  informakonKey String?               @unique
   products      Product[]
   requestItems  MaterialRequestItem[]
   returnItems   MaterialReturnItem[]
@@ -132,14 +134,15 @@ model Product {
 
   @@index([code])
   @@index([barcode])
-  minimumStock         Int                       @default(0)
-  maximumStock         Int                       @default(0)
+  minimumStock         Float                     @default(0)
+  maximumStock         Float                     @default(0)
   averageCost          Decimal?                  @db.Decimal(16, 6)
   defaultLocationId    String?
   defaultLocation      WarehouseLocation?        @relation(fields: [defaultLocationId], references: [id])
   status               String                    @default("ACTIVE") // ACTIVE, INACTIVE
   notes                String?
-  
+  informakonKey        String?                   @unique
+
   stocks               Stock[]
   movements            StockMovement[]
   receiptItems         StockReceiptItem[]
@@ -160,6 +163,7 @@ model Warehouse {
   code                 String              @unique
   description          String?
   status               String              @default("ACTIVE")
+  informakonKey        String?             @unique
   
   worksiteId           String?
   worksite             Worksite?           @relation(fields: [worksiteId], references: [id])
@@ -218,8 +222,8 @@ model Stock {
   warehouse        Warehouse         @relation(fields: [warehouseId], references: [id])
   locationId       String
   location         WarehouseLocation @relation(fields: [locationId], references: [id])
-  quantity         Int
-  reservedQuantity Int               @default(0)
+  quantity         Float
+  reservedQuantity Float             @default(0)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -238,7 +242,7 @@ model StockMovement {
   locationId     String
   location       WarehouseLocation @relation(fields: [locationId], references: [id])
   type           String // ENTRY, EXIT, ADJUSTMENT_IN, ADJUSTMENT_OUT, TRANSFER_IN, TRANSFER_OUT, RETURN
-  quantity       Int
+  quantity       Float
   unitCost       Decimal?          @db.Decimal(16, 6)
   totalCost      Decimal?          @db.Decimal(10, 2)
   referenceType  String? // RECEIPT, INVENTORY_ADJUSTMENT, TRANSFER, MATERIAL_REQUEST, MATERIAL_RETURN, QUICK_ISSUE
@@ -275,6 +279,7 @@ model Supplier {
   zipCode   String?
   notes     String?
   status    String         @default("ACTIVE")
+  informakonKey String?    @unique
   receipts  StockReceipt[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
@@ -640,11 +645,12 @@ model SystemSetting {
 // ==========================================
 
 model Worksite {
-  id          String      @id @default(uuid())
-  code        String      @unique
-  name        String
-  description String?
-  status      String      @default("ACTIVE") // ACTIVE, INACTIVE
+  id            String      @id @default(uuid())
+  code          String      @unique
+  name          String
+  description   String?
+  status        String      @default("ACTIVE") // ACTIVE, INACTIVE
+  informakonKey String?     @unique
   
   warehouses  Warehouse[]
   users       UserWorksiteAccess[]
@@ -743,8 +749,59 @@ model ImportBatchRow {
   productName  String
   quantity     Decimal     @db.Decimal(18, 4)
   unitCost     Decimal?    @db.Decimal(18, 4)
+  unitCode     String?
+  categoryName String?
+  minimumStock Decimal?    @db.Decimal(18, 4)
   status       String      @default("PENDING")
   errorMessage String?
 
   batch        ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// SYNC INFORMAKON -> CGStok
+// ==========================================
+
+model SyncCheckpoint {
+  id            String    @id @default(uuid())
+  entity        String    @unique
+  watermark     DateTime?
+  lastRunAt     DateTime?
+  lastSuccessAt DateTime?
+  lastStatus    String    @default("NEVER") // NEVER, OK, ERROR, RUNNING
+  lastError     String?
+  totalRows     Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+}
+
+model SyncRun {
+  id         String    @id @default(uuid())
+  entity     String
+  status     String    // RUNNING, OK, ERROR
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  upserted   Int       @default(0)
+  deleted    Int       @default(0)
+  error      String?
+
+  @@index([entity, startedAt])
+}
+
+// Espelho bruto das linhas do SQL Server (fonte de verdade). Permite
+// reconciliacao por hash e deteccao de exclusoes mesmo sem rowversion.
+model InfMirror {
+  id            String    @id @default(uuid())
+  entity        String
+  sourceKey     String
+  hash          String
+  payload       Json
+  // hash já projetado no CGStok; NULL = pendente de projeção ('DEL' = exclusão tratada)
+  projectedHash String?
+  firstSeenAt   DateTime  @default(now())
+  lastSeenAt    DateTime  @default(now())
+  deletedAt     DateTime?
+
+  @@unique([entity, sourceKey])
+  @@index([entity, deletedAt])
+  @@index([entity, projectedHash])
 }
