@@ -48,13 +48,32 @@ Data: 28/10/2026 · Base: `dbTREINO_MGA` + `dbTREINO_CV` (usuário `apidevin` le
   → recebimento local + `informakon.numero=81116/81117` → verificado no SQL
   Server (itens, doc, origem CGSTK e `MateriaisEstoque` 3+4=7 un, valor 55,5).
 
+**Uso real via navegador (Playwright + Chrome — tela a tela, como um almoxarife)**
+- Login real → `/receipts/new`: fornecedor, Almoxarifado Central, NF-TESTE-UI-001,
+  CHAPA DE POLIESTIRENO ×2 a R$12,50 → toast **"Informakon: entrada #81118"** →
+  SQL Server confere item e saldo (9 un / 80,5 acumulado nos testes).
+- Edição de produto em `/products/:id/edit` → nome com "(TESTE WB)" → `Insumo`
+  **e** `InsumoSub` 30349 atualizados (`Audit=CGSTOCK`).
+- Entrega rápida em `/quick-issue`: código `TESTEQR01` (funcionário de teste com
+  acesso à obra Ousy) → produto `000100-000-CV` → toast **"Informakon: saída
+  #294"** → `dbTREINO_CV` confere `MateriaisSaida` RM com **Destinatario
+  "FUNCIONARIO TESTE QR"** e estoque 1→0 baixado pelo trigger.
+
+## 5. Registros de teste criados (Origem=CGSTK, Audit=CGSTOCK)
+
+| Base | Registro | O que prova |
+|---|---|---|
+| MGA | Entradas 81115–81118 | escrita direta + E2E HTTP + E2E UI |
+| MGA | Saída 13348 | guarda de saldo + rateio de valor |
+| MGA | Insumo 30350 | criação/edição de produto via API |
+| MGA | Insumo 30349 | edição via tela de produtos |
+| CV  | Saída 294 | entrega rápida UI → saída RM na CV |
+
 ## 4. Limitações conhecidas / próximos passos
 
 - Criação de produto novo no ERP pela UI: rota pronta; falta campo de
   caracterização (cla/gru/carIns) no formulário — usar `/write/opcoes`.
-- Saída via entrega rápida testada na camada de API; validar também o fluxo
-  de tela com QR no roteiro de uso.
 - `db_datawriter` não cobre `EXECUTE`: se futuros testes usarem procedures
   do ERP, rodar `GRANT EXECUTE ON SCHEMA::dbo TO apidevin`.
-- Registros de teste criados: Entradas 81115–81117, Saída 13348, Insumo 30350
-  (todos `Origem=CGSTK`/`Audit=CGSTOCK` — fáceis de localizar e estornar).
+- Funcionário de teste criado: `TESTEQR01` (FUNCIONARIO TESTE QR, obra Ousy)
+  — apenas no banco de teste.
