@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>qweb-api — Documentação da API</title>
+<style>
+  @page { margin: 2cm 1.8cm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a2e; font-size: 10.5pt; line-height: 1.5; }
+  h1 { font-size: 20pt; color: #0f3460; border-bottom: 3px solid #0f3460; padding-bottom: 8px; }
+  h2 { font-size: 14pt; color: #0f3460; margin-top: 28px; border-bottom: 1px solid #ccd; padding-bottom: 4px; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; color: #16213e; margin-top: 18px; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; page-break-inside: auto; }
+  th { background: #0f3460; color: #fff; text-align: left; padding: 6px 8px; }
+  td { border: 1px solid #ccd; padding: 5px 8px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f4f6fa; }
+  code, .code { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 9pt; background: #eef1f6; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #16213e; color: #e8e8e8; padding: 12px 14px; border-radius: 6px; font-size: 8.5pt; overflow-x: auto; page-break-inside: avoid; }
+  pre code { background: none; color: inherit; padding: 0; }
+  .method { display: inline-block; font-weight: 700; font-family: monospace; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
+  .get { background: #d4edda; color: #155724; }
+  .post { background: #fff3cd; color: #856404; }
+  .tag { display: inline-block; font-size: 8pt; padding: 1px 7px; border-radius: 8px; margin-left: 6px; vertical-align: middle; }
+  .tag-qweb { background: #6c5ce7; color: #fff; }
+  .tag-almox { background: #00b894; color: #fff; }
+  .tag-admin { background: #e17055; color: #fff; }
+  .note { background: #fff8e1; border-left: 4px solid #ffc107; padding: 8px 12px; margin: 10px 0; }
+  .warn { background: #fdecea; border-left: 4px solid #e74c3c; padding: 8px 12px; margin: 10px 0; }
+  .ok { background: #e8f5e9; border-left: 4px solid #43a047; padding: 8px 12px; margin: 10px 0; }
+  .cover { text-align: center; padding-top: 200px; page-break-after: always; }
+  .cover h1 { border: none; font-size: 28pt; }
+  .cover p { color: #555; font-size: 12pt; }
+  .meta { color: #666; font-size: 9pt; }
+  .pb { page-break-before: always; }
+  ul { margin: 6px 0; }
+  td .small { font-size: 8.5pt; color: #555; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>qweb-api</h1>
+  <p><strong>API própria compatível com a QWeb (Informakon)<br>+ Sincronização Informakon → CGStok</strong></p>
+  <p class="meta">CG Construções · Documentação técnica da API<br>Versão 0.1.0 — gerado em 27/10/2026<br>Banco analisado: dbTREINO_CV (produção: dbCONV)</p>
+</div>
+
+<h1>Documentação da API</h1>
+
+<h2>1. Visão geral</h2>
+<p>A <strong>qweb-api</strong> é um serviço Node.js + TypeScript (Fastify) que roda na rede interna e cumpre dois papéis:</p>
+<ol>
+  <li><strong>Compatibilidade QWeb</strong> — replica o contrato da API legada Kiweb (<code>wminformaconcgi</code>) lendo direto do SQL Server da Informakon, em modo <strong>somente leitura</strong>.</li>
+  <li><strong>Sincronização</strong> — copia os dados de suprimento/almoxarifado do Informakon para o PostgreSQL do CGStok, de forma incremental e idempotente. O Informakon é a <strong>fonte da verdade</strong>.</li>
+</ol>
+<pre>[SQL Server Informakon] --(SELECT)--> [qweb-api :3085] --> [PostgreSQL CGStok] --> [CGStok]</pre>
+<div class="warn"><strong>Restrições:</strong> rede interna apenas (não expor na internet). Nenhum INSERT/UPDATE/DELETE/DDL no SQL Server — todas as queries usam <code>WITH (NOLOCK)</code>. Credenciais somente em <code>.env</code>.</div>
+
+<h2>2. Autenticação e regras globais</h2>
+<table>
+  <tr><th>Item</th><th>Valor</th></tr>
+  <tr><td>Base URL (dev)</td><td><code>http://localhost:3085</code></td></tr>
+  <tr><td>Auth</td><td>Header <code>X-Api-Key: &lt;chave&gt;</code> (lista em <code>API_KEYS</code> no .env). <strong>Obrigatória em todas as rotas</strong> exceto <code>/healthz</code> e <code>/docs</code>.</td></tr>
+  <tr><td>Rate limit</td><td><code>RATE_LIMIT_MAX</code> req / <code>RATE_LIMIT_WINDOW</code> (default 300/min) — HTTP 429 ao exceder.</td></tr>
+  <tr><td>Erro de auth</td><td>XML <code>&lt;validacaoresultado&gt;ERRO&lt;/validacaoresultado&gt;</code> + <code>API key ausente ou invalida</code></td></tr>
+  <tr><td>OpenAPI</td><td><code>GET /docs</code> (Swagger UI) e <code>/docs/json</code></td></tr>
+  <tr><td>Health</td><td><code>GET /healthz</code> → <code>{"ok":true,"ts":"..."}</code></td></tr>
+</table>
+
+<h2>3. Rotas QWeb-compatíveis <span class="tag tag-qweb">XML legado</span></h2>
+<p>Mesmos paths, parâmetros e formato de resposta da QWeb original — incluindo os quirks: <strong>HTTP 200 em erros de negócio</strong>, XML ISO-8859-1, diacríticos removidos, <code>formato=json</code> ignorado.</p>
+
+<h3><span class="method get">GET</span> /versao</h3>
+<p>Status do serviço: empresa, banco, contadores por endpoint, tempo de resposta. Espelha o <code>/versao</code> da QWeb.</p>
+<pre>&lt;result&gt;
+  &lt;Empresa&gt;Konstroi&lt;/Empresa&gt;
+  &lt;RespostaBanco&gt;13 ms&lt;/RespostaBanco&gt;
+  &lt;versaoInformakon&gt;qweb-api 0.1.0&lt;/versaoInformakon&gt;
+  &lt;Banco&gt;dbTREINO_CV&lt;/Banco&gt;
+  &lt;Servidor&gt;172.16.1.123&lt;/Servidor&gt;
+  ...</pre>
+
+<h3><span class="method get">GET</span> /empreendimentos</h3>
+<table><tr><th>Param</th><th>Obrig.</th><th>Descrição</th></tr>
+<tr><td><code>Empresa</code></td><td>não</td><td>Filtra por Empresa_Cod (ex.: CVP)</td></tr></table>
+<p>Retorna <code>&lt;empreendimentos&gt;</code> com um <code>&lt;empreendimento&gt;</code> por obra: <code>Empresa_Cod, Filial_Cod, EImo_Numero, Centro_Cod, EImo_Nome, EnderecoCompleto, KeyEmpreendimento, CNPJ</code> e demais campos de endereço. <code>EnderecoCompleto</code> segue o formato legado: <code>"End, Num - Bairro, Cidade - UF, Cep"</code>.</p>
+
+<h3><span class="method get">GET</span> /clientes?page=&pagesize=</h3>
+<table><tr><th>Param</th><th>Obrig.</th><th>Descrição</th></tr>
+<tr><td><code>page</code>, <code>pagesize</code></td><td><strong>sim</strong></td><td>Ausentes → <code>ERRO: page ou pagesize nao informados corretamente.</code> (igual à QWeb)</td></tr></table>
+<p>Dados cadastrais do cliente + mutuário. <strong>Contém dados pessoais (CPF/RG/endereço)</strong> — uso restrito.</p>
+
+<h3><span class="method get">GET</span> /getlistaobras</h3>
+<p>Lista centros de custo do tipo obra: <code>&lt;Listaobras&gt;</code> com <code>Empresa_Cod, Filial_Cod, Centro_Cod, Centro_Nome</code>.</p>
+
+<h3><span class="method get">GET</span> /validausuario?clilog=&clisen=</h3>
+<p>Valida credenciais de cliente (<code>clilog</code>/<code>clisen</code>) contra <code>Cliente.Cli_Login/Cli_SenhaLogin</code>. Respostas: <code>VALIDO</code> ou <code>ERRO / CLIENTE INEXISTENTE</code>.</p>
+
+<h2 class="pb">4. Rotas do almoxarifado <span class="tag tag-almox">JSON</span></h2>
+<p>Namespace interno voltado ao domínio do CGStok. Respostas em JSON.</p>
+
+<h3><span class="method get">GET</span> /estoques</h3>
+<p>Lista os <strong>almoxarifados</strong> (centros de custo com estoque): nome, tipo, obra vinculada e resumo de saldo.</p>
+<pre>{"rows":[{
+  "key":"CVP.01.0008",
+  "empresaCodigo":"CVP","filialCodigo":"01","centroCodigo":"0008",
+  "nome":"Mahay Residence - Obra (obr)",
+  "tipo":"Obra própria",           // Obra própria | Almoxarifado central | Escritório
+  "inativo":false,
+  "obra":"Mahay Home Resort",      // empreendimento vinculado (descritivo)
+  "totalInsumos":46,
+  "totalQuantidade":26898.54
+}]}</pre>
+
+<h3><span class="method get">GET</span> /estoques/{EMP.FIL.CENTRO}</h3>
+<p>Itens em estoque no almoxarifado, no mesmo formato do relatório oficial do Informakon:</p>
+<pre>{"estoque":"CVP.01.0008","rows":[
+  {"codigo":"000023-000","especificacao":"AÇO CA 50 10.0MM","unidade":"KG","quantidade":12000,"anoMes":"202609"},
+  {"codigo":"000024-000","especificacao":"AÇO CA 50 12.5MM","unidade":"KG","quantidade":10152.89,"anoMes":"202609"}
+]}</pre>
+<table><tr><th>Param</th><th>Descrição</th></tr>
+<tr><td><code>key</code> (path)</td><td><code>EMP.FIL.CENTRO</code> — ex.: <code>CVP.01.0008</code>. Formato inválido → HTTP 400.</td></tr></table>
+
+<h3><span class="method get">GET</span> /supply/* (debug/integradores)</h3>
+<table>
+  <tr><th>Rota</th><th>Params</th><th>Descrição</th></tr>
+  <tr><td><code>/supply/insumos</code></td><td><code>page, pagesize, desde</code></td><td>Catálogo bruto de insumos (audit-incremental via <code>desde</code>)</td></tr>
+  <tr><td><code>/supply/estoque</code></td><td><code>centro, anomes</code></td><td>Saldo bruto <code>MateriaisEstoque</code></td></tr>
+  <tr><td><code>/supply/centros</code></td><td>—</td><td>Centros de custo com estoque</td></tr>
+  <tr><td><code>/supply/credores</code></td><td><code>page, pagesize, desde</code></td><td>Fornecedores (tabela Credor)</td></tr>
+</table>
+
+<h2>5. Rotas de sincronização <span class="tag tag-admin">JSON</span></h2>
+<table>
+  <tr><th>Rota</th><th>Descrição</th></tr>
+  <tr><td><span class="method get">GET</span> <code>/sync/status</code></td><td>Estado do scheduler: <code>enabled, running, cycles, lastRun{startedAt,finishedAt,ok,summary}</code></td></tr>
+  <tr><td><span class="method post">POST</span> <code>/sync/run</code></td><td>Dispara um ciclo manual (assíncrono) → <code>{"started":true}</code></td></tr>
+</table>
+
+<h2>6. Modelo de sincronização</h2>
+<ul>
+  <li><strong>Espelho (<code>InfMirror</code>)</strong>: cópia bruta da linha fonte + sha256 em <code>(entity, sourceKey)</code>. É a fila persistente: <code>projectedHash = NULL</code> = pendente de projeção (retry automático); <code>'DEL'</code> = exclusão tratada; <code>deletedAt</code> = ausente na fonte.</li>
+  <li><strong>Projeção</strong>: upsert nas tabelas do CGStok só nas linhas cujo hash mudou — idempotente, reexecutável sem duplicatas.</li>
+  <li><strong>Feature flag</strong>: <code>SystemSetting 'informakon.sync.enabled'</code> liga/desliga a projeção (o espelho continua atualizando).</li>
+  <li><strong>Status</strong>: <code>SyncCheckpoint</code> (último sucesso/erro por entidade) e <code>SyncRun</code> (histórico) alimentam "atualizado às HH:MM" no CGStok.</li>
+  <li><strong>Detecção</strong>: sem <code>rowversion</code> no SQL Server → full-scan + hash por ciclo (cron default <code>*/2min</code>, ciclo incremental ≈ 9 s).</li>
+  <li><strong>Exclusões</strong>: soft-delete — <code>status='INACTIVE'</code> na projeção (estoque → quantidade 0). Nunca DELETE físico.</li>
+  <li><strong>Custos</strong>: valores/preços ficam só no espelho (dado sensível).</li>
+</ul>
+
+<h3>Entidades sincronizadas</h3>
+<table>
+  <tr><th>Entidade</th><th>Fonte (SQL Server)</th><th>Chave (informakonKey)</th><th>Projeção CGStok</th></tr>
+  <tr><td>unidade</td><td><code>Unidade</code></td><td><code>UNI:&lt;cod&gt;</code></td><td>ProductUnit</td></tr>
+  <tr><td>categoria</td><td><code>Grupo_de_Insumos</code></td><td><code>CAT:&lt;cla&gt;.&lt;gru&gt;</code></td><td>ProductCategory</td></tr>
+  <tr><td>obra</td><td><code>Empreendimento</code></td><td><code>OBR:&lt;emp.fil.eimo&gt;</code></td><td>Worksite</td></tr>
+  <tr><td>centro</td><td><code>Centro_de_Custo</code></td><td><code>CC:&lt;emp.fil.centro&gt;</code></td><td>Warehouse + local <code>*-GERAL</code></td></tr>
+  <tr><td>insumo</td><td><code>Insumo</code> ⨝ <code>InsumoSub</code></td><td><code>INS:&lt;pad6-pad3&gt;</code></td><td>Product</td></tr>
+  <tr><td>fornecedor</td><td><code>Credor</code></td><td><code>CRE:&lt;cod&gt;</code></td><td>Supplier</td></tr>
+  <tr><td>funcionario</td><td><code>Funcionario_Registro</code></td><td><code>FUN:&lt;…&gt;</code></td><td>User (employeeCode INF-*, sem login)</td></tr>
+  <tr><td>estoque</td><td><code>MateriaisEstoque</code> (últ. AnoMes)</td><td><code>&lt;cc&gt;~&lt;ins&gt;</code></td><td>Stock</td></tr>
+  <tr><td>entradaItem</td><td><code>MateriaisEntrada_Itens</code></td><td><code>&lt;num&gt;:&lt;item&gt;</code></td><td>StockMovement ENTRY (<code>INF-ENT-*</code>)</td></tr>
+  <tr><td>saidaItem</td><td><code>MateriaisSaida_Itens</code></td><td><code>&lt;num&gt;:&lt;item&gt;</code></td><td>StockMovement EXIT (<code>INF-SAI-*</code>)</td></tr>
+</table>
+
+<h2>7. Erros</h2>
+<table>
+  <tr><th>Situação</th><th>Resposta</th></tr>
+  <tr><td>API key ausente/inválida</td><td>XML <code>validacaoresultado=ERRO</code> (HTTP 200, estilo QWeb)</td></tr>
+  <tr><td>Param inválido (rotas QWeb)</td><td>HTTP 200 + <code>validacaoresultado=ERRO</code> + <code>tipodeerro</code></td></tr>
+  <tr><td><code>/estoques/{key}</code> malformado</td><td>HTTP 400 JSON <code>{"erro":"..."}</code></td></tr>
+  <tr><td>Rate limit</td><td>HTTP 429</td></tr>
+  <tr><td>SQL Server indisponível</td><td>Erro 500 + log estruturado (requestId)</td></tr>
+</table>
+
+<h2>8. Variáveis de ambiente</h2>
+<table>
+  <tr><th>Var</th><th>Default</th><th>Descrição</th></tr>
+  <tr><td><code>MSSQL_SERVER/PORT/DATABASE/USER/PASSWORD</code></td><td>—</td><td>SQL Server Informakon (conta somente-leitura)</td></tr>
+  <tr><td><code>MSSQL_CONNECT_TIMEOUT_S / MSSQL_REQUEST_TIMEOUT_S / MSSQL_POOL_MAX</code></td><td>8 / 15 / 5</td><td>Timeouts e pool</td></tr>
+  <tr><td><code>DATABASE_URL</code></td><td>—</td><td>Postgres do CGStok (escrita do sync)</td></tr>
+  <tr><td><code>API_KEYS</code></td><td>—</td><td>CSV de chaves <code>X-Api-Key</code></td></tr>
+  <tr><td><code>PORT / HOST</code></td><td>3085 / 0.0.0.0</td><td>Bind da API</td></tr>
+  <tr><td><code>RATE_LIMIT_MAX / RATE_LIMIT_WINDOW</code></td><td>300 / 1 minute</td><td>Rate limit</td></tr>
+  <tr><td><code>SYNC_ENABLED</code></td><td>false</td><td>Liga o scheduler (cron)</td></tr>
+  <tr><td><code>SYNC_CRON</code></td><td>*/2 * * * *</td><td>Frequência do ciclo</td></tr>
+  <tr><td><code>SYNC_EXCLUDE_EMPRESAS</code></td><td>TST</td><td>Empresas técnicas fora do sync</td></tr>
+  <tr><td><code>SYNC_RECONCILE_EVERY_N</code></td><td>60</td><td>Reconciliação de contagens a cada N ciclos</td></tr>
+  <tr><td><code>CACHE_TTL_S</code></td><td>30</td><td>TTL do cache em memória de GET /estoques e /supply (<code>?fresh=1</code> ignora; header <code>X-Cache: HIT</code>)</td></tr>
+  <tr><td><code>CACHE_MAX_ENTRIES</code></td><td>500</td><td>Máximo de respostas em cache</td></tr>
+  <tr><td><code>QWEB_BANCO_LABEL</code></td><td>= DATABASE</td><td>Rótulo do banco em /versao</td></tr>
+</table>
+
+<div class="note"><strong>Operação:</strong> <code>npm install && npm run dev</code> (ou <code>start</code>) dentro de <code>qweb-api/</code>. Scheduler só sobe com <code>SYNC_ENABLED=true</code>. Status: <code>/sync/status</code> + tabelas <code>SyncCheckpoint</code>/<code>SyncRun</code> no Postgres.</div>
+
+</body>
+</html>

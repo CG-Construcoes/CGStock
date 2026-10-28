@@ -108,6 +108,7 @@ async function StockContent({
     physical: number
     reserved: number
     stockValue: number
+    erpValue: number
   }
 
   type StockPageRow = {
@@ -123,6 +124,7 @@ async function StockContent({
     warehouseCount: number
     totalQuantity: number
     totalReserved: number
+    totalValue: number
   }
 
   const searchCondition = q
@@ -151,7 +153,8 @@ async function StockContent({
               UPPER(TRIM(COALESCE(u.code, 'UN'))) AS unit_code,
               TRIM(COALESCE(u.name, COALESCE(u.code, 'UN'))) AS unit_name,
               COALESCE(SUM(s.quantity), 0)::float8 AS qty,
-              COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS res
+              COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS res,
+              COALESCE(SUM(s.quantity * COALESCE(s."unitValue", p."averageCost", 0)), 0)::float8 AS erp_val
             FROM "Product" p
             LEFT JOIN "ProductUnit" u ON u.id = p."unitId"
             ${stockJoin}
@@ -167,7 +170,8 @@ async function StockContent({
             COUNT(*) FILTER (WHERE qty > 0 AND "minimumStock" > 0 AND qty <= "minimumStock")::int AS "lowStockCount",
             COALESCE(SUM(qty), 0)::float8 AS "physical",
             COALESCE(SUM(res), 0)::float8 AS "reserved",
-            COALESCE(SUM(qty * cost), 0)::float8 AS "stockValue"
+            COALESCE(SUM(qty * cost), 0)::float8 AS "stockValue",
+            COALESCE(SUM(erp_val), 0)::float8 AS "erpValue"
           FROM prod_totals
           GROUP BY unit_code
         `,
@@ -184,7 +188,8 @@ async function StockContent({
             MAX(w.name) AS "warehouseName",
             COUNT(DISTINCT s."warehouseId")::int AS "warehouseCount",
             COALESCE(SUM(s.quantity), 0)::float8 AS "totalQuantity",
-            COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS "totalReserved"
+            COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS "totalReserved",
+            COALESCE(SUM(s.quantity * COALESCE(s."unitValue", p."averageCost", 0)), 0)::float8 AS "totalValue"
           FROM "Product" p
           INNER JOIN "ProductCategory" c ON c.id = p."categoryId"
           INNER JOIN "ProductUnit" u ON u.id = p."unitId"
@@ -199,6 +204,7 @@ async function StockContent({
       ])
 
   let totalStockValue = 0
+  let totalErpValue = 0
   let totalPhysicalQuantity = 0
   let totalReservedQuantity = 0
   let totalSkusInStock = 0
@@ -222,6 +228,7 @@ async function StockContent({
     totalPhysicalQuantity += pQty
     totalReservedQuantity += pRes
     totalStockValue += Number(row.stockValue || 0)
+    totalErpValue += Number(row.erpValue || 0)
     totalSkusInStock += Number(row.skusInStock || 0)
     zeroStockCount += Number(row.zeroStockCount || 0)
     lowStockCount += Number(row.lowStockCount || 0)
@@ -280,7 +287,9 @@ async function StockContent({
     const totalReserved = Number(p.totalReserved || 0)
     const available = totalQuantity - totalReserved
     const unitCost = Number(p.averageCost || 0)
-    const totalValue = totalQuantity * unitCost
+    // valor da linha = custo do próprio almoxarifado (unitValue do ERP);
+    // quando a origem não informa, a query já cai no custo médio do produto
+    const totalValue = Number(p.totalValue || 0)
 
     let status = "NORMAL"
     let statusLabel = "Normal"
@@ -366,8 +375,8 @@ async function StockContent({
                   Valor em Estoque
                 </CardTitle>
                 <InfoTooltip
-                  title="Valor Total em Estoque"
-                  text="Montante financeiro estimado, calculado pela soma da quantidade física de cada material multiplicada pelo seu custo médio ponderado."
+                  title="Valor em Estoque — dois números"
+                  text="O número grande é o valor que cada almoxarifado registra no Informakon (quantidade × preço do próprio centro) — é o mesmo valor da tela 'Posição de Estoque' do ERP. A linha de baixo mostra a média ponderada: quantidade × custo médio do produto calculado entre todos os almoxarifados, útil como referência geral da empresa. Podem diferir alguns reais porque cada centro pode ter pago preços diferentes."
                 />
               </div>
               <div className="bg-amber-500/10 p-2 rounded-lg text-primary">
@@ -376,9 +385,12 @@ async function StockContent({
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-black text-foreground">
-                {formatCurrency(totalStockValue)}
+                {formatCurrency(totalErpValue)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1 truncate" title={warehouseLabel}>
+              <p className="text-xs text-muted-foreground mt-1">
+                valor do almoxarifado · média ponderada: {formatCurrency(totalStockValue)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate" title={warehouseLabel}>
                 {selectedWarehouseId ? warehouseLabel : "Total em todos os almoxarifados"}
                 {q ? ` • filtro: "${q}"` : ""}
               </p>
@@ -696,7 +708,10 @@ async function StockContent({
                   </span>
                 </th>
                 <th className="h-11 px-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-right whitespace-nowrap w-[115px]">
-                  Valor Total
+                  <span className="inline-flex items-center justify-end gap-0.5 w-full">
+                    Valor Total
+                    <InfoTooltip text="Quantidade × preço que o próprio almoxarifado registra no Informakon (bata com a 'Posição de Estoque' do ERP). Quando o ERP não informa valor, usa o custo médio do produto." iconClassName="h-3 w-3" />
+                  </span>
                 </th>
                 <th className="h-11 px-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider text-center whitespace-nowrap w-[95px]">
                   <span className="inline-flex items-center justify-center gap-0.5 w-full">

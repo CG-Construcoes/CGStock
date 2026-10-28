@@ -224,6 +224,9 @@ model Stock {
   location         WarehouseLocation @relation(fields: [locationId], references: [id])
   quantity         Float
   reservedQuantity Float             @default(0)
+  /// Valor unitário que o próprio centro registra na origem
+  /// (Informakon: Estoque_Valor / Estoque_Quantidade). NULL = origem não informa.
+  unitValue        Float?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

@@ -1,0 +1,159 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Relatório Final</title><style>
+  @page { margin: 2cm 1.8cm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a2e; font-size: 10.5pt; line-height: 1.5; }
+  h1 { font-size: 20pt; color: #0f3460; border-bottom: 3px solid #0f3460; padding-bottom: 8px; }
+  h2 { font-size: 14pt; color: #0f3460; margin-top: 28px; border-bottom: 1px solid #ccd; padding-bottom: 4px; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; color: #16213e; margin-top: 18px; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; page-break-inside: auto; }
+  th { background: #0f3460; color: #fff; text-align: left; padding: 6px 8px; }
+  td { border: 1px solid #ccd; padding: 5px 8px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f4f6fa; }
+  code, .code { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 9pt; background: #eef1f6; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #16213e; color: #e8e8e8; padding: 12px 14px; border-radius: 6px; font-size: 8.5pt; overflow-x: auto; page-break-inside: avoid; }
+  pre code { background: none; color: inherit; padding: 0; }
+  .method { display: inline-block; font-weight: 700; font-family: monospace; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
+  .get { background: #d4edda; color: #155724; }
+  .post { background: #fff3cd; color: #856404; }
+  .tag { display: inline-block; font-size: 8pt; padding: 1px 7px; border-radius: 8px; margin-left: 6px; vertical-align: middle; }
+  .tag-qweb { background: #6c5ce7; color: #fff; }
+  .tag-almox { background: #00b894; color: #fff; }
+  .tag-admin { background: #e17055; color: #fff; }
+  .note { background: #fff8e1; border-left: 4px solid #ffc107; padding: 8px 12px; margin: 10px 0; }
+  .warn { background: #fdecea; border-left: 4px solid #e74c3c; padding: 8px 12px; margin: 10px 0; }
+  .ok { background: #e8f5e9; border-left: 4px solid #43a047; padding: 8px 12px; margin: 10px 0; }
+  .cover { text-align: center; padding-top: 200px; page-break-after: always; }
+  .cover h1 { border: none; font-size: 28pt; }
+  .cover p { color: #555; font-size: 12pt; }
+  .meta { color: #666; font-size: 9pt; }
+  .pb { page-break-before: always; }
+  ul { margin: 6px 0; }
+  td .small { font-size: 8.5pt; color: #555; }
+</style></head><body><h1>Relatório Final — API própria QWeb-compatível + Sync Informakon → CGStok</h1>
+<p>Data: 27/10/2026 · Banco analisado: <code>dbTREINO_CV</code> (treino) — produção = <code>dbCONV</code> (mesma estrutura).</p>
+<h2>1. O que foi entregue</h2>
+<table>
+<tr><th>Entregável</th><th>Status</th></tr>
+<tr><td><code>docs/qweb-contrato.md</code></td><td>✅ Contrato da QWeb (36 endpoints catalogados, 5 observados live) + API de Integração REST :9090 (descoberta)</td></tr>
+<tr><td><code>docs/schema-informacom.md</code></td><td>✅ Schema SQL Server do domínio de suprimento (PKs/FKs/colunas de auditoria)</td></tr>
+<tr><td><code>docs/schema-cgstok.md</code></td><td>✅ Schema Prisma + adendo dos modelos de sync</td></tr>
+<tr><td><code>docs/mapeamento.md</code></td><td>✅ Mapeamento campo a campo + esquema final implementado</td></tr>
+<tr><td><code>qweb-api/</code></td><td>✅ Serviço Fastify+TS: rotas QWeb-compatíveis (XML), API almoxarifado <code>/estoques*</code> (JSON), <code>/supply/*</code> (debug), <code>/sync/*</code>, OpenAPI <code>/docs</code>, rate limit, API key, logs, cache TTL</td></tr>
+<tr><td>Sync incremental</td><td>✅ Espelho <code>InfMirror</code> (hash) + projeção idempotente nas tabelas do CGStok, pendências persistentes (<code>projectedHash</code>), reconciliação por contagens</td></tr>
+<tr><td>Migrations Postgres</td><td>✅ <code>informakon_sync</code> + <code>infmirror_projected_hash</code></td></tr>
+<tr><td>Feature flag</td><td>✅ <code>SystemSetting &#x27;informakon.sync.enabled&#x27;</code></td></tr>
+<tr><td><code>qweb-api/README.md</code></td><td>✅ Instalação, envs, operação, deploy</td></tr>
+<tr><td><code>docs/qweb-api-documentacao.pdf</code></td><td>✅ Documentação da API (gerada de <code>qweb-api-documentacao.html</code>)</td></tr>
+</table>
+<h2>2. Resultados da carga inicial (dbTREINO_CV)</h2>
+<table>
+<tr><th>Entidade</th><th>Linhas fonte</th><th>Projetadas</th><th>Projeção</th></tr>
+<tr><td>unidade</td><td>84</td><td>84</td><td><code>ProductUnit</code></td></tr>
+<tr><td>categoria</td><td>225</td><td>225</td><td><code>ProductCategory</code> (Grupo_de_Insumos)</td></tr>
+<tr><td>obra</td><td>4</td><td>4</td><td><code>Worksite</code></td></tr>
+<tr><td>centro</td><td>47</td><td>47</td><td><code>Warehouse</code> + local <code>*-GERAL</code></td></tr>
+<tr><td>insumo</td><td>22.325</td><td>22.325</td><td><code>Product</code> (22 s em lote)</td></tr>
+<tr><td>fornecedor</td><td>3.260</td><td>3.260</td><td><code>Supplier</code></td></tr>
+<tr><td>funcionario</td><td>63</td><td>63</td><td><code>User</code> (sem login)</td></tr>
+<tr><td>estoque</td><td>2.115</td><td>2.115</td><td><code>Stock</code></td></tr>
+<tr><td>entradaItem</td><td>4.396</td><td>4.396</td><td><code>StockMovement</code> ENTRY (<code>INF-ENT-*</code>)</td></tr>
+<tr><td>saidaItem</td><td>2.898</td><td>2.898</td><td><code>StockMovement</code> EXIT (<code>INF-SAI-*</code>)</td></tr>
+</table>
+<h2>3. Contrato QWeb replicado</h2>
+<p>Rotas: <code>/versao</code>, <code>/empreendimentos</code>, <code>/clientes</code> (paginação obrigatória),</p>
+<p><code>/getlistaobras</code>, <code>/validausuario</code>. Quirks preservados: HTTP 200 em erros de</p>
+<p>negócio (<code>&lt;validacaoresultado&gt;ERRO&lt;/validacaoresultado&gt;</code>), XML ISO-8859-1,</p>
+<p>diacríticos removidos, <code>EnderecoCompleto</code> no formato `&quot;End, Num - Bairro,</p>
+<p>Cidade - UF, Cep&quot;<code>, </code>formato=json` ignorado. <strong>Diferença proposital</strong>: auth por</p>
+<p><code>X-Api-Key</code> em tudo (QWeb expõe dados pessoais sem auth — não replicamos isso).</p>
+<h2>3.1 API do almoxarifado (<code>/estoques</code>)</h2>
+<p>Namespace próprio voltado ao domínio do CGStok (o termo &quot;empreendimentos&quot; ficou</p>
+<p>restrito à compat-QWeb): <code>GET /estoques</code> (almoxarifados com tipo, obra</p>
+<p>vinculada, total de insumos e quantidade) e <code>GET /estoques/{EMP.FIL.CENTRO}</code></p>
+<p>(itens em estoque, mesmo formato do relatório oficial). Vínculo obra↔centro</p>
+<p>corrigido: <code>Empreendimento_CentrodeCusto.Centro_CodC</code> é código composto</p>
+<p>(<code>CVP010008</code>), não o centro simples — <code>Warehouse.worksiteId</code> agora populado.</p>
+<h2>3.2 Otimizações de desempenho</h2>
+<ul>
+<li><strong>Cache TTL 30s</strong> (env <code>CACHE_TTL_S</code>) nas GETs <code>/estoques*</code> e <code>/supply/*</code>:</li>
+</ul>
+<p>  HIT ≈ 1 ms vs ~37 ms; <code>?fresh=1</code> ignora; header <code>X-Cache</code>; stats em <code>/healthz</code>.</p>
+<ul>
+<li><strong>Sync passa a projetar só almoxarifados de obra</strong>: centro de custo só vira</li>
+</ul>
+<p>  <code>Warehouse</code> se for tipo obra (<code>EspCentro_Obra=&#x27;S&#x27;</code>/<code>DM</code>) <strong>com estoque real</strong>,</p>
+<p>  excluindo nomes administrativos (Stand/Receita/Marketing/Folha/Terreno…).</p>
+<p>  Os demais centros foram inativados (o dropdown do CGStok já filtra ACTIVE).</p>
+<ul>
+<li><strong>Adoção de warehouses locais</strong>: &quot;Mahay Residence - Obra&quot; e &quot;Ousy - Obra&quot;</li>
+</ul>
+<p>  (criados no CGStok) foram adotados pelos <code>informakonKey</code> do ERP</p>
+<p>  (<code>scripts/adopt-almoxarifados.cjs</code>) — o estoque sincronizado cai no</p>
+<p>  almoxarifado operacional, sem duplicar. Nomes normalizados para</p>
+<p>  &quot;Mahay Residence&quot;/&quot;Ousy&quot; (sufixo <code>- Obra (obr)</code> removido na projeção).</p>
+<ul>
+<li>Removido o UPDATE de <code>lastSeenAt</code> em linhas inalteradas (~22k escritas</li>
+</ul>
+<p>  desnecessárias por ciclo no Postgres).</p>
+<ul>
+<li>Fetches de <code>estoque</code>/<code>funcionario</code> reescritos com <code>ROW_NUMBER()</code> (scan único</li>
+</ul>
+<p>  em vez de MAX correlacionado por chave).</p>
+<ul>
+<li>Pool MSSQL <code>min: 1</code> (conexão quente; primeira request não paga handshake).</li>
+</ul>
+<h2>4. Descobertas de infraestrutura</h2>
+<ul>
+<li><strong>QWeb</strong> = CGI legado (Kiweb), porta 85, sem auth na maioria dos endpoints.</li>
+<li><strong>API de Integração REST</strong> = WildFly :9090 <code>/informaconws/ws/</code>, Basic auth</li>
+</ul>
+<p>  <code>integracao</code>, JSON, ~40 recursos — <strong>todos comerciais</strong> (nenhum de estoque).</p>
+<ul>
+<li>⚠️ <code>177.22.35.89</code> expõe AMBAS na internet.</li>
+<li>SQL Server: nenhum <code>rowversion</code> utilizável nas tabelas de suprimento →</li>
+</ul>
+<p>  estratégia hash + full-scan.</p>
+<ul>
+<li><code>apidevin</code> está com <code>db_owner</code>/sysadmin (deveria ser <code>db_datareader</code>).</li>
+</ul>
+<h2>5. Riscos e pendências</h2>
+<ol>
+<li>1. <strong>Credenciais vazadas</strong> em <code>InformakonApi/appsettings.json</code> (SQL + Twilio +</li>
+</ol>
+<p>   AppInsights) e no e-mail (Basic auth :9090) → <strong>rotacionar</strong>.</p>
+<ol>
+<li>2. <strong><code>apidevin</code> com permissão de escrita</strong> → pedir restrição ao DBA.</li>
+<li>3. <strong><code>/clientes</code> expõe CPF/RG/endereço sem auth</strong> na QWeb e na nossa réplica</li>
+</ol>
+<p>   (com API key, melhor, mas ainda dados pessoais) → restringir se possível.</p>
+<ol>
+<li>4. <strong>APIs expostas na internet</strong> (<code>177.22.35.89:85</code> sem auth!) → firewall.</li>
+<li>5. <code>carteiraTitulosDetParcelas</code> não replicado (lógica de juros/multa com</li>
+</ol>
+<p>   retroatividade — fora do escopo do almoxarifado, documentado).</p>
+<ol>
+<li>6. Sync roda na máquina de dev — em produção, subir <code>qweb-api</code> como serviço</li>
+</ol>
+<p>   (systemd/NSSM) no servidor da rede interna (hoje: <code>npm start</code> via nohup;</p>
+<p>   não sobrevive a reboot).</p>
+<ol>
+<li>7. Latência da carga inicial (~25 min) — ciclos incrementais ~7-9 s.</li>
+<li>8. <code>disableRequestLogging</code> do Fastify emite deprecation warning (cosmético).</li>
+<li>9. As rotas <code>/supply/fornecedores</code> vs <code>/supply/credores</code> — decidir nome</li>
+</ol>
+<p>   canônico (hoje <code>/supply/credores</code> é o implementado).</p>
+<ol>
+<li>10. <code>CC:CJG.01.0002</code> (&quot;Emp. Julio Gaspar - Stand de Vendas (construção)&quot;) tem</li>
+</ol>
+<p>    estoque real (89 itens) mas foi excluído do sync pelo filtro de nomes —</p>
+<p>    verificar se é o almoxarifado da obra do Metrô; se for, ajustar o nome no</p>
+<p>    ERP ou afrouxar a regra para a tag <code>(construção)</code>.</p>
+<h2>6. Próximos passos sugeridos</h2>
+<ul>
+<li>Rodar contra <code>dbCONV</code> em produção (mesma estrutura; trocar <code>MSSQL_DATABASE</code>).</li>
+<li>Restringir <code>apidevin</code> a <code>db_datareader</code> + rotacionar credenciais.</li>
+<li>Fechar <code>177.22.35.89</code> ou autenticar a QWeb externa.</li>
+<li>UI no CGStok lendo <code>SyncCheckpoint</code> para &quot;atualizado às HH:MM&quot;.</li>
+<li>Avaliar <code>/supply/*</code> como fonte de consulta ad-hoc dentro do app.</li>
+</ul></body></html>
