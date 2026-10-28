@@ -101,7 +101,8 @@ export async function pushMovimentoAoInformakon(opts: {
         centro: cc.centro,
         docNumero: opts.docNumero.slice(0, 20),
         clienteRef: opts.clienteRef.slice(0, 60),
-        destinatario: opts.destinatario,
+        // INFORMAKON_DESTINATARIO=off omite o destinatário no ERP (opção do dia a dia)
+        destinatario: process.env.INFORMAKON_DESTINATARIO === 'off' ? undefined : opts.destinatario,
         itens: itensErp,
       },
     )
