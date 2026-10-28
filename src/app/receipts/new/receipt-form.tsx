@@ -214,12 +214,16 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
       const result = await createReceiptAction(formData)
       if (result?.success) {
         setIsSuccess(true)
+        const erp = (result as { informakon?: { attempted?: boolean; ok?: boolean; numero?: number; erro?: string } }).informakon
         toast.success(
           isCompleting 
-            ? "Recebimento finalizado e estoque atualizado com sucesso!" 
+            ? `Recebimento finalizado e estoque atualizado com sucesso!${erp?.ok ? ` Informakon: entrada #${erp.numero}` : ""}` 
             : "Rascunho salvo com sucesso!",
           { id: toastId }
         )
+        if (erp?.attempted && !erp.ok) {
+          toast.warning(`Entrada salva localmente, mas não refletiu no Informakon: ${erp.erro}`, { id: `${toastId}-erp` })
+        }
         setTimeout(() => {
           router.push("/receipts")
         }, 500)

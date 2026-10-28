@@ -6,6 +6,7 @@ import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 import { assertWarehouseAccess } from "@/lib/dal"
 import { checkSyncReplay, isSyncKey, isUniqueConflict, payloadHash } from "@/lib/sync-idempotency"
+import { pushMovimentoAoInformakon } from "@/lib/informakon"
 
 export async function POST(req: NextRequest) {
   const session = await getValidatedSession()
@@ -110,7 +111,18 @@ export async function POST(req: NextRequest) {
         await logAudit("RECEIPT_CREATED_OFFLINE", "StockReceipt", receipt.id, { status: actionType, idempotencyKey }, session.userId, tx)
         return receipt.id
       })
-      return NextResponse.json({ success: true, receiptId })
+      // Write-back: reflete a entrada no Informakon (falha não desfaz o recebimento)
+      let informakon = null
+      if (actionType === 'COMPLETED') {
+        informakon = await pushMovimentoAoInformakon({
+          tipo: 'entrada',
+          warehouseId,
+          itens: itemsData.map(i => ({ productId: i.productId, quantidade: i.quantity, valor: i.unitCost })),
+          docNumero: documentNumber || `RCB-${receiptId.slice(-8).toUpperCase()}`,
+          clienteRef: `receipt-${receiptId}`,
+        })
+      }
+      return NextResponse.json({ success: true, receiptId, informakon })
     } catch (error) {
       if (isUniqueConflict(error)) {
         const result = await checkSyncReplay(session.userId, 'CREATE_RECEIPT', idempotencyKey, hash)

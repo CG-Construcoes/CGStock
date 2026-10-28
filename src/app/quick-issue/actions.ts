@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { createWithUniqueNumber } from "@/lib/sequential"
 import { requireActionPermission } from "@/lib/action-guard"
 import { createStockMovement } from "@/lib/stock"
+import { pushMovimentoAoInformakon } from "@/lib/informakon"
 
 export async function verifyEmployeeQR(qrToken: string) {
   let session
@@ -271,7 +272,19 @@ export async function confirmQuickIssue(payload: {
     
     revalidatePath("/quick-issue")
     revalidatePath("/reports/exits")
-    return { success: true, issueNumber: issueResult.issueNumber }
+
+    // Write-back: saída no Informakon (itens agregados por produto)
+    const byProduct = new Map<string, number>()
+    for (const it of payload.items) byProduct.set(it.productId, (byProduct.get(it.productId) ?? 0) + Number(it.requestedQuantity))
+    const erp = await pushMovimentoAoInformakon({
+      tipo: 'saida',
+      warehouseId: payload.warehouseId,
+      itens: [...byProduct].map(([productId, quantidade]) => ({ productId, quantidade })),
+      docNumero: issueResult.issueNumber,
+      clienteRef: `issue-${issueResult.id}`,
+      destinatario: employee.name ?? undefined,
+    })
+    return { success: true, issueNumber: issueResult.issueNumber, informakon: erp }
     
   } catch (error) {
     console.error("Transaction Error:", error)

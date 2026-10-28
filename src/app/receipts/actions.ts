@@ -6,6 +6,7 @@ import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 import { requireActionPermission } from "@/lib/action-guard"
 import { assertWarehouseAccess } from "@/lib/dal"
+import { pushMovimentoAoInformakon } from "@/lib/informakon"
 
 export async function createReceiptAction(formData: FormData) {
   const session = await requireActionPermission('STOCK_ENTRY')
@@ -72,7 +73,7 @@ export async function createReceiptAction(formData: FormData) {
       })
       await logAudit("RECEIPT_CREATED", "StockReceipt", receipt.id, { status: "DRAFT" })
     } else if (actionType === "COMPLETED") {
-      await db.$transaction(async (tx) => {
+      const completedReceiptId = await db.$transaction(async (tx) => {
         const receipt = await tx.stockReceipt.create({
           data: {
             supplierId,
@@ -107,7 +108,17 @@ export async function createReceiptAction(formData: FormData) {
           }, tx)
         }
         await logAudit("RECEIPT_CREATED", "StockReceipt", receipt.id, { status: "COMPLETED" })
+        return receipt.id
       })
+      // Write-back: reflete a entrada no Informakon (não desfaz a operação local)
+      const erp = await pushMovimentoAoInformakon({
+        tipo: 'entrada',
+        warehouseId,
+        itens: itemsData.map(i => ({ productId: i.productId, quantidade: i.quantity, valor: i.unitCost })),
+        docNumero: documentNumber || `RCB-${completedReceiptId.slice(-8).toUpperCase()}`,
+        clienteRef: `receipt-${completedReceiptId}`,
+      })
+      return { success: true, informakon: erp }
     }
 
     return { success: true }
@@ -160,6 +171,15 @@ export async function confirmReceiptAction(formData: FormData) {
     })
 
     await logAudit("RECEIPT_CONFIRMED", "StockReceipt", receipt.id, { status: "COMPLETED" })
+
+    // Write-back: a confirmação do rascunho também vira entrada no Informakon
+    await pushMovimentoAoInformakon({
+      tipo: 'entrada',
+      warehouseId: receipt.warehouseId,
+      itens: receipt.items.map(i => ({ productId: i.productId, quantidade: Number(i.quantity), valor: i.unitCost ? Number(i.unitCost) : null })),
+      docNumero: receipt.documentNumber || `RCB-${receipt.id.slice(-8).toUpperCase()}`,
+      clienteRef: `receipt-${receipt.id}`,
+    })
   } catch (error) {
     console.error("Erro ao confirmar recebimento", error)
     throw new Error(error instanceof Error ? error.message : "Erro ao processar a confirmação do recebimento no estoque.")

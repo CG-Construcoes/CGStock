@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/audit"
 import { assertWarehouseAccess, warehouseScopeIds } from "@/lib/dal"
 import { createStockMovement } from "@/lib/stock"
 import { checkSyncReplay, isSyncKey, isUniqueConflict, payloadHash } from "@/lib/sync-idempotency"
+import { pushMovimentoAoInformakon } from "@/lib/informakon"
 
 const MAX_ITEMS = 200
 const MAX_NUMBER_ATTEMPTS = 5
@@ -150,7 +151,19 @@ export async function POST(req: NextRequest) {
           await logAudit("QUICK_ISSUE_CREATED_OFFLINE", "QuickIssue", issue.id, { issueNumber, recipientId: employee.id }, session.userId, tx)
           return issue.id
         })
-        return NextResponse.json({ success: true, issueId, issueNumber })
+        // Write-back: saída no Informakon (itens agregados por produto)
+        const prodIds = items.map(i => byCode.get(i.productCode)!)
+        const byProduct = new Map<string, number>()
+        items.forEach((i, idx) => byProduct.set(prodIds[idx], (byProduct.get(prodIds[idx]) ?? 0) + Number(i.quantity)))
+        const informakon = await pushMovimentoAoInformakon({
+          tipo: 'saida',
+          warehouseId: warehouse.id,
+          itens: [...byProduct].map(([productId, quantidade]) => ({ productId, quantidade })),
+          docNumero: issueNumber,
+          clienteRef: `issue-${issueId}`,
+          destinatario: employee.name ?? undefined,
+        })
+        return NextResponse.json({ success: true, issueId, issueNumber, informakon })
       } catch (error) {
         if (error instanceof Error && error.message.startsWith('INSUFFICIENT_STOCK:')) {
           return NextResponse.json({ error: "Estoque insuficiente para um ou mais itens. Revise manualmente." }, { status: 409 })

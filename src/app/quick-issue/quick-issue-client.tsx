@@ -233,7 +233,11 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string,
     if (result.error) {
       toast.error(result.error)
     } else {
-      toast.success(`Entrega confirmada com sucesso! (${result.issueNumber})`)
+      const erp = (result as { informakon?: { attempted?: boolean; ok?: boolean; numero?: number; erro?: string } }).informakon
+      toast.success(`Entrega confirmada com sucesso! (${result.issueNumber})${erp?.ok ? ` · Informakon: saída #${erp.numero}` : ""}`)
+      if (erp?.attempted && !erp.ok) {
+        toast.warning(`Entrega salva localmente, mas não refletiu no Informakon: ${erp.erro}`)
+      }
       // Resetar tela para a próxima entrega
       setContext(null)
       setCart([])

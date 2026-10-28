@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
 import { requirePermission } from "@/lib/permissions"
 import { assertWarehouseAccess } from "@/lib/dal"
+import { pushInsumoUpdate } from "@/lib/informakon"
 
 async function assertProductWarehouseAccess(productId: string, userId: string) {
   const product = await db.product.findUnique({ where: { id: productId }, select: { defaultLocation: { select: { warehouseId: true } }, stocks: { select: { warehouseId: true } } } })
@@ -197,6 +198,13 @@ export async function updateProductAction(formData: FormData) {
   } catch (error) {
     console.error(error)
     redirect(`/products/${id}/edit?error=update_failed`)
+  }
+
+  // Write-back: produto vinculado ao ERP → atualiza especificação/unidade no Informakon
+  const prod = await db.product.findUnique({ where: { id }, select: { informakonKey: true } })
+  if (prod?.informakonKey) {
+    const erp = await pushInsumoUpdate(id)
+    if (erp.attempted && !erp.ok) console.warn(`[informakon] falha ao atualizar insumo do produto ${id}: ${erp.erro}`)
   }
 
   redirect("/products")
