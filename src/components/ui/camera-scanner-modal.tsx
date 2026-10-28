@@ -126,15 +126,18 @@ export function CameraScannerModal({
         console.error("Erro ao iniciar câmera:", err)
         if (isMounted) {
           setIsInitializing(false)
+          const insecureContext = !window.isSecureContext
           const isPermissionDenied =
             err?.name === "NotAllowedError" ||
             err?.message?.toLowerCase().includes("permission") ||
             err?.message?.toLowerCase().includes("notallowed")
 
           setError(
-            isPermissionDenied
-              ? "Permissão da câmera bloqueada. Por favor, autorize o acesso à câmera no seu navegador para escanear."
-              : "Não foi possível acessar a câmera. Verifique se o dispositivo possui uma câmera conectada ou tente fechar outros apps que possam estar usando a câmera."
+            insecureContext
+              ? "A câmera só funciona em conexão segura (HTTPS). Acesse o sistema por https:// ou localhost."
+              : isPermissionDenied
+                ? "Permissão da câmera bloqueada. Por favor, autorize o acesso à câmera no seu navegador para escanear."
+                : "Não foi possível acessar a câmera. Verifique se o dispositivo possui uma câmera conectada ou tente fechar outros apps que possam estar usando a câmera."
           )
         }
       }
