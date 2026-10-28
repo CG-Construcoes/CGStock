@@ -20,7 +20,8 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
     include: {
       product: { include: { unit: true, category: true } },
       location: { include: { warehouse: true } },
-      performedBy: true
+      performedBy: true,
+      recipientUser: true
     }
   })
 
@@ -46,6 +47,10 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
   } else if (mov.referenceType === 'TRANSFER') {
     originLink = `/transfers/${mov.referenceId}`
     originLabel = "Transferência entre Almoxarifados"
+  } else if (mov.referenceType === 'QUICK_ISSUE') {
+    originLabel = "Entrega Rápida (saída por QR/matricula)"
+  } else if (mov.referenceType === 'INFORMAKON') {
+    originLabel = `Sincronização Informakon (${mov.documentNumber ?? 'documento ERP'})`
   }
 
   return (
@@ -75,6 +80,11 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
             <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
               <User className="h-4 w-4" /> Executado por: <span className="font-medium text-foreground">{mov.performedBy.name}</span>
             </p>
+            {mov.recipientUser && (
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                <User className="h-4 w-4" /> Destinatário: <span className="font-medium text-foreground">{mov.recipientUser.name}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
 

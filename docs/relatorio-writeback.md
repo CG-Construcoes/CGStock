@@ -59,6 +59,18 @@ Data: 28/10/2026 · Base: `dbTREINO_MGA` + `dbTREINO_CV` (usuário `apidevin` le
   #294"** → `dbTREINO_CV` confere `MateriaisSaida` RM com **Destinatario
   "FUNCIONARIO TESTE QR"** e estoque 1→0 baixado pelo trigger.
 
+### Ajustes finos após conferência visual no Informakon
+
+- **`Entrada_Data`/`Saida_Data` sem hora**: o ERP grava sempre meia-noite local;
+  hora na coluna fazia o grid exibir `28/10/2026 11:59`. Corrigido com
+  `parseDataERP` (data-only → meia-noite local; datetime → truncado).
+- **`Saida_DepositoNumero` = "Autorização Depósito"**: preenchido **somente em
+  transferências** (MovTipo T) com o **próprio número da saída** — autoriza a
+  entrada no depósito destino. Saídas de consumo (S) ficam NULL: correto manter.
+- **`ImportadoArquivo='N'`**: linhas do ERP trazem 'N'; write-back agora também.
+- **Destinatário no CGStock**: tela de detalhe da movimentação exibe
+  "Destinatário" (funcionário que recebeu), espelhando o Informakon.
+
 ## 5. Registros de teste criados (Origem=CGSTK, Audit=CGSTOCK)
 
 | Base | Registro | O que prova |
