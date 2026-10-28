@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useCallback, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
@@ -84,19 +84,25 @@ export function MobileBottomNav({ user, warehouses = [], activeWarehouseId = "" 
     }
   }, [])
 
-  const closeMenu = useCallback(() => setMenuOpen(false), [])
-  const closeActions = useCallback(() => setActionsOpen(false), [])
+  // Marca a hora de abertura: o clique que abre o painel (pointerdown) pode
+  // "cair" no backdrop recém-renderizado e fechar na mesma batida no touch.
+  const menuOpenedAt = useRef(0)
+  const actionsOpenedAt = useRef(0)
+  const openMenu = useCallback(() => { menuOpenedAt.current = Date.now(); setMenuOpen(true) }, [])
+  const openActions = useCallback(() => { actionsOpenedAt.current = Date.now(); setActionsOpen(true) }, [])
+  const closeMenu = useCallback(() => { if (Date.now() - menuOpenedAt.current < 500) return; setMenuOpen(false) }, [])
+  const closeActions = useCallback(() => { if (Date.now() - actionsOpenedAt.current < 500) return; setActionsOpen(false) }, [])
 
   useEffect(() => {
-    const onOpenMenu = () => setMenuOpen(true)
-    const onOpenActions = () => setActionsOpen(true)
+    const onOpenMenu = () => openMenu()
+    const onOpenActions = () => openActions()
     window.addEventListener("cgstock:open-menu", onOpenMenu)
     window.addEventListener("cgstock:open-actions", onOpenActions)
     return () => {
       window.removeEventListener("cgstock:open-menu", onOpenMenu)
       window.removeEventListener("cgstock:open-actions", onOpenActions)
     }
-  }, [])
+  }, [openMenu, openActions])
 
   if (!user) return null
 
@@ -109,7 +115,7 @@ export function MobileBottomNav({ user, warehouses = [], activeWarehouseId = "" 
 
   const tabClass = (active: boolean) =>
     cn(
-      "relative flex h-full w-full flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors active:scale-95",
+      "relative flex h-full w-full touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors active:scale-95",
       active ? "text-primary" : "text-muted-foreground hover:text-foreground"
     )
 
@@ -128,10 +134,11 @@ export function MobileBottomNav({ user, warehouses = [], activeWarehouseId = "" 
   ) : (
     <button
       type="button"
-      onClick={() => setActionsOpen(true)}
+      onPointerDown={openActions}
+      onClick={openActions}
       aria-haspopup="dialog"
       aria-expanded={actionsOpen}
-      className="flex h-full w-full flex-col items-center justify-center gap-1 text-[11px] font-semibold text-foreground"
+      className="flex h-full w-full touch-manipulation flex-col items-center justify-center gap-1 text-[11px] font-semibold text-foreground"
     >
       <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-card transition-transform active:scale-90">
         <Plus className={cn("h-7 w-7 transition-transform", actionsOpen && "rotate-45")} strokeWidth={2.5} />
@@ -165,10 +172,11 @@ export function MobileBottomNav({ user, warehouses = [], activeWarehouseId = "" 
     <button
       key="menu"
       type="button"
-      onClick={() => setMenuOpen(true)}
+      onPointerDown={openMenu}
+      onClick={openMenu}
       aria-haspopup="dialog"
       aria-expanded={menuOpen}
-      className={tabClass(menuOpen || (!anyItemActive && !actionsOpen))}
+      className={cn(tabClass(menuOpen || (!anyItemActive && !actionsOpen)), "touch-manipulation")}
     >
       {(menuOpen || !anyItemActive) && activeBar}
       <Menu className="h-6 w-6" />
