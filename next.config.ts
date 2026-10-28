@@ -36,6 +36,9 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   turbopack: {},
+  // Acesso pela rede local (celular/PWA): sem isso o Next bloqueia recursos de
+  // dev (/_next/hmr etc.) por host estranho e a hidratação nunca acontece.
+  allowedDevOrigins: ["172.16.1.48"],
 };
 
 export default withPWA(nextConfig);
