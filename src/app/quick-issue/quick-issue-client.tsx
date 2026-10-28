@@ -95,7 +95,11 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string,
       warehouse: result.warehouse!
     })
     setEmployeeQr("")
-    toast.success(`Funcionário ${result.employee?.name} identificado com sucesso!`)
+    if (result.worksiteAssigned === false) {
+      toast.warning(`${result.employee?.name} não tem obra vinculada. Vincule-o em Funcionários para registrar a saída em ${result.worksite?.name}.`, { duration: 8000 })
+    } else {
+      toast.success(`Funcionário ${result.employee?.name} identificado com sucesso!`)
+    }
   }
 
   const handleEmployeeScan = (e: React.FormEvent) => {

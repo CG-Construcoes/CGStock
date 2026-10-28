@@ -46,7 +46,8 @@ export async function verifyEmployeeQR(qrToken: string) {
   
   // 2. Obra autorizada do funcionário ou obra ativa padrão
   let worksite: any = null
-  if (employee.worksiteAccesses.length > 0) {
+  const hasWorksiteAccess = employee.worksiteAccesses.length > 0
+  if (hasWorksiteAccess) {
     worksite = employee.worksiteAccesses[0].worksite
   } else {
     worksite = await db.worksite.findFirst({ where: { status: "ACTIVE" } })
@@ -79,6 +80,7 @@ export async function verifyEmployeeQR(qrToken: string) {
       id: worksite.id,
       name: worksite.name,
     },
+    worksiteAssigned: hasWorksiteAccess,
     warehouse: {
       id: warehouse.id,
       name: warehouse.name,

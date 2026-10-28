@@ -33,7 +33,8 @@ import {
   createEmployeeAction,
   updateEmployeeAction,
   toggleEmployeeStatusAction,
-  regenerateEmployeeQrAction
+  regenerateEmployeeQrAction,
+  assignEmployeesWorksiteAction
 } from "./actions"
 
 type Employee = {
@@ -85,7 +86,7 @@ export function EmployeesClient({
   stats: Stats
   worksites: Worksite[]
   pagination: Pagination
-  currentFilter: { q: string; type: string }
+  currentFilter: { q: string; type: string; worksite: string }
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -100,7 +101,7 @@ export function EmployeesClient({
   const [actionError, setActionError] = useState<string | null>(null)
 
   // Atualizar busca na URL
-  const updateQuery = (newQ: string, newType?: string, newPage: number = 1) => {
+  const updateQuery = (newQ: string, newType?: string, newPage: number = 1, newWorksite?: string) => {
     const params = new URLSearchParams(searchParams.toString())
     if (newQ.trim()) params.set("q", newQ.trim())
     else params.delete("q")
@@ -108,6 +109,10 @@ export function EmployeesClient({
     const type = newType !== undefined ? newType : currentFilter.type
     if (type && type !== "ALL") params.set("type", type)
     else params.delete("type")
+
+    const worksite = newWorksite !== undefined ? newWorksite : currentFilter.worksite
+    if (worksite && worksite !== "ALL") params.set("worksite", worksite)
+    else params.delete("worksite")
 
     if (newPage > 1) params.set("page", String(newPage))
     else params.delete("page")
@@ -124,6 +129,28 @@ export function EmployeesClient({
 
   const handleTypeChange = (newType: string) => {
     updateQuery(searchValue, newType, 1)
+  }
+
+  const handleWorksiteChange = (newWorksite: string) => {
+    updateQuery(searchValue, currentFilter.type, 1, newWorksite)
+  }
+
+  const [bulkWorksiteId, setBulkWorksiteId] = useState("")
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false)
+
+  const handleBulkAssign = async () => {
+    if (!bulkWorksiteId || selectedIds.length === 0) return
+    setIsBulkAssigning(true)
+    setActionError(null)
+    const res = await assignEmployeesWorksiteAction(selectedIds, bulkWorksiteId)
+    setIsBulkAssigning(false)
+    if (res.error) {
+      setActionError(res.error)
+    } else {
+      setSelectedIds([])
+      setBulkWorksiteId("")
+      router.refresh()
+    }
   }
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -300,6 +327,21 @@ export function EmployeesClient({
             Usuários com Login ({stats.systemUsers})
           </Button>
         </div>
+
+        <select
+          value={currentFilter.worksite}
+          onChange={(e) => handleWorksiteChange(e.target.value)}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs focus:ring-1 focus:ring-primary min-w-[180px]"
+          title="Filtrar por obra vinculada"
+        >
+          <option value="ALL">Todas as obras</option>
+          <option value="NONE">Sem obra vinculada</option>
+          {worksites.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Floating Selection Banner */}
@@ -309,7 +351,30 @@ export function EmployeesClient({
             <CheckCircle2 className="h-4 w-4" />
             <span>{selectedIds.length} funcionário(s) selecionado(s)</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={bulkWorksiteId}
+              onChange={(e) => setBulkWorksiteId(e.target.value)}
+              className="rounded-md border border-primary-foreground/30 bg-primary px-2 py-1.5 text-xs text-primary-foreground shadow-xs max-w-[200px]"
+              title="Vincular selecionados a uma obra"
+            >
+              <option value="" className="text-foreground">Vincular à obra…</option>
+              {worksites.map((w) => (
+                <option key={w.id} value={w.id} className="text-foreground">
+                  {w.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!bulkWorksiteId || isBulkAssigning}
+              onClick={handleBulkAssign}
+              className="gap-1.5 text-xs font-semibold"
+            >
+              <Building2 className="h-3.5 w-3.5" />
+              {isBulkAssigning ? "Vinculando…" : "Vincular"}
+            </Button>
             <Link href={printSelectedUrl}>
               <Button size="sm" variant="secondary" className="gap-1.5 text-xs font-semibold">
                 <Printer className="h-3.5 w-3.5" />
@@ -415,6 +480,22 @@ export function EmployeesClient({
                             {emp.email}
                           </div>
                         )}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {emp.worksiteAccesses.length === 0 ? (
+                            <span className="text-[11px] text-muted-foreground/70 italic">sem obra vinculada</span>
+                          ) : (
+                            emp.worksiteAccesses.map((a) => (
+                              <Badge
+                                key={a.worksite.id}
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-muted/40 border-border font-normal"
+                              >
+                                <Building2 className="h-2.5 w-2.5 mr-1 text-muted-foreground" />
+                                {a.worksite.name}
+                              </Badge>
+                            ))
+                          )}
+                        </div>
                       </td>
 
                       {/* Documento / CPF */}
@@ -897,6 +978,29 @@ export function EmployeesClient({
                   <option value="ACTIVE">Ativo</option>
                   <option value="INACTIVE">Inativo</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground uppercase tracking-wider mb-1">
+                  Vincular à Obra
+                </label>
+                <select
+                  name="worksiteId"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs focus:ring-1 focus:ring-primary"
+                  defaultValue=""
+                >
+                  <option value="">Não alterar vínculo</option>
+                  {worksites.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.code})
+                    </option>
+                  ))}
+                </select>
+                {editingEmployee.worksiteAccesses.length > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Obras atuais: {editingEmployee.worksiteAccesses.map((a) => a.worksite.name).join(", ")}
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-between items-center pt-2">

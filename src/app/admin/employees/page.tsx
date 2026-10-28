@@ -13,6 +13,7 @@ export default async function EmployeesPage({
     q?: string
     page?: string
     type?: string
+    worksite?: string
   }>
 }) {
   await requireAnyPermissionPage("USER_VIEW", "USER_MANAGE", "STOCK_EXIT")
@@ -21,6 +22,7 @@ export default async function EmployeesPage({
   const q = resolved?.q?.trim() || ""
   const page = Math.max(1, parseInt(resolved?.page || "1", 10) || 1)
   const typeFilter = resolved?.type || "ALL" // 'ALL' | 'FIELD' | 'SYSTEM'
+  const worksiteFilter = resolved?.worksite || "ALL" // 'ALL' | 'NONE' | <worksiteId>
   const pageSize = 50
 
   const whereCondition: any = {}
@@ -29,6 +31,12 @@ export default async function EmployeesPage({
     whereCondition.loginEnabled = false
   } else if (typeFilter === "SYSTEM") {
     whereCondition.loginEnabled = true
+  }
+
+  if (worksiteFilter === "NONE") {
+    whereCondition.worksiteAccesses = { none: {} }
+  } else if (worksiteFilter !== "ALL") {
+    whereCondition.worksiteAccesses = { some: { worksiteId: worksiteFilter } }
   }
 
   if (q) {
@@ -110,6 +118,7 @@ export default async function EmployeesPage({
       currentFilter={{
         q,
         type: typeFilter,
+        worksite: worksiteFilter,
       }}
     />
   )

@@ -366,6 +366,52 @@ export async function updateEmployeeAction(
   }
 }
 
+export async function assignEmployeesWorksiteAction(employeeIds: string[], worksiteId: string) {
+  let session
+  try {
+    session = await requireEmployeeManagePermission()
+  } catch {
+    return { error: "Sem permissão." }
+  }
+
+  if (!employeeIds || employeeIds.length === 0) return { error: "Nenhum funcionário selecionado." }
+  if (!worksiteId) return { error: "Selecione uma obra." }
+
+  const worksite = await db.worksite.findFirst({ where: { id: worksiteId, status: "ACTIVE" }, select: { id: true } })
+  if (!worksite) return { error: "Obra inválida." }
+
+  try {
+    const existing = await db.userWorksiteAccess.findMany({
+      where: { userId: { in: employeeIds }, worksiteId },
+      select: { userId: true }
+    })
+    const existingSet = new Set(existing.map(e => e.userId))
+    const toCreate = employeeIds.filter(id => !existingSet.has(id))
+
+    if (toCreate.length > 0) {
+      await db.userWorksiteAccess.createMany({
+        data: toCreate.map(userId => ({
+          userId,
+          worksiteId,
+          canViewStock: true
+        })),
+        skipDuplicates: true
+      })
+    }
+
+    await logAudit("EMPLOYEES_WORKSITE_ASSIGNED", "UserWorksiteAccess", worksiteId, {
+      employeeCount: toCreate.length,
+      worksiteId
+    }, session.userId)
+
+    revalidatePath("/admin/employees")
+    return { success: true, assigned: toCreate.length }
+  } catch (error: any) {
+    console.error("Erro ao vincular funcionários à obra:", error)
+    return { error: "Erro ao vincular funcionários à obra." }
+  }
+}
+
 export async function toggleEmployeeStatusAction(employeeId: string) {
   let session
   try {
