@@ -66,7 +66,7 @@ async function callWrite<T>(path: string, body: unknown, method = "POST"): Promi
 export async function pushMovimentoAoInformakon(opts: {
   tipo: 'entrada' | 'saida'
   warehouseId: string
-  itens: { productId: string; quantidade: number; valor?: number | null }[]
+  itens: { productId: string; quantidade: number; valor?: number | null }[] // valor = TOTAL da linha (EntradaItem_Valor é total, não unitário)
   docNumero: string
   clienteRef: string
   destinatario?: string

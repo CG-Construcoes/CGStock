@@ -114,7 +114,7 @@ export async function createReceiptAction(formData: FormData) {
       const erp = await pushMovimentoAoInformakon({
         tipo: 'entrada',
         warehouseId,
-        itens: itemsData.map(i => ({ productId: i.productId, quantidade: i.quantity, valor: i.unitCost })),
+        itens: itemsData.map(i => ({ productId: i.productId, quantidade: i.quantity, valor: i.totalCost })),
         docNumero: documentNumber || `RCB-${completedReceiptId.slice(-8).toUpperCase()}`,
         clienteRef: `receipt-${completedReceiptId}`,
       })
@@ -176,7 +176,7 @@ export async function confirmReceiptAction(formData: FormData) {
     await pushMovimentoAoInformakon({
       tipo: 'entrada',
       warehouseId: receipt.warehouseId,
-      itens: receipt.items.map(i => ({ productId: i.productId, quantidade: Number(i.quantity), valor: i.unitCost ? Number(i.unitCost) : null })),
+      itens: receipt.items.map(i => ({ productId: i.productId, quantidade: Number(i.quantity), valor: i.totalCost ? Number(i.totalCost) : null })),
       docNumero: receipt.documentNumber || `RCB-${receipt.id.slice(-8).toUpperCase()}`,
       clienteRef: `receipt-${receipt.id}`,
     })

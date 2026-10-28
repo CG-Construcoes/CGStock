@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         informakon = await pushMovimentoAoInformakon({
           tipo: 'entrada',
           warehouseId,
-          itens: itemsData.map(i => ({ productId: i.productId, quantidade: i.quantity, valor: i.unitCost })),
+          itens: itemsData.map(i => ({ productId: i.productId, quantidade: i.quantity, valor: i.totalCost })),
           docNumero: documentNumber || `RCB-${receiptId.slice(-8).toUpperCase()}`,
           clienteRef: `receipt-${receiptId}`,
         })
