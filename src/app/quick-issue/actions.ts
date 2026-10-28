@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { cookies } from "next/headers"
 import { assertWarehouseAccess, warehouseScopeIds } from "@/lib/dal"
 import { revalidatePath } from "next/cache"
 import { createWithUniqueNumber } from "@/lib/sequential"
@@ -44,25 +45,41 @@ export async function verifyEmployeeQR(qrToken: string) {
   if (employee.status !== "ACTIVE") return { error: "Funcionário inativo." }
   if (employee.qrToken === trimmed && employee.qrStatus !== "ACTIVE") return { error: "QR Code revogado." }
   
-  // 2. Obra autorizada do funcionário ou obra ativa padrão
+  // 2. Obra da saída: a do funcionário quando ele tem vínculo; senão a obra
+  // do almoxarifado que o operador selecionou (quem entrega tem acesso ao
+  // almox — o contexto é dele, não do recebedor).
+  const scope = await warehouseScopeIds(session.userId)
+  const selectedWhId = (await cookies()).get("cgstock_active_warehouse")?.value || ""
+  const selectedWh = selectedWhId
+    ? await db.warehouse.findFirst({
+        where: { id: selectedWhId, status: "ACTIVE", AND: scope ? [{ id: { in: scope } }] : [] },
+        select: { id: true, worksiteId: true }
+      })
+    : null
+
   let worksite: any = null
-  const hasWorksiteAccess = employee.worksiteAccesses.length > 0
-  if (hasWorksiteAccess) {
-    worksite = employee.worksiteAccesses[0].worksite
-  } else {
+  if (employee.worksiteAccesses.length > 0) {
+    const match = selectedWh && employee.worksiteAccesses.find(a => a.worksiteId === selectedWh.worksiteId)
+    worksite = (match?.worksite) ?? employee.worksiteAccesses[0].worksite
+  } else if (selectedWh?.worksiteId) {
+    worksite = await db.worksite.findFirst({ where: { id: selectedWh.worksiteId } })
+  }
+  if (!worksite) {
     worksite = await db.worksite.findFirst({ where: { status: "ACTIVE" } })
   }
-  
+
   if (!worksite || worksite.status !== "ACTIVE") {
     return { error: "Nenhuma obra ativa encontrada para este funcionário." }
   }
-  
-  // 3. Pegar um almoxarifado padrão dessa obra para registrar a saída
-  const scope = await warehouseScopeIds(session.userId)
-  const warehouse = await db.warehouse.findFirst({
-    where: { worksiteId: worksite.id, status: "ACTIVE", id: { in: scope ?? undefined } }
-  })
-  
+
+  // 3. Almoxarifado da saída: o selecionado pelo operador se pertence à
+  // obra; senão um almoxarifado padrão dessa obra no escopo do operador.
+  const warehouse = (selectedWh && selectedWh.worksiteId === worksite.id)
+    ? await db.warehouse.findFirst({ where: { id: selectedWh.id, status: "ACTIVE" } })
+    : await db.warehouse.findFirst({
+        where: { worksiteId: worksite.id, status: "ACTIVE", id: { in: scope ?? undefined } }
+      })
+
   if (!warehouse) {
     return { error: "Nenhum almoxarifado ativo encontrado para esta obra." }
   }
@@ -80,7 +97,7 @@ export async function verifyEmployeeQR(qrToken: string) {
       id: worksite.id,
       name: worksite.name,
     },
-    worksiteAssigned: hasWorksiteAccess,
+    worksiteAssigned: employee.worksiteAccesses.length > 0,
     warehouse: {
       id: warehouse.id,
       name: warehouse.name,
@@ -174,8 +191,17 @@ export async function confirmQuickIssue(payload: {
   } catch {
     return { error: "Você não tem acesso a este almoxarifado." }
   }
-  const employee = await db.user.findFirst({ where: { id: payload.employeeId, status: 'ACTIVE', qrStatus: 'ACTIVE', worksiteAccesses: { some: { worksiteId: payload.worksiteId } } } })
-  if (!employee) return { error: "Funcionário não autorizado nesta obra." }
+  // Funcionário COM vínculo fica restrito às obras dele; funcionário SEM
+  // vínculo (ex.: sincronizado do MGA, que não tem Empreendimento) pode
+  // receber — a obra vem do almoxarifado do operador, já validado acima.
+  const employee = await db.user.findFirst({
+    where: { id: payload.employeeId, status: 'ACTIVE', qrStatus: 'ACTIVE' },
+    include: { worksiteAccesses: { select: { worksiteId: true } } }
+  })
+  if (!employee) return { error: "Funcionário não encontrado ou inativo." }
+  if (employee.worksiteAccesses.length > 0 && !employee.worksiteAccesses.some(a => a.worksiteId === payload.worksiteId)) {
+    return { error: "Funcionário não autorizado nesta obra." }
+  }
   
   if (!payload.items || payload.items.length === 0) {
     return { error: "Nenhum item informado." }
