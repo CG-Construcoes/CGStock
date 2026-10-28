@@ -270,7 +270,7 @@ export function ImportClient({ warehouses }: { warehouses: Warehouse[] }) {
             )}
           </div>
           <h3 className="text-lg font-semibold mb-1">
-            {isProcessing ? 'Processando arquivo...' : 'Arraste seu arquivo para cá'}
+            {isProcessing ? 'Processando arquivo...' : 'Arraste e solte seu arquivo aqui'}
           </h3>
           
           <p className="text-sm text-muted-foreground mb-6 max-w-sm">
