@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
           if (result === 'replayed') return NextResponse.json({ success: true, alreadyProcessed: true })
           return NextResponse.json({ error: "Transferência duplicada ou alterada. Revise antes de sincronizar." }, { status: 409 })
         }
-        if (error instanceof Error && error.message.includes("já foi executada")) {
-          return NextResponse.json({ error: error.message }, { status: 409 })
+        if (error instanceof Error && /já foi executada|estoque insuficiente|saldo/i.test(error.message)) {
+          return NextResponse.json({ error: `${error.message}. Revise manualmente.` }, { status: 409 })
         }
         throw error
       }

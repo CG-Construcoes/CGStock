@@ -12,14 +12,10 @@ export function CancelRequestButton({ requestId, cancelAction, userId, sessionEx
   const handleClick = async () => {
     if (busy || !confirm('Deseja realmente cancelar esta requisição?')) return
     if (!navigator.onLine) {
-      if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
-        toast.error('Sessão expirada. Conecte-se e entre novamente para cancelar a requisição.')
-        return
-      }
       setBusy(true)
       try {
         await queueOfflineOperation('REQUEST_STATUS', { requestId, action: 'CANCEL' }, userId)
-        toast.success("Cancelamento salvo neste dispositivo. Será aplicado ao sincronizar.")
+        toast.success("Cancelamento salvo neste dispositivo. Será aplicado automaticamente ao sincronizar.")
       } catch (err) {
         toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
       } finally {

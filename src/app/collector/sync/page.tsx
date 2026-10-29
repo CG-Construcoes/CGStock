@@ -30,7 +30,11 @@ export default function SyncPage() {
     void loadTasks()
     const finished = () => { void loadTasks(); setIsSyncing(false) }
     window.addEventListener('cgstock:sync-finished', finished)
-    return () => window.removeEventListener('cgstock:sync-finished', finished)
+    window.addEventListener('cgstock:queue-updated', loadTasks)
+    return () => {
+      window.removeEventListener('cgstock:sync-finished', finished)
+      window.removeEventListener('cgstock:queue-updated', loadTasks)
+    }
   }, [userId])
 
   const syncNow = () => {
@@ -45,9 +49,25 @@ export default function SyncPage() {
     try {
       await localDb.syncQueue.delete(task.id)
       setTasks(current => current.filter(item => item.id !== task.id))
+      window.dispatchEvent(new Event('cgstock:queue-updated'))
       toast.success('Operação local descartada após revisão.')
     } catch {
       toast.error('Não foi possível descartar a operação. Tente novamente.')
+    }
+  }
+
+  const retryConflict = async (task: SyncQueueTask) => {
+    if (!localDb || task.userId !== userId || !task.id) return
+    try {
+      await localDb.syncQueue.update(task.id, { status: 'PENDING', error: undefined })
+      setTasks(current => current.map(item => item.id === task.id ? { ...item, status: 'PENDING', error: undefined } : item))
+      window.dispatchEvent(new Event('cgstock:queue-updated'))
+      if (navigator.onLine) {
+        window.dispatchEvent(new Event('cgstock:sync'))
+      }
+      toast.info('Operação recolocada na fila para nova tentativa de sincronização.')
+    } catch {
+      toast.error('Não foi possível recolocar a operação na fila.')
     }
   }
 
@@ -112,13 +132,15 @@ export default function SyncPage() {
                 <p className="font-bold text-sm">{({
                   SUBMIT_COLLECTION: 'Envio de Coleta',
                   CREATE_RECEIPT: 'Entrada de Materiais',
+                  CONFIRM_RECEIPT: 'Confirmação de Recebimento',
                   CREATE_REQUEST: 'Nova Requisição',
                   CREATE_ADJUSTMENT: 'Ajuste de Estoque',
                   CREATE_TRANSFER: 'Transferência',
                   CREATE_RETURN: 'Devolução',
                   CREATE_QUICK_ISSUE: 'Entrega Rápida',
                   FULFILL_REQUEST: 'Atendimento de Requisição',
-                  REQUEST_STATUS: 'Atualização de Requisição'
+                  REQUEST_STATUS: 'Atualização de Requisição',
+                  CREATE_INVENTORY: 'Novo Inventário'
                 } as Record<string, string>)[task.operation] || task.operation}</p>
                 <p className="text-xs text-muted-foreground">{new Date(task.createdAt).toLocaleString()}</p>
                 {task.error && <p className="text-xs text-red-600 mt-1 break-words max-w-[220px]">{task.error}</p>}
@@ -185,7 +207,10 @@ export default function SyncPage() {
                     </>
                   )}
                   <p className="text-xs text-muted-foreground">Compare com o registro no servidor e peça revisão ao responsável. A operação local não será aplicada automaticamente.</p>
-                  <Button type="button" size="sm" variant="outline" onClick={() => void discardConflict(task)}>Descartar após revisão</Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant="default" onClick={() => void retryConflict(task)}>Tentar sincronizar novamente</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => void discardConflict(task)}>Descartar após revisão</Button>
+                  </div>
                 </div>
               )}
             </div>

@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Building2, ChevronDown, Loader2 } from "lucide-react"
-import { setActiveWarehouseAction } from "@/app/auth-actions"
 import { cn } from "@/lib/utils"
 
 export interface WarehouseOption {
@@ -93,6 +92,16 @@ export function WarehouseSelectFilter({
       // Reset page to 1 when switching warehouse filter
       if (params.has("page")) {
         params.delete("page")
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cgstock:warehouse-changed", { detail: { warehouseId: newWarehouseId } }))
+      }
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const queryStr = params.toString()
+        window.history.replaceState(null, "", queryStr ? `${pathname}?${queryStr}` : pathname)
+        return
       }
 
       const queryStr = params.toString()

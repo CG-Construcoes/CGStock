@@ -14,11 +14,13 @@ export type SessionPayload = {
   expiresAt: Date
 }
 
+export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 7 dias (suporta 48h+ offline com folga)
+
 export async function encrypt(payload: import('jose').JWTPayload & SessionPayload) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("24h")
+    .setExpirationTime("7d")
     .sign(jwtKey)
 }
 
@@ -42,7 +44,7 @@ export async function decrypt(input: string): Promise<SessionPayload | null> {
 }
 
 export async function createSession(userId: string, name: string, email: string, roles: string[], mustChangePassword: boolean = false, sessionVersion: number = 0) {
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS)
   
   const payload: SessionPayload = {
     userId,

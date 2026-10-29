@@ -47,7 +47,7 @@ export function ReturnForm({ warehouses, products, requests, userId, sessionExpi
       toast.error("Informe produto, localização e quantidade inteira maior que zero em todos os itens.")
       return
     }
-    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+    if (navigator.onLine && Date.now() >= new Date(sessionExpiresAt).getTime()) {
       toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar a devolução.')
       return
     }

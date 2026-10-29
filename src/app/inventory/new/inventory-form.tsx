@@ -12,8 +12,14 @@ import { createInventoryAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { queueOfflineOperation } from "@/lib/offline-sync"
+import { useSyncUserId } from "@/components/sync-provider"
+import { useRouter } from "next/navigation"
 
-export default function InventoryForm({ warehouses, users }: any) {
+export default function InventoryForm({ warehouses, users, userId: propUserId }: any) {
+  const syncUserId = useSyncUserId()
+  const userId = propUserId || syncUserId || ""
+  const router = useRouter()
   const [name, setName] = useState("")
   const [selectedWarehouseId, setSelectedWarehouseId] = useState("")
   const [inventoryType, setInventoryType] = useState("PARTIAL")
@@ -21,6 +27,28 @@ export default function InventoryForm({ warehouses, users }: any) {
 
   const warehouse = warehouses.find((w: any) => w.id === selectedWarehouseId)
   const locations = warehouse?.locations || []
+
+  const saveInventoryOffline = async (formData: FormData, locIds: string[], opIds: string[]) => {
+    if (!userId) {
+      toast.error("Usuário não identificado para operação offline.")
+      return
+    }
+    const tempId = `offline-inv-${crypto.randomUUID()}`
+    await queueOfflineOperation(
+      "CREATE_INVENTORY",
+      {
+        name: String(formData.get("name") || name).trim(),
+        warehouseId: selectedWarehouseId,
+        type: inventoryType,
+        locationIds: locIds,
+        operatorIds: opIds,
+      },
+      userId,
+      { clientTempId: tempId }
+    )
+    toast.success("Inventário criado no dispositivo! Você já pode realizar a contagem no Coletor sem internet.")
+    router.push("/collector")
+  }
 
   const handleSubmit = (formData: FormData) => {
     const locKeys = Array.from(formData.keys()).filter((k) => k.startsWith("loc_") && formData.get(k) === "on")
@@ -35,12 +63,27 @@ export default function InventoryForm({ warehouses, users }: any) {
       return
     }
 
+    const locIds = locKeys.map((k) => k.replace("loc_", ""))
+    const opIds = opKeys.map((k) => k.replace("op_", ""))
+
     startTransition(async () => {
+      if (!navigator.onLine) {
+        try {
+          await saveInventoryOffline(formData, locIds, opIds)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Erro ao salvar inventário offline.")
+        }
+        return
+      }
       try {
         await createInventoryAction(formData)
       } catch (err: any) {
         if (err?.digest?.startsWith?.("NEXT_REDIRECT")) {
           throw err
+        }
+        if (!navigator.onLine || (err instanceof TypeError && /fetch|network/i.test(err.message))) {
+          await saveInventoryOffline(formData, locIds, opIds)
+          return
         }
         toast.error(err instanceof Error ? err.message : "Erro ao criar inventário.")
       }

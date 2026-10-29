@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Send, Scan, Plus, Minus, Trash2, Camera, X, Package, RotateCcw, ListFilter } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { localDb, type LocalProduct } from "@/lib/localdb"
+import { queueOfflineOperation } from "@/lib/offline-sync"
 import { Html5Qrcode } from "html5-qrcode"
 import { BackButton } from "@/components/ui/back-button"
 import { toast } from "sonner"
@@ -44,6 +45,58 @@ export default function CollectorForm({
   const [showLocationStock, setShowLocationStock] = useState(false)
   const [cameraError, setCameraError] = useState("")
   const [isSaving, setIsSaving] = useState(false)
+  const [draftLoaded, setDraftLoaded] = useState(() => !localDb || !userId)
+  const draftKey = `${userId}:${inventoryId}:${locationId}`
+
+  // Restaura rascunho da contagem em andamento caso o app tenha sido fechado/reaberto
+  useEffect(() => {
+    if (!localDb || !userId) return
+    let active = true
+    localDb.collectorDrafts
+      .get(draftKey)
+      .then((draft) => {
+        if (!active) return
+        if (draft && Array.isArray(draft.items) && draft.items.length > 0) {
+          setItems(
+            draft.items.map((it) => ({
+              productId: it.productId,
+              code: it.code,
+              name: it.name,
+              unitCode: it.unitCode || "un",
+              systemQuantity: Number(it.systemQuantity ?? 0),
+              quantity: Number(it.quantity ?? 0),
+            }))
+          )
+        }
+        setDraftLoaded(true)
+      })
+      .catch(() => {
+        if (active) setDraftLoaded(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [draftKey, userId])
+
+  // Persiste automaticamente cada alteração da contagem no IndexedDB
+  useEffect(() => {
+    if (!draftLoaded || !localDb || !userId) return
+    if (items.length === 0) {
+      void localDb.collectorDrafts.delete(draftKey).catch(() => {})
+      return
+    }
+    void localDb.collectorDrafts
+      .put({
+        id: draftKey,
+        userId,
+        inventoryId,
+        locationId,
+        locationCode,
+        updatedAt: new Date(),
+        items,
+      })
+      .catch(() => {})
+  }, [draftKey, draftLoaded, inventoryId, items, locationCode, locationId, userId])
 
   const getSystemQty = useCallback(
     (product: LocalProduct): number => {
@@ -216,7 +269,7 @@ export default function CollectorForm({
 
   const handleFinish = async () => {
     if (items.length === 0 || isSaving) return
-    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+    if (navigator.onLine && Date.now() >= new Date(sessionExpiresAt).getTime()) {
       toast.error("Sessão expirada. Conecte-se e entre novamente antes de salvar a coleta.")
       return
     }
@@ -230,20 +283,16 @@ export default function CollectorForm({
 
     try {
       if (localDb) {
-        await localDb.syncQueue.add({
-          operation: "SUBMIT_COLLECTION",
+        await queueOfflineOperation("SUBMIT_COLLECTION", payload, userId, {
           entityId: `${inventoryId}_${locationId}`,
-          userId,
-          payload,
-          status: "PENDING",
-          attempts: 0,
-          createdAt: new Date(),
+          dependsOnEntityId: inventoryId.startsWith("offline-") ? inventoryId : undefined,
         })
 
         setItems([])
-        toast.success("Coleta salva neste dispositivo. Sincronizaremos ao reconectar.")
-        if (navigator.onLine) {
-          window.dispatchEvent(new Event("cgstock:sync"))
+        toast.success("Coleta salva neste dispositivo. Sincronizaremos automaticamente.")
+        if (onBack && !navigator.onLine) {
+          onBack()
+        } else if (navigator.onLine) {
           router.push("/collector/sync")
         }
       } else {
