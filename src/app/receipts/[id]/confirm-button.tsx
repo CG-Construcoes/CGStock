@@ -4,8 +4,13 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, AlertCircle, Loader2 } from "lucide-react"
 import { confirmReceiptAction } from "../actions"
+import { queueOfflineOperation } from "@/lib/offline-sync"
+import { useSyncUserId } from "@/components/sync-provider"
+import { toast } from "sonner"
 
-export function ConfirmReceiptButton({ receiptId }: { receiptId: string }) {
+export function ConfirmReceiptButton({ receiptId, userId: propUserId }: { receiptId: string; userId?: string }) {
+  const syncUserId = useSyncUserId()
+  const userId = propUserId || syncUserId || ""
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -17,11 +22,29 @@ export function ConfirmReceiptButton({ receiptId }: { receiptId: string }) {
     setLoading(true)
     setError("")
 
+    if (!navigator.onLine && userId) {
+      try {
+        await queueOfflineOperation("CONFIRM_RECEIPT", { receiptId }, userId)
+        toast.success("Confirmação salva neste dispositivo! O estoque será sincronizado automaticamente ao reconectar.")
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao salvar confirmação offline.")
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     try {
       const formData = new FormData()
       formData.append("receiptId", receiptId)
       await confirmReceiptAction(formData)
     } catch (err) {
+      if (!navigator.onLine && userId) {
+        await queueOfflineOperation("CONFIRM_RECEIPT", { receiptId }, userId)
+        toast.success("Confirmação salva neste dispositivo! Sincronizaremos ao reconectar.")
+        setLoading(false)
+        return
+      }
       setError(err instanceof Error ? err.message : "Ocorreu um erro ao confirmar o recebimento.")
       setLoading(false)
     }

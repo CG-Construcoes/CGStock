@@ -65,13 +65,9 @@ export default function FulfillmentForm({ request, userId, sessionExpiresAt }: a
               }
 
               if (!navigator.onLine) {
-                if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
-                  toast.error('Sessão expirada. Conecte-se e entre novamente antes de atender a requisição.')
-                  return
-                }
                 try {
                   await queueOfflineOperation('FULFILL_REQUEST', { requestId: request.id, items }, userId)
-                  toast.success("Atendimento salvo neste dispositivo. Sincronizaremos ao reconectar.")
+                  toast.success("Atendimento salvo neste dispositivo. Sincronizaremos automaticamente ao reconectar.")
                   form.reset()
                 } catch (err) {
                   toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))

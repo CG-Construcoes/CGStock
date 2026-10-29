@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { getValidatedSession } from "@/lib/auth"
 import { hasPermission } from "@/lib/permissions"
 import { warehouseIdFilter } from "@/lib/dal"
+import { OFFLINE_MIN_TTL_MS } from "@/lib/offline-snapshot"
 
 export async function GET() {
   const session = await getValidatedSession()
@@ -39,9 +40,13 @@ export async function GET() {
     return NextResponse.json({ error: "Catálogo grande demais para preparar neste dispositivo. Contate o administrador." }, { status: 413 })
   }
 
+  const effectiveExpiresAt = new Date(
+    Math.max(new Date(session.expiresAt).getTime(), Date.now() + OFFLINE_MIN_TTL_MS)
+  )
+
   return NextResponse.json({
     userId: session.userId,
-    expiresAt: session.expiresAt,
+    expiresAt: effectiveExpiresAt,
     products: products.map((p: {
       id: string
       code: string

@@ -49,7 +49,7 @@ export function TransferForm({ warehouses, products, userId, sessionExpiresAt, e
       toast.error("Informe produto e quantidade inteira maior que zero em todos os itens.")
       return
     }
-    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+    if (navigator.onLine && Date.now() >= new Date(sessionExpiresAt).getTime()) {
       toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar a transferência.')
       return
     }

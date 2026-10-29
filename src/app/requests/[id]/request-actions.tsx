@@ -30,14 +30,10 @@ export function RequestActionButtons({
   const run = async (action: StatusAction, serverAction: () => Promise<void>, reason?: string) => {
     if (busy) return
     if (!navigator.onLine) {
-      if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
-        toast.error('Sessão expirada. Conecte-se e entre novamente para atualizar a requisição.')
-        return
-      }
       setBusy(action)
       try {
         await queueOfflineOperation('REQUEST_STATUS', { requestId, action, reason }, userId)
-        toast.success("Operação salva neste dispositivo. Será aplicada ao sincronizar.")
+        toast.success("Operação salva neste dispositivo. Será aplicada automaticamente ao sincronizar.")
       } catch (err) {
         toast.error("Erro ao salvar offline: " + (err instanceof Error ? err.message : "Erro desconhecido"))
       } finally {

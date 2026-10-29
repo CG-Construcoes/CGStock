@@ -15,8 +15,10 @@ const withPWA = withPWAInit({
   },
   workboxOptions: {
     disableDevLogs: true,
+    importScripts: ["/sw-offline-sync.js"],
     // Segurança: nunca cachear páginas HTML autenticadas nem chamadas de API
-    // no Service Worker. A entrada é avaliada antes das regras padrão do plugin.
+    // no precache estático do Service Worker. O controle de App Shell por sessão
+    // e Background Sync é feito em /sw-offline-sync.js (limpo no logout).
     runtimeCaching: [
       {
         urlPattern: ({ request }: { request: Request }) => request.destination === "document",

@@ -32,36 +32,80 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Dados de sincronização inválidos." }, { status: 400 })
     }
 
-    const qrToken = payload.qrToken
-    const rawItems = payload.items as { productCode?: unknown; quantity?: unknown }[]
+    const qrToken = payload.qrToken.trim()
+    const cleanDigits = qrToken.replace(/\D/g, "")
+    const withoutEmpPrefix = qrToken.replace(/^EMP-/i, "")
+    const rawItems = payload.items as { productCode?: unknown; productId?: unknown; quantity?: unknown }[]
     if (!rawItems.length || rawItems.length > MAX_ITEMS) {
       return NextResponse.json({ error: "Itens da entrega inválidos." }, { status: 400 })
     }
     const items = rawItems.map(i => ({
       productCode: typeof i?.productCode === 'string' ? i.productCode.trim() : '',
+      productId: typeof i?.productId === 'string' ? i.productId.trim() : '',
       quantity: Number(i?.quantity)
     }))
-    if (items.some(i => !i.productCode || !Number.isFinite(i.quantity) || i.quantity <= 0)) {
+    if (items.some(i => (!i.productCode && !i.productId) || !Number.isFinite(i.quantity) || i.quantity <= 0)) {
       return NextResponse.json({ error: "Itens da entrega inválidos." }, { status: 400 })
     }
 
-    // Resolver o funcionário pelo QR no servidor (mesmas regras do fluxo online)
-    const employee = await db.user.findUnique({
-      where: { qrToken },
-      include: { worksiteAccesses: { include: { worksite: true } } }
-    })
-    if (!employee || employee.status !== 'ACTIVE' || employee.qrStatus !== 'ACTIVE' || employee.worksiteAccesses.length === 0) {
+    // Resolver o funcionário pelo QR, matrícula, CPF, e-mail ou ID (mesmas regras do fluxo online)
+    const userRepo = db.user as unknown as {
+      findFirst?: typeof db.user.findFirst
+      findUnique: typeof db.user.findUnique
+    }
+    const employee = userRepo.findFirst
+      ? await userRepo.findFirst({
+          where: {
+            OR: [
+              ...(typeof payload.employeeId === 'string' && payload.employeeId ? [{ id: payload.employeeId }] : []),
+              { qrToken },
+              { qrToken: `EMP-${qrToken}` },
+              { employeeCode: qrToken },
+              { employeeCode: withoutEmpPrefix },
+              { email: qrToken },
+              { id: qrToken },
+              ...(cleanDigits.length >= 8 ? [{ document: cleanDigits }, { document: qrToken }] : []),
+            ]
+          },
+          include: { worksiteAccesses: { include: { worksite: true } } }
+        })
+      : await userRepo.findUnique({
+          where: { qrToken },
+          include: { worksiteAccesses: { include: { worksite: true } } }
+        })
+
+    if (!employee || employee.status !== 'ACTIVE' || (employee.qrToken === qrToken && employee.qrStatus !== 'ACTIVE') || employee.qrStatus === 'REVOKED') {
       return NextResponse.json({ error: "QR do funcionário não pôde ser validado. Revise manualmente." }, { status: 409 })
     }
-    const worksite = employee.worksiteAccesses[0].worksite
-    if (worksite.status !== 'ACTIVE') {
+
+    let worksite: { id: string; status: string } | null = employee.worksiteAccesses[0]?.worksite ?? null
+    if (!worksite && (db as unknown as { worksite?: typeof db.worksite }).worksite?.findFirst) {
+      worksite = await db.worksite.findFirst({
+        where: {
+          status: 'ACTIVE',
+          ...(typeof payload.worksiteId === 'string' && payload.worksiteId ? { id: payload.worksiteId } : {})
+        }
+      })
+    }
+    if (!worksite || worksite.status !== 'ACTIVE') {
       return NextResponse.json({ error: "Obra do funcionário está inativa. Revise manualmente." }, { status: 409 })
     }
+    const activeWorksite = worksite
 
     const scope = await warehouseScopeIds(session.userId)
-    const warehouse = await db.warehouse.findFirst({
-      where: { worksiteId: worksite.id, status: 'ACTIVE', id: { in: scope ?? undefined } }
+    const requestedWarehouseId = typeof payload.warehouseId === 'string' && payload.warehouseId ? payload.warehouseId : undefined
+    let warehouse = await db.warehouse.findFirst({
+      where: {
+        ...(requestedWarehouseId ? { id: requestedWarehouseId } : { worksiteId: activeWorksite.id }),
+        status: 'ACTIVE',
+        id: { in: scope ?? undefined }
+      }
     })
+    if (!warehouse && requestedWarehouseId) {
+      warehouse = await db.warehouse.findFirst({
+        where: { worksiteId: activeWorksite.id, status: 'ACTIVE', id: { in: scope ?? undefined } }
+      })
+    }
     if (!warehouse) {
       return NextResponse.json({ error: "Nenhum almoxarifado acessível para esta obra. Revise manualmente." }, { status: 409 })
     }
@@ -71,18 +115,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sem acesso a este almoxarifado." }, { status: 403 })
     }
 
-    // Resolver produtos pelo código bipado (exato ou código de barras)
-    const codes = [...new Set(items.map(i => i.productCode))]
+    // Resolver produtos pelo código bipado (exato, código de barras ou ID)
+    const codes = [...new Set(items.map(i => i.productCode).filter(Boolean))]
+    const ids = [...new Set(items.map(i => i.productId).filter(Boolean))]
     const products = await db.product.findMany({
-      where: { status: 'ACTIVE', OR: [{ code: { in: codes } }, { barcode: { in: codes } }] },
+      where: {
+        status: 'ACTIVE',
+        OR: [
+          ...(codes.length ? [{ code: { in: codes } }, { barcode: { in: codes } }] : []),
+          ...(ids.length ? [{ id: { in: ids } }] : []),
+        ]
+      },
       select: { id: true, code: true, barcode: true }
     })
     const byCode = new Map<string, string>()
     for (const p of products) {
+      byCode.set(p.id, p.id)
       byCode.set(p.code, p.id)
-      if (p.barcode) byCode.set(p.barcode, p.id)
+      byCode.set(p.code.toLowerCase(), p.id)
+      if (p.barcode) {
+        byCode.set(p.barcode, p.id)
+        byCode.set(p.barcode.toLowerCase(), p.id)
+      }
     }
-    if (items.some(i => !byCode.has(i.productCode))) {
+    if (items.some(i => !(byCode.get(i.productId) || byCode.get(i.productCode) || byCode.get(i.productCode.toLowerCase())))) {
       return NextResponse.json({ error: "Um ou mais produtos não foram encontrados. Revise manualmente." }, { status: 409 })
     }
 
@@ -104,14 +160,14 @@ export async function POST(req: NextRequest) {
               issueNumber,
               operatorId: session.userId,
               recipientId: employee.id,
-              worksiteId: worksite.id,
+              worksiteId: activeWorksite.id,
               warehouseId: warehouse.id,
               status: 'COMPLETED',
               completedAt: new Date()
             }
           })
           for (const item of items) {
-            const productId = byCode.get(item.productCode)!
+            const productId = (byCode.get(item.productId) || byCode.get(item.productCode) || byCode.get(item.productCode.toLowerCase()))!
             const stocks = await tx.stock.findMany({
               where: { productId, warehouseId: warehouse.id, quantity: { gt: 0 } },
               orderBy: { quantity: 'desc' }
@@ -141,7 +197,7 @@ export async function POST(req: NextRequest) {
               }, tx)
               await tx.stockMovement.update({
                 where: { id: movement.id },
-                data: { recipientUserId: employee.id, worksiteId: worksite.id }
+                data: { recipientUserId: employee.id, worksiteId: activeWorksite.id }
               })
               remaining -= qtyToTake
             }

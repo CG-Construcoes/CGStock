@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
         if (result === 'replayed') return NextResponse.json({ success: true, alreadyProcessed: true })
         return NextResponse.json({ error: "Ajuste duplicado ou alterado. Revise antes de sincronizar." }, { status: 409 })
       }
+      if (error instanceof Error && /estoque insuficiente|saldo|não encontrad/i.test(error.message)) {
+        return NextResponse.json({ error: `${error.message}. Revise manualmente.` }, { status: 409 })
+      }
       throw error
     }
   } catch (err) {

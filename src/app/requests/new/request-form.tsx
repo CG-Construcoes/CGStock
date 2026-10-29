@@ -34,7 +34,7 @@ export default function RequestForm({ warehouses, products, userId, sessionExpir
       toast.error("A requisição deve ter pelo menos um item.")
       return
     }
-    if (Date.now() >= new Date(sessionExpiresAt).getTime()) {
+    if (navigator.onLine && Date.now() >= new Date(sessionExpiresAt).getTime()) {
       toast.error('Sessão expirada. Conecte-se e entre novamente antes de salvar a requisição.')
       return
     }
