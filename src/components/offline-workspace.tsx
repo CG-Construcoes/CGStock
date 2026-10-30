@@ -228,8 +228,8 @@ export function OfflineWorkspace({
         <ReceiptForm
           userId={userId}
           sessionExpiresAt={sessionExpiresIso}
-          suppliers={suppliers.map((s) => ({ id: s.id, name: s.name, document: s.document ?? null }))}
-          warehouses={warehouses.map((w) => ({ id: w.id, name: w.name }))}
+          suppliers={suppliers.map((s) => ({ id: s.id, name: s.name, document: s.document ?? null, source: s.source ?? null, erpCode: s.erpCode ?? null, category: s.category ?? null }))}
+          warehouses={warehouses.map((w) => ({ id: w.id, name: w.name, source: w.source ?? null }))}
           products={products.map((p) => ({ id: p.id, code: p.code, name: p.name, averageCost: p.averageCost ?? 0 }))}
           locations={locations.map((l) => ({ id: l.id, code: l.code, name: l.name, warehouseId: l.warehouseId }))}
           categories={(catalog?.categories ?? []).map((c) => ({ id: c.id, name: c.name }))}

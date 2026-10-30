@@ -16,3 +16,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - A API roda on-premises contra o SQL Server do Informakon **somente leitura** (SELECT/NOLOCK) e projeta no Postgres do CGStock. `SYNC_ENABLED=false` — sincronização manual via `POST /sync/run`.
 - Fontes: `MGA@CGSRV2023/dbTREINO_MGA` e `CV@CGSRV2023/dbTREINO_CV`. Almoxarifados visíveis controlados por `SYNC_ALMOX_INCLUDE` em `qweb-api/.env`.
 - Migrações Prisma ligadas à integração (ex.: `Stock.unitValue`) ficam neste repo como migrations aditivas, mas só devem ir a produção quando a API estiver alimentando-as.
+
+# Regras de trabalho do usuário
+
+- **Pedido explícito do usuário:** antes de implementar qualquer feature nova, SEMPRE avaliar e confirmar com ele se a feature tem alguma relação/dependência com a `qweb-api`. Se não tiver, seguir 100% dentro do CGStock; se tiver, avisar antes de codar.
+- **Tudo vai direto para produção.** Qualquer alteração de banco (schema, migration, update/insert de dados, seed) deve ser comunicada claramente antes/ao executar.
+- Exemplo já entregue: a separação de fornecedores/almoxarifados por empresa (MGA/CV) e a importação da planilha "CADASTRO FORNECEDOR" são **features exclusivas do CGStock** — upload manual de `.xlsx` na tela admin, sem nenhuma dependência da `qweb-api`.

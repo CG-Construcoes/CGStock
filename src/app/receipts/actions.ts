@@ -8,12 +8,83 @@ import { requireActionPermission } from "@/lib/action-guard"
 import { assertWarehouseAccess } from "@/lib/dal"
 import { pushMovimentoAoInformakon } from "@/lib/informakon"
 
+const UNCATEGORIZED = "__sem_categoria__"
+
+async function resolveWarehouseSource(warehouseId: string | null | undefined) {
+  if (!warehouseId) return null
+  const wh = await db.warehouse.findUnique({ where: { id: warehouseId }, select: { source: true } })
+  return wh?.source ?? null
+}
+
+/** Categorias de fornecedor com contagem, filtradas pela empresa (MGA/CV) do almoxarifado */
+export async function listSupplierCategoriesAction(warehouseId: string | null) {
+  await requireActionPermission('STOCK_ENTRY')
+  const source = await resolveWarehouseSource(warehouseId)
+
+  const grouped = await db.supplier.groupBy({
+    by: ['category'],
+    where: { status: 'ACTIVE', source: source ?? undefined },
+    _count: { _all: true },
+  })
+
+  return grouped
+    .map((g) => ({
+      key: g.category?.trim() || UNCATEGORIZED,
+      label: g.category?.trim() || "Sem categoria",
+      count: g._count._all,
+    }))
+    .sort((a, b) => {
+      if (a.key === UNCATEGORIZED) return 1
+      if (b.key === UNCATEGORIZED) return -1
+      return a.label.localeCompare(b.label, "pt-BR")
+    })
+}
+
+/** Busca fornecedores sob demanda (nome, código ERP ou CNPJ/CPF), filtrados pela empresa do almoxarifado */
+export async function searchSuppliersAction(params: {
+  warehouseId?: string | null
+  category?: string | null
+  search?: string
+}) {
+  await requireActionPermission('STOCK_ENTRY')
+  const source = await resolveWarehouseSource(params.warehouseId)
+  const search = params.search?.trim()
+
+  return db.supplier.findMany({
+    where: {
+      status: 'ACTIVE',
+      source: source ?? undefined,
+      category: params.category === UNCATEGORIZED ? null : params.category ?? undefined,
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { erpCode: { contains: search, mode: 'insensitive' as const } },
+          { document: { contains: search } },
+        ],
+      } : {}),
+    },
+    select: { id: true, name: true, document: true, source: true, erpCode: true, category: true },
+    orderBy: [{ registeredAt: { sort: 'desc', nulls: 'last' } }, { name: 'asc' }],
+    take: 80,
+  })
+}
+
 export async function createReceiptAction(formData: FormData) {
   const session = await requireActionPermission('STOCK_ENTRY')
 
   const supplierId = formData.get("supplierId") as string
   const warehouseId = formData.get("warehouseId") as string
   await assertWarehouseAccess(warehouseId, session.userId)
+
+  // Fornecedor precisa pertencer à empresa do almoxarifado (MGA ou CV) — ou não ter vínculo
+  const [whSource, supSource] = await Promise.all([
+    db.warehouse.findUnique({ where: { id: warehouseId }, select: { source: true } }),
+    db.supplier.findUnique({ where: { id: supplierId }, select: { source: true } }),
+  ])
+  if (whSource?.source && supSource?.source && whSource.source !== supSource.source) {
+    return { success: false, error: "supplier_wrong_company" }
+  }
+
   const documentNumber = formData.get("documentNumber") as string || null
   const documentDateStr = formData.get("documentDate") as string || null
   

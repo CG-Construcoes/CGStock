@@ -20,13 +20,18 @@ export async function createSupplierAction(formData: FormData) {
   const state = formData.get("state") as string || null
   const zipCode = formData.get("zipCode") as string || null
   const notes = formData.get("notes") as string || null
+  const sourceRaw = (formData.get("source") as string)?.trim().toUpperCase()
+  const source = sourceRaw === "MGA" || sourceRaw === "CV" ? sourceRaw : null
+  const erpCode = (formData.get("erpCode") as string)?.trim() || null
+  const category = (formData.get("category") as string)?.trim() || null
 
   if (!name) {
     redirect("/suppliers/new?error=missing_fields")
   }
 
   if (document) {
-    const existing = await db.supplier.findUnique({ where: { document } })
+    // O mesmo CNPJ/CPF pode existir em MGA e CV — só bloqueia duplicado na mesma empresa
+    const existing = await db.supplier.findFirst({ where: { document, source } })
     if (existing) {
       redirect("/suppliers/new?error=duplicate_document")
     }
@@ -44,7 +49,11 @@ export async function createSupplierAction(formData: FormData) {
         city,
         state,
         zipCode,
-        notes
+        notes,
+        source,
+        erpCode,
+        category,
+        informakonKey: source && erpCode ? `${source}:${erpCode}` : null,
       }
     })
   } catch (error) {

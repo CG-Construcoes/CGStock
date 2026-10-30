@@ -1,15 +1,16 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { SupplierSelect, type SupplierSelectOption } from "@/components/ui/supplier-select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Save, Plus, Trash2, CheckCircle, Loader2, FileUp, PackagePlus, Link2 } from "lucide-react"
 import Link from "next/link"
 import * as XLSX from "xlsx"
-import { createReceiptAction } from "../actions"
+import { createReceiptAction, listSupplierCategoriesAction, searchSuppliersAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, cn } from "@/lib/utils"
@@ -36,8 +37,9 @@ type ProductOption = { id: string; code: string; name: string; averageCost: unkn
 type ReceiptFormProps = {
   userId: string
   sessionExpiresAt: string
-  suppliers: { id: string; name: string; document: string | null }[]
-  warehouses: { id: string; name: string }[]
+  /** Catálogo local de fornecedores (modo offline). Online, a busca é feita no servidor sob demanda. */
+  suppliers?: SupplierSelectOption[]
+  warehouses: { id: string; name: string; source: string | null }[]
   products: ProductOption[]
   locations: { id: string; code: string; name: string; warehouseId: string }[]
   categories: { id: string; name: string }[]
@@ -48,6 +50,7 @@ type ReceiptFormProps = {
 export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, warehouses, products, locations, categories, units, canCreateProduct }: ReceiptFormProps) {
   const router = useRouter()
   const [warehouseId, setWarehouseId] = useState("")
+  const [supplierId, setSupplierId] = useState("")
   const [items, setItems] = useState<ItemData[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submittingAction, setSubmittingAction] = useState<"DRAFT" | "COMPLETED" | null>(null)
@@ -62,6 +65,28 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
   const pendingCount = items.filter((i) => i.pending && !i.productId).length
 
   const filteredLocations = warehouseId ? locations.filter((l) => l.warehouseId === warehouseId) : []
+  const selectedWarehouse = warehouseId ? warehouses.find((w) => w.id === warehouseId) : undefined
+  // Último fornecedor escolhido (guarda a empresa para validar troca de almoxarifado)
+  const [selectedSupplier, setSelectedSupplier] = useState<SupplierSelectOption | null>(null)
+  const hasLocalCatalog = suppliers !== undefined
+  // Fornecedores seguem a empresa do almoxarifado: MGA só vê MGA, CV só vê CV.
+  // Fornecedores sem empresa definida aparecem em qualquer almoxarifado.
+  const filteredSuppliers = !hasLocalCatalog
+    ? undefined
+    : selectedWarehouse?.source
+      ? suppliers.filter((s) => !s.source || s.source === selectedWarehouse.source)
+      : suppliers
+
+  // Online: categorias e fornecedores são buscados no servidor sob demanda (catálogo tem ~19 mil itens)
+  const loadSupplierCategories = useCallback(
+    () => listSupplierCategoriesAction(warehouseId || null),
+    [warehouseId]
+  )
+  const loadSuppliers = useCallback(
+    (params: { search?: string; category?: string | null }) =>
+      searchSuppliersAction({ warehouseId: warehouseId || null, ...params }),
+    [warehouseId]
+  )
 
   const defaultLocationId = () => {
     if (filteredLocations.length === 0) return ""
@@ -279,6 +304,7 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
           missing_fields: "Preencha todos os campos obrigatórios.",
           no_valid_items: "Nenhum item válido para o recebimento.",
           invalid_location: "Localização informada inválida para o almoxarifado selecionado.",
+          supplier_wrong_company: "Este fornecedor é de outra empresa (MGA/CV) e não pode ser usado neste almoxarifado.",
           create_failed: "Erro ao registrar o recebimento no banco de dados.",
           forbidden: "Você não tem permissão para esta ação."
         }
@@ -313,24 +339,45 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Fornecedor *</label>
-                  <Select name="supplierId" required>
-                    <option value="">Selecione...</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} {s.document ? `(${s.document})` : ''}</option>
-                    ))}
-                  </Select>
+                  <SupplierSelect
+                    key={selectedWarehouse?.source ?? "all"}
+                    name="supplierId"
+                    required
+                    value={supplierId}
+                    onChange={setSupplierId}
+                    onSelectOption={setSelectedSupplier}
+                    placeholder={selectedWarehouse?.source ? `Fornecedores ${selectedWarehouse.source}...` : "Selecione o fornecedor..."}
+                    suppliers={filteredSuppliers}
+                    loadCategories={hasLocalCatalog ? undefined : loadSupplierCategories}
+                    loadSuppliers={hasLocalCatalog ? undefined : loadSuppliers}
+                  />
+                  {selectedWarehouse?.source && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Mostrando apenas fornecedores da empresa {selectedWarehouse.source}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Almoxarifado Destino *</label>
-                  <Select 
-                    name="warehouseId" 
-                    required 
-                    value={warehouseId} 
-                    onChange={e => setWarehouseId(e.target.value)}
+                  <Select
+                    name="warehouseId"
+                    required
+                    value={warehouseId}
+                    onChange={e => {
+                      const nextId = e.target.value
+                      setWarehouseId(nextId)
+                      // Se o fornecedor escolhido não pertence à empresa do novo almoxarifado, limpa a seleção
+                      const nextSource = warehouses.find((w) => w.id === nextId)?.source
+                      if (supplierId && nextSource && selectedSupplier?.source && selectedSupplier.source !== nextSource) {
+                        setSupplierId("")
+                        setSelectedSupplier(null)
+                        toast.info(`Fornecedor removido — o almoxarifado ${warehouses.find((w) => w.id === nextId)?.name} só aceita fornecedores ${nextSource}.`)
+                      }
+                    }}
                   >
                     <option value="">Selecione...</option>
                     {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>{w.name}</option>
+                      <option key={w.id} value={w.id}>{w.name}{w.source ? ` (${w.source})` : ""}</option>
                     ))}
                   </Select>
                 </div>

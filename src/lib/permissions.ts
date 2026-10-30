@@ -9,7 +9,7 @@ export type PermissionKey =
   | 'INVENTORY_CREATE' | 'INVENTORY_COUNT' | 'INVENTORY_REVIEW' | 'INVENTORY_APPROVE'
   | 'REPORT_VIEW' | 'REPORT_EXPORT'
   | 'USER_VIEW' | 'USER_MANAGE'
-  | 'CONFIG_MANAGE' | 'AUDIT_VIEW'
+  | 'CONFIG_MANAGE' | 'AUDIT_VIEW' | 'LOCATION_CREATE'
 
 export async function hasPermission(permissionKey: PermissionKey): Promise<boolean> {
   const session = await getValidatedSession()

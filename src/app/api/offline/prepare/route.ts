@@ -15,7 +15,7 @@ const LIMITS = {
   units: 500,
   warehouses: 500,
   locations: 5000,
-  suppliers: 500,
+  suppliers: 20000,
   stock: 20000,
   requests: 200,
   employees: 2000,
@@ -77,7 +77,7 @@ export async function GET() {
       }),
       db.warehouse.findMany({
         where: { status: 'ACTIVE', ...(scopeIds ? { id: { in: scopeIds } } : {}) },
-        select: { id: true, code: true, name: true, worksiteId: true, description: true, status: true },
+        select: { id: true, code: true, name: true, worksiteId: true, description: true, status: true, source: true },
         take: LIMITS.warehouses + 1
       }),
       db.warehouseLocation.findMany({
@@ -87,7 +87,7 @@ export async function GET() {
       }),
       db.supplier.findMany({
         where: { status: 'ACTIVE' },
-        select: { id: true, name: true, document: true, status: true },
+        select: { id: true, name: true, document: true, status: true, source: true, erpCode: true, category: true },
         take: LIMITS.suppliers + 1
       }),
       dbAny.productCategory?.findMany

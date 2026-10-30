@@ -6,9 +6,20 @@ import Link from "next/link"
 import { createSupplierAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
 import { requirePermissionPage } from "@/lib/permissions"
+import { db } from "@/lib/db"
+import { requirePageUser, resolveWarehouseContext } from "@/lib/dal"
 
 export default async function NewSupplierPage() {
   await requirePermissionPage('STOCK_ENTRY')
+  const user = await requirePageUser()
+  const { warehouses, selectedWarehouseId } = await resolveWarehouseContext(undefined, user.session.userId)
+  const activeSource = warehouses.find((w) => w.id === selectedWarehouseId)?.source || ""
+  const categories = (await db.supplier.findMany({
+    where: { category: { not: null } },
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  })).map((c) => c.category!).filter(Boolean)
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center gap-4">
@@ -36,6 +47,27 @@ export default async function NewSupplierPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">CPF / CNPJ</label>
                   <Input name="document" placeholder="Apenas números" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Empresa (ERP)</label>
+                  <select
+                    name="source"
+                    defaultValue={activeSource}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">Sem vínculo</option>
+                    <option value="MGA">MGA — CG Construções</option>
+                    <option value="CV">CV — Conceito</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Categoria</label>
+                  <Input name="category" list="supplier-categories" placeholder="Ex: Fornecedores de Materiais" />
+                  <datalist id="supplier-categories">
+                    {categories.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             </div>

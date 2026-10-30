@@ -9,7 +9,7 @@ import { assertWarehouseAccess } from "@/lib/dal"
 export async function createLocationAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
-  await requirePermission('CONFIG_MANAGE')
+  await requirePermission('LOCATION_CREATE')
 
   const warehouseId = formData.get("warehouseId") as string
   await assertWarehouseAccess(warehouseId, session.userId)

@@ -15,7 +15,7 @@ export default async function NewLocationPage({
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
-  await requirePermissionPage('CONFIG_MANAGE')
+  await requirePermissionPage('LOCATION_CREATE')
   const resolvedSearchParams = await searchParams;
   const scope = await warehouseScopeIds()
   const warehouses = await db.warehouse.findMany({ where: { status: 'ACTIVE', id: { in: scope ?? undefined } } })

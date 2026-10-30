@@ -14,14 +14,16 @@ export async function createWarehouseAction(formData: FormData) {
   const code = (formData.get("code") as string)?.trim().toUpperCase()
   const description = (formData.get("description") as string)?.trim() || null
   const status = (formData.get("status") as string) || "ACTIVE"
-  
+  const sourceRaw = (formData.get("source") as string)?.trim().toUpperCase()
+  const source = sourceRaw === "MGA" || sourceRaw === "CV" ? sourceRaw : null
+
   const createInitialLocation = formData.get("createInitialLocation") === "true" || formData.get("createInitialLocation") === "on"
   const initialLocationCode = (formData.get("initialLocationCode") as string)?.trim().toUpperCase()
   const initialLocationName = (formData.get("initialLocationName") as string)?.trim() || "Estoque Geral"
 
   await db.$transaction(async (tx) => {
     const wh = await tx.warehouse.create({
-      data: { name, code, description, status }
+      data: { name, code, description, status, source }
     })
 
     if (createInitialLocation) {
@@ -61,13 +63,15 @@ export async function updateWarehouseAction(formData: FormData) {
   const code = (formData.get("code") as string)?.trim().toUpperCase()
   const description = (formData.get("description") as string)?.trim() || null
   const status = formData.get("status") as string
+  const sourceRaw = (formData.get("source") as string)?.trim().toUpperCase()
+  const source = sourceRaw === "MGA" || sourceRaw === "CV" ? sourceRaw : null
 
   await db.warehouse.update({
     where: { id },
-    data: { name, code, description, status }
+    data: { name, code, description, status, source }
   })
 
-  await logAudit('UPDATE', 'Warehouse', id, { name, code, status }, session.userId)
+  await logAudit('UPDATE', 'Warehouse', id, { name, code, status, source }, session.userId)
 
   revalidatePath("/admin/warehouses")
   revalidatePath("/warehouses")
@@ -626,9 +630,9 @@ export async function addLocationToWarehouseAction(data: {
 }) {
   let session
   try {
-    session = await requireActionPermission('CONFIG_MANAGE')
+    session = await requireActionPermission('LOCATION_CREATE')
   } catch (err: any) {
-    return { error: err?.message || "Sem permissão para gerenciar localizações." }
+    return { error: err?.message || "Sem permissão para criar localizações." }
   }
 
   const warehouseId = data.warehouseId
@@ -669,9 +673,9 @@ export async function addLocationToWarehouseAction(data: {
 export async function createDefaultWarehouseLocationAction(warehouseId: string) {
   let session
   try {
-    session = await requireActionPermission('CONFIG_MANAGE')
+    session = await requireActionPermission('LOCATION_CREATE')
   } catch (err: any) {
-    return { error: err?.message || "Sem permissão para gerenciar localizações." }
+    return { error: err?.message || "Sem permissão para criar localizações." }
   }
 
   await assertWarehouseAccess(warehouseId, session.userId)

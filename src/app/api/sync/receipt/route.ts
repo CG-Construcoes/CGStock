@@ -35,6 +35,16 @@ export async function POST(req: NextRequest) {
     } catch {
       return NextResponse.json({ error: "Sem acesso a este almoxarifado." }, { status: 403 })
     }
+    // Fornecedor precisa pertencer à empresa do almoxarifado (MGA ou CV) — ou não ter vínculo
+    const [whSource, supSource] = await Promise.all([
+      db.warehouse.findUnique({ where: { id: warehouseId }, select: { source: true } }),
+      typeof supplierId === 'string' && supplierId
+        ? db.supplier.findUnique({ where: { id: supplierId }, select: { source: true } })
+        : Promise.resolve(null),
+    ])
+    if (whSource?.source && supSource?.source && whSource.source !== supSource.source) {
+      return NextResponse.json({ error: "Fornecedor pertence a outra empresa (MGA/CV) e não pode ser usado neste almoxarifado." }, { status: 400 })
+    }
     if (!isSyncKey(idempotencyKey) || !Array.isArray(payload.items)) {
       return NextResponse.json({ error: "Dados de sincronização inválidos." }, { status: 400 })
     }

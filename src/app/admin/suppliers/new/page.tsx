@@ -6,9 +6,16 @@ import { BackButton } from "@/components/ui/back-button"
 import { Save } from "lucide-react"
 import { createSupplierAction } from "../actions"
 import { requirePermissionPage } from "@/lib/permissions"
+import { db } from "@/lib/db"
 
 export default async function NewSupplierPage() {
   await requirePermissionPage('CONFIG_MANAGE')
+  const categories = (await db.supplier.findMany({
+    where: { category: { not: null } },
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  })).map((c) => c.category!).filter(Boolean)
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       <div className="flex items-center gap-4">
@@ -43,6 +50,34 @@ export default async function NewSupplierPage() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
                 <Input id="phone" name="phone" placeholder="Ex: (11) 99999-9999" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="source">Empresa (ERP)</Label>
+                <select
+                  id="source"
+                  name="source"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Sem vínculo</option>
+                  <option value="MGA">MGA — CG Construções</option>
+                  <option value="CV">CV — Conceito</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="erpCode">Código no Informakon</Label>
+                <Input id="erpCode" name="erpCode" placeholder="Ex: 015362" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Categoria</Label>
+                <Input id="category" name="category" list="supplier-categories" placeholder="Ex: Fornecedores de Materiais" />
+                <datalist id="supplier-categories">
+                  {categories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

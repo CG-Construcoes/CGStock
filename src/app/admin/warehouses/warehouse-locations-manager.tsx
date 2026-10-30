@@ -42,6 +42,7 @@ interface WarehouseLocationsManagerProps {
   warehouseName: string
   warehouseCode: string
   locations: LocationItem[]
+  canCreate?: boolean
 }
 
 export function WarehouseLocationsManager({
@@ -49,6 +50,7 @@ export function WarehouseLocationsManager({
   warehouseName,
   warehouseCode,
   locations,
+  canCreate = true,
 }: WarehouseLocationsManagerProps) {
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -129,44 +131,46 @@ export function WarehouseLocationsManager({
           </CardDescription>
         </div>
 
-        <div className="flex items-center gap-2">
-          {locations.length === 0 && (
+        {canCreate && (
+          <div className="flex items-center gap-2">
+            {locations.length === 0 && (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={handleCreateDefault}
+                disabled={isCreatingDefault}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm"
+              >
+                {isCreatingDefault ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Criando...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    Criar Local Padrão
+                  </>
+                )}
+              </Button>
+            )}
+
             <Button
               type="button"
-              variant="default"
+              variant="outline"
               size="sm"
-              onClick={handleCreateDefault}
-              disabled={isCreatingDefault}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm"
+              onClick={() => {
+                setCode(`${warehouseCode}-`)
+                setIsModalOpen(true)
+              }}
+              className="flex items-center gap-1.5"
             >
-              {isCreatingDefault ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Criando...
-                </>
-              ) : (
-                <>
-                  <Zap className="h-4 w-4" />
-                  Criar Local Padrão
-                </>
-              )}
+              <Plus className="h-4 w-4" />
+              Nova Localização
             </Button>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setCode(`${warehouseCode}-`)
-              setIsModalOpen(true)
-            }}
-            className="flex items-center gap-1.5"
-          >
-            <Plus className="h-4 w-4" />
-            Nova Localização
-          </Button>
-        </div>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="pt-6 space-y-4">
@@ -184,25 +188,27 @@ export function WarehouseLocationsManager({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleCreateDefault}
-                disabled={isCreatingDefault}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-xs font-semibold"
-              >
-                {isCreatingDefault ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-                Criar Localização Geral Padrão Agora
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                (Irá gerar automaticamente o código <code>{warehouseCode}-GERAL</code> com o nome &ldquo;Estoque Geral&rdquo;)
-              </span>
-            </div>
+            {canCreate && (
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateDefault}
+                  disabled={isCreatingDefault}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 text-xs font-semibold"
+                >
+                  {isCreatingDefault ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  Criar Localização Geral Padrão Agora
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  (Irá gerar automaticamente o código <code>{warehouseCode}-GERAL</code> com o nome &ldquo;Estoque Geral&rdquo;)
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">

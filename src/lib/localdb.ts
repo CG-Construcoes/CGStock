@@ -84,6 +84,7 @@ export interface LocalWarehouse {
   worksiteId?: string | null;
   description?: string | null;
   status?: string;
+  source?: string | null;
 }
 
 export interface LocalWarehouseLocation {
@@ -100,6 +101,9 @@ export interface LocalSupplier {
   name: string;
   document?: string | null;
   status?: string;
+  source?: string | null;
+  erpCode?: string | null;
+  category?: string | null;
 }
 
 export interface LocalWorksite {

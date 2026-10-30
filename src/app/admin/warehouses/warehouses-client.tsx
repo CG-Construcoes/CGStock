@@ -15,6 +15,7 @@ interface WarehouseItem {
   code: string
   description: string | null
   status: string
+  source: string | null
   _count: {
     locations: number
     stocks: number
@@ -100,6 +101,15 @@ export function WarehousesClient({ warehouses }: { warehouses: WarehouseItem[] }
                 <p className="text-xs font-mono font-medium text-muted-foreground mb-2 px-2 py-0.5 bg-muted rounded-md mt-1">
                   {warehouse.code}
                 </p>
+                {warehouse.source && (
+                  <Badge
+                    variant={warehouse.source === "MGA" ? "default" : "secondary"}
+                    className="text-[10px] mb-2"
+                    title={warehouse.source === "MGA" ? "Empresa CG Construções" : "Empresa Conceito"}
+                  >
+                    {warehouse.source}
+                  </Badge>
+                )}
                 <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
                   {warehouse.description || "Sem descrição"}
                 </p>

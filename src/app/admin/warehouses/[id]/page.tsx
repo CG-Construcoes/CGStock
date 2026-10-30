@@ -10,10 +10,11 @@ import { notFound } from "next/navigation"
 import { updateWarehouseAction } from "../actions"
 import { WarehouseDeleteDialog } from "../warehouse-delete-dialog"
 import { WarehouseLocationsManager } from "../warehouse-locations-manager"
-import { requirePermissionPage } from "@/lib/permissions"
+import { requirePermissionPage, hasPermission } from "@/lib/permissions"
 
 export default async function EditWarehousePage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('CONFIG_MANAGE')
+  const canCreateLocation = await hasPermission('LOCATION_CREATE')
   const { id } = await params
   
   const scope = await warehouseScopeIds()
@@ -71,6 +72,23 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="source">Empresa (ERP)</Label>
+              <select
+                id="source"
+                name="source"
+                defaultValue={warehouse.source || ""}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="MGA">MGA — CG Construções</option>
+                <option value="CV">CV — Conceito</option>
+                <option value="">Sem vínculo</option>
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                Define qual base de fornecedores aparece nas entradas deste almoxarifado.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="description">Descrição (Opcional)</Label>
               <Input id="description" name="description" defaultValue={warehouse.description || ""} />
             </div>
@@ -105,6 +123,7 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
         warehouseName={warehouse.name}
         warehouseCode={warehouse.code}
         locations={warehouse.locations}
+        canCreate={canCreateLocation}
       />
     </div>
   )

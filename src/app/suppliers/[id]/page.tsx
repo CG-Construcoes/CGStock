@@ -3,7 +3,7 @@ import { warehouseIdFilter } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {  Mail, Phone, MapPin, FileText } from "lucide-react"
+import {  Mail, Phone, MapPin, FileText, Tag, Hash, CalendarDays } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BackButton } from "@/components/ui/back-button"
 import { formatCurrency } from "@/lib/utils"
@@ -36,9 +36,16 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             {supplier.tradeName && <p className="text-muted-foreground">{supplier.tradeName}</p>}
           </div>
         </div>
-        <Badge variant={supplier.status === 'ACTIVE' ? 'success' : 'secondary'}>
-          {supplier.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {supplier.source && (
+            <Badge variant={supplier.source === 'MGA' ? 'default' : 'secondary'}>
+              {supplier.source}
+            </Badge>
+          )}
+          <Badge variant={supplier.status === 'ACTIVE' ? 'success' : 'secondary'}>
+            {supplier.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -47,6 +54,24 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             <CardTitle className="text-lg">Informações de Contato</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {supplier.category && (
+              <div className="flex items-center gap-3 text-sm">
+                <Tag className="h-4 w-4 text-muted-foreground" />
+                <span>{supplier.category}</span>
+              </div>
+            )}
+            {supplier.erpCode && (
+              <div className="flex items-center gap-3 text-sm">
+                <Hash className="h-4 w-4 text-muted-foreground" />
+                <span>Código Informakon: {supplier.erpCode}</span>
+              </div>
+            )}
+            {supplier.registeredAt && (
+              <div className="flex items-center gap-3 text-sm">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <span>Cadastrado em {new Date(supplier.registeredAt).toLocaleDateString('pt-BR')}</span>
+              </div>
+            )}
             {supplier.document && (
               <div className="flex items-center gap-3 text-sm">
                 <FileText className="h-4 w-4 text-muted-foreground" />

@@ -7,13 +7,14 @@ import { db } from "@/lib/db"
 import { resolveWarehouseContext } from "@/lib/dal"
 import { SearchInput } from "@/components/ui/search-input"
 import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
-import { requirePermissionPage } from "@/lib/permissions"
+import { requirePermissionPage, hasPermission } from "@/lib/permissions"
 import { Suspense } from "react"
 
 export default async function LocationsPage(props: {
   searchParams?: Promise<{ q?: string; warehouseId?: string }>
 }) {
   await requirePermissionPage('CONFIG_MANAGE')
+  const canCreateLocation = await hasPermission('LOCATION_CREATE')
   const resolvedParams = props?.searchParams ? await props.searchParams : {}
   const q = resolvedParams.q || ''
   const { warehouses, selectedWarehouseId, warehouseWhere } = await resolveWarehouseContext(resolvedParams.warehouseId)
@@ -39,12 +40,14 @@ export default async function LocationsPage(props: {
           <h2 className="text-2xl font-bold tracking-tight">Localizações</h2>
           <p className="text-muted-foreground">Estruture fisicamente o almoxarifado em setores, corredores e prateleiras.</p>
         </div>
-        <Link href="/locations/new">
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Local
-          </Button>
-        </Link>
+        {canCreateLocation && (
+          <Link href="/locations/new">
+            <Button className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Local
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 bg-card p-4 rounded-md border border-border shadow-sm">

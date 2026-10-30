@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   locationCount: vi.fn(),
   stockMovement: vi.fn(),
+  warehouseFindUnique: vi.fn(),
+  supplierFindUnique: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ getValidatedSession: vi.fn().mockResolvedValue({ userId: "user-1", roles: ["ADMIN"] }) }))
@@ -18,6 +20,8 @@ vi.mock("@/lib/audit", () => ({ logAudit: vi.fn() }))
 vi.mock("@/lib/db", () => ({ db: {
   offlineSyncOperation: { findUnique: mocks.findUnique },
   warehouseLocation: { count: mocks.locationCount },
+  warehouse: { findUnique: mocks.warehouseFindUnique },
+  supplier: { findUnique: mocks.supplierFindUnique },
   $transaction: mocks.transaction
 } }))
 
@@ -35,6 +39,8 @@ function request(data = payload, key = "operation-123") {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.findUnique.mockResolvedValue(null)
+  mocks.warehouseFindUnique.mockResolvedValue({ source: "MGA" })
+  mocks.supplierFindUnique.mockResolvedValue({ source: "MGA" })
   mocks.locationCount.mockResolvedValue(1)
   mocks.operationCreate.mockResolvedValue({ id: "ledger-1" })
   mocks.receiptCreate.mockResolvedValue({

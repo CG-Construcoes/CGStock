@@ -168,6 +168,7 @@ model Warehouse {
   description          String?
   status               String              @default("ACTIVE")
   informakonKey        String?             @unique
+  source               String?             // Empresa/ERP dona do almoxarifado: "MGA" (CG) ou "CV" (Conceito)
   
   worksiteId           String?
   worksite             Worksite?           @relation(fields: [worksiteId], references: [id])
@@ -276,7 +277,7 @@ model Supplier {
   id        String         @id @default(uuid())
   name      String
   tradeName String?
-  document  String?        @unique
+  document  String?
   email     String?
   phone     String?
   address   String?
@@ -286,9 +287,18 @@ model Supplier {
   notes     String?
   status    String         @default("ACTIVE")
   informakonKey String?    @unique
+  source    String?        // Empresa/ERP dona do cadastro: "MGA" (CG) ou "CV" (Conceito)
+  erpCode   String?        // Código do fornecedor no Informakon
+  category  String?        // Espécie de credor (categoria do fornecedor)
+  registeredAt DateTime?   // Data de cadastro no ERP (para ordenar do mais novo ao mais antigo)
   receipts  StockReceipt[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
+
+  @@unique([source, erpCode])
+  @@index([source])
+  @@index([category])
+  @@index([document])
 }
 
 model OfflineSyncOperation {

@@ -181,6 +181,7 @@ export type AccessibleWarehouse = {
   id: string
   name: string
   code: string
+  source: string | null
 }
 
 /**
@@ -201,7 +202,7 @@ export const getAccessibleWarehouses = cache(async (userId?: string): Promise<Ac
   if (scope === ALL_WAREHOUSES) {
     list = await db.warehouse.findMany({
       where: { status: "ACTIVE" },
-      select: { id: true, name: true, code: true },
+      select: { id: true, name: true, code: true, source: true },
       orderBy: { name: "asc" },
     })
   } else if (scope.length === 0) {
@@ -209,7 +210,7 @@ export const getAccessibleWarehouses = cache(async (userId?: string): Promise<Ac
   } else {
     list = await db.warehouse.findMany({
       where: { status: "ACTIVE", id: { in: scope } },
-      select: { id: true, name: true, code: true },
+      select: { id: true, name: true, code: true, source: true },
       orderBy: { name: "asc" },
     })
   }
