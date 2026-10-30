@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
 import { togglePermission } from "./actions"
@@ -24,16 +25,27 @@ interface PermissionsTableProps {
 }
 
 export function PermissionsTable({ roles, permissions }: PermissionsTableProps) {
+  const router = useRouter()
   const [loadingMap, setLoadingMap] = useState<Record<string, boolean>>({})
+  // Estado otimista: reflete o clique imediatamente até o servidor re-renderizar a matriz
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
 
   const handleToggle = async (roleId: string, permissionId: string, checked: boolean) => {
     const key = `${roleId}-${permissionId}`
     setLoadingMap(prev => ({ ...prev, [key]: true }))
-    
+    setOverrides(prev => ({ ...prev, [key]: checked }))
+
     try {
       await togglePermission(roleId, permissionId, checked)
       toast.success(checked ? "Permissão concedida" : "Permissão removida")
+      router.refresh()
     } catch (error) {
+      // Reverte o estado otimista em caso de erro
+      setOverrides(prev => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
       toast.error(error instanceof Error ? error.message : "Erro ao atualizar permissão")
     } finally {
       setLoadingMap(prev => ({ ...prev, [key]: false }))
@@ -64,11 +76,12 @@ export function PermissionsTable({ roles, permissions }: PermissionsTableProps) 
                   const isAdmin = role.name === 'ADMIN'
                   const key = `${role.id}-${permission.id}`
                   const isLoading = loadingMap[key]
+                  const isChecked = isAdmin || (overrides[key] ?? hasPerm)
 
                   return (
                     <TableCell key={key} className="text-center">
-                      <Switch 
-                        checked={isAdmin || hasPerm} 
+                      <Switch
+                        checked={isChecked}
                         disabled={isAdmin || isLoading}
                         onChange={(e) => handleToggle(role.id, permission.id, e.target.checked)}
                         aria-label={`Permissão ${permission.key} para ${role.name}`}
