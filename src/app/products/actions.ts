@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
 import { requirePermission } from "@/lib/permissions"
 import { assertWarehouseAccess } from "@/lib/dal"
-import { pushInsumoUpdate } from "@/lib/informakon"
+import { parseCcKey, pushInsumoUpdate } from "@/lib/informakon"
 
 async function assertProductWarehouseAccess(productId: string, userId: string) {
   const product = await db.product.findUnique({ where: { id: productId }, select: { defaultLocation: { select: { warehouseId: true } }, stocks: { select: { warehouseId: true } } } })
@@ -125,6 +125,134 @@ export async function createProductAction(formData: FormData) {
   }
 
   redirect("/products")
+}
+
+export type QuickProductResult =
+  | { success: true; alreadyExisted: boolean; product: { id: string; code: string; name: string; averageCost: number } }
+  | { success: false; error: string }
+
+/**
+ * Cadastro rápido a partir da importação de pedido/lista de materiais.
+ * Não redireciona: retorna o produto criado para a tela vincular o item.
+ * Quando o código traz o sub-insumo explícito (ex.: "023824-000") e o
+ * almoxarifado destino é vinculado ao Informakon (CC:<SRC>:...), grava o
+ * informakonKey correspondente — o próximo sync atualiza este produto em
+ * vez de projetar uma duplicata "<cod>-<SRC>".
+ */
+export async function quickCreateProductAction(input: {
+  code: string
+  name: string
+  shortDescription?: string | null
+  barcode?: string | null
+  categoryId: string
+  unitId: string
+  minimumStock?: number
+  maximumStock?: number
+  brand?: string | null
+  model?: string | null
+  defaultLocationId?: string | null
+  /** almoxarifado destino da entrada — usado p/ acesso e vínculo INS:<SRC>: */
+  warehouseId?: string | null
+}): Promise<QuickProductResult> {
+  const session = await getSession()
+  if (!session) return { success: false, error: "Sessão expirada. Entre novamente." }
+  try {
+    await requirePermission('PRODUCT_CREATE')
+  } catch {
+    return { success: false, error: "Você não tem permissão para cadastrar produtos." }
+  }
+
+  const code = input.code.trim()
+  const name = input.name.trim()
+  if (!code || !name || !input.categoryId || !input.unitId) {
+    return { success: false, error: "Preencha código, descrição, categoria e unidade." }
+  }
+
+  const [category, unit] = await Promise.all([
+    db.productCategory.findUnique({ where: { id: input.categoryId }, select: { id: true } }),
+    db.productUnit.findUnique({ where: { id: input.unitId }, select: { id: true } }),
+  ])
+  if (!category || !unit) return { success: false, error: "Categoria ou unidade inválida." }
+
+  const pick = { id: true, code: true, name: true, averageCost: true } as const
+  const toDto = (p: { id: string; code: string; name: string; averageCost: unknown }) =>
+    ({ id: p.id, code: p.code, name: p.name, averageCost: Number(p.averageCost ?? 0) })
+
+  // Já cadastrado com esse código → só vincula o item
+  const byCode = await db.product.findFirst({
+    where: { code: { equals: code, mode: "insensitive" } },
+    select: pick,
+  })
+  if (byCode) return { success: true, alreadyExisted: true, product: toDto(byCode) }
+
+  let targetWarehouseId: string | null = null
+  let defaultLocationId: string | null = null
+  try {
+    if (input.defaultLocationId) {
+      const location = await db.warehouseLocation.findUnique({ where: { id: input.defaultLocationId } })
+      if (!location) return { success: false, error: "Localização inválida." }
+      await assertWarehouseAccess(location.warehouseId, session.userId)
+      targetWarehouseId = location.warehouseId
+      defaultLocationId = input.defaultLocationId
+    } else if (input.warehouseId) {
+      await assertWarehouseAccess(input.warehouseId, session.userId)
+      targetWarehouseId = input.warehouseId
+    }
+  } catch {
+    return { success: false, error: "Sem acesso ao almoxarifado selecionado." }
+  }
+
+  // Vínculo ERP: só com sub-insumo explícito ("028651-000") — nunca inventa
+  // o sufixo, para não roubar o informakonKey de outro insumo.
+  let informakonKey: string | null = null
+  if (targetWarehouseId && /^\d+-\d+$/.test(code)) {
+    const wh = await db.warehouse.findUnique({ where: { id: targetWarehouseId }, select: { informakonKey: true } })
+    const cc = parseCcKey(wh?.informakonKey)
+    if (cc) {
+      const ik = `INS:${cc.src}:${code}`
+      const ikOwner = await db.product.findFirst({ where: { informakonKey: ik }, select: pick })
+      if (ikOwner) return { success: true, alreadyExisted: true, product: toDto(ikOwner) }
+      informakonKey = ik
+    }
+  }
+
+  try {
+    const created = await db.product.create({
+      data: {
+        code,
+        barcode: input.barcode || null,
+        name,
+        shortDescription: input.shortDescription || null,
+        categoryId: input.categoryId,
+        unitId: input.unitId,
+        minimumStock: input.minimumStock || 0,
+        maximumStock: input.maximumStock || 0,
+        brand: input.brand || null,
+        model: input.model || null,
+        defaultLocationId,
+        informakonKey,
+      },
+      select: pick,
+    })
+    if (defaultLocationId && targetWarehouseId && "stock" in db && db.stock?.upsert) {
+      await db.stock.upsert({
+        where: { productId_locationId: { productId: created.id, locationId: defaultLocationId } },
+        update: {},
+        create: {
+          productId: created.id,
+          warehouseId: targetWarehouseId,
+          locationId: defaultLocationId,
+          quantity: 0,
+          reservedQuantity: 0,
+        },
+      })
+    }
+    revalidatePath("/products")
+    return { success: true, alreadyExisted: false, product: toDto(created) }
+  } catch (error) {
+    console.error("Error quick-creating product:", error)
+    return { success: false, error: "Falha ao salvar o produto. Tente novamente." }
+  }
 }
 
 export async function updateProductAction(formData: FormData) {

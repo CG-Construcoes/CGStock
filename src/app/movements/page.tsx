@@ -52,7 +52,8 @@ export default async function MovementsPage(props: {
       include: {
         product: { select: { id: true, code: true, name: true, unit: { select: { code: true } } } },
         location: { select: { id: true, code: true, warehouse: { select: { name: true } } } },
-        performedBy: { select: { id: true, name: true } }
+        performedBy: { select: { id: true, name: true } },
+        recipientUser: { select: { id: true, name: true } }
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -168,10 +169,15 @@ export default async function MovementsPage(props: {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <div className="flex flex-col text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between pt-2 border-t border-border gap-2">
+                    <div className="flex flex-col text-xs text-muted-foreground min-w-0">
                       <span>{format(new Date(mov.createdAt), 'dd/MM/yyyy HH:mm')}</span>
-                      <span>Por: {mov.performedBy.name.split(' ')[0]}</span>
+                      <span className="truncate">Por: {mov.performedBy.name.split(' ')[0]}</span>
+                      {mov.recipientUser && (
+                        <span className="truncate">
+                          {isPositive ? 'Devolvido por' : 'Entregue para'}: {mov.recipientUser.name}
+                        </span>
+                      )}
                     </div>
                     <Link href={`/movements/${mov.id}`}>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -196,7 +202,7 @@ export default async function MovementsPage(props: {
               <TableHead className="text-center">Qtd</TableHead>
               <TableHead>Local / Origem</TableHead>
               <TableHead>Documento</TableHead>
-              <TableHead>Usuário</TableHead>
+              <TableHead>Executor / Destinatário</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -238,7 +244,12 @@ export default async function MovementsPage(props: {
                       {mov.documentNumber || '-'}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {mov.performedBy.name.split(' ')[0]}
+                      <div className="text-foreground">{mov.performedBy.name.split(' ')[0]}</div>
+                      {mov.recipientUser && (
+                        <div className="text-xs mt-0.5" title={`${isPositive ? 'Devolvido por' : 'Entregue para'}: ${mov.recipientUser.name}`}>
+                          {isPositive ? 'Devolvido por' : 'Entregue para'}: {mov.recipientUser.name}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Link href={`/movements/${mov.id}`}>

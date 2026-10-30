@@ -232,6 +232,9 @@ export function OfflineWorkspace({
           warehouses={warehouses.map((w) => ({ id: w.id, name: w.name }))}
           products={products.map((p) => ({ id: p.id, code: p.code, name: p.name, averageCost: p.averageCost ?? 0 }))}
           locations={locations.map((l) => ({ id: l.id, code: l.code, name: l.name, warehouseId: l.warehouseId }))}
+          categories={(catalog?.categories ?? []).map((c) => ({ id: c.id, name: c.name }))}
+          units={(catalog?.units ?? []).map((u) => ({ id: u.id, code: u.code, name: u.name }))}
+          canCreateProduct={false}
         />
       </div>
     )
@@ -1009,7 +1012,14 @@ export function OfflineWorkspace({
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
                     <span>{new Date(mov.createdAt).toLocaleString("pt-BR")}</span>
-                    <span>Por: {mov.performedByName}</span>
+                    <span className="text-right">
+                      Por: {mov.performedByName}
+                      {mov.recipientName && (
+                        <span className="block">
+                          {isPos ? "Devolvido por" : "Entregue para"}: {mov.recipientName}
+                        </span>
+                      )}
+                    </span>
                   </div>
                 </div>
               )

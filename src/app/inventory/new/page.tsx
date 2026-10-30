@@ -11,9 +11,12 @@ export default async function NewInventoryPage() {
     include: { locations: true }
   })
   
+  // Operadores precisam acessar o app (loginEnabled) — funcionários
+  // operacionais importados do Informakon não aparecem aqui.
   const users = await db.user.findMany({
-    where: { status: 'ACTIVE' },
-    select: { id: true, name: true, roles: { select: { name: true } } }
+    where: { status: 'ACTIVE', loginEnabled: true },
+    select: { id: true, name: true, roles: { select: { name: true } } },
+    orderBy: { name: 'asc' }
   })
 
   return (

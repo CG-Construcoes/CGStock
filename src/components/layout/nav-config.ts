@@ -26,9 +26,11 @@ import {
   PackageMinus,
   ClipboardPlus,
   ScanLine,
+  ScanSearch,
   Undo2,
   Search,
   HardHat,
+  Repeat,
   type LucideIcon,
 } from "lucide-react"
 
@@ -142,6 +144,7 @@ export function getNavSections(user: NavUser): NavSection[] {
       items: requester ? [] : [
         { name: "Produtos", href: "/products", icon: Package, description: "Cadastro dos itens", perm: "PRODUCT_VIEW" },
         { name: "Estoque e Saldos", href: "/stock", icon: Box, description: "Quanto tem de cada item", perm: "STOCK_VIEW" },
+        { name: "Consulta de Produto", href: "/product-lookup", icon: ScanSearch, description: "Escanear etiqueta e ver saldo", perm: "STOCK_VIEW" },
         { name: "Categorias", href: "/categories", icon: Tags, description: "Grupos de produtos", perm: "PRODUCT_VIEW" },
         { name: "Unidades", href: "/units", icon: Ruler, description: "Un, Kg, Caixa, Litro...", perm: "PRODUCT_VIEW" },
         { name: "Localizações", href: "/locations", icon: MapPin, description: "Onde cada item fica guardado", perm: "STOCK_VIEW" },
@@ -155,6 +158,7 @@ export function getNavSections(user: NavUser): NavSection[] {
         { name: "Saídas", href: "/issues", icon: ArrowUpFromLine, description: "Histórico do que saiu", perm: "STOCK_EXIT" },
         { name: "Movimentações", href: "/movements", icon: ArrowRightLeft, description: "Tudo o que entrou e saiu", perm: "STOCK_VIEW" },
         { name: "Registrar Saída", href: "/quick-issue", icon: Zap, description: "Saída rápida de material para alguém", perm: "STOCK_EXIT" },
+        { name: "Cautela Diária", href: "/tool-loans", icon: Repeat, description: "Empréstimo e devolução de ferramentas do dia", perm: "STOCK_EXIT" },
         { name: "Ajuste Manual", href: "/adjustments/new", icon: SlidersHorizontal, description: "Corrigir uma quantidade", perm: "STOCK_ENTRY" },
         REQUESTS,
         { name: "Devoluções", href: "/returns", icon: RotateCcw, description: "Itens que voltaram ao estoque", perm: "STOCK_ENTRY" },
@@ -205,6 +209,7 @@ export function getQuickActions(user: NavUser): QuickAction[] {
         { name: "Meus pedidos", href: "/requests", icon: ClipboardList, description: "Acompanhar requisições", anyPerm: ["REQUEST_CREATE", "REQUEST_APPROVE", "REQUEST_FULFILL"] },
       ]
     : [
+        { name: "Cautela diária", href: "/tool-loans", icon: Repeat, description: "Emprestar e devolver ferramentas do dia", anyPerm: ["STOCK_EXIT", "STOCK_ENTRY"] },
         { name: "Registrar saída", href: "/quick-issue", icon: PackageMinus, description: "Saída rápida para uma pessoa", perm: "STOCK_EXIT" },
         { name: "Registrar entrada", href: "/receipts/new", icon: PackagePlus, description: "Chegou material novo", perm: "STOCK_ENTRY" },
         { name: "Consultar estoque", href: "/stock", icon: Search, description: "Ver quanto tem de cada item", perm: "STOCK_VIEW" },

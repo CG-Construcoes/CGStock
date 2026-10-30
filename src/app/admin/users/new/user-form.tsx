@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { createUserAction } from "./actions"
 import { AlertCircle, Loader2 } from "lucide-react"
@@ -46,12 +47,11 @@ export function UserForm({ roles, warehouses }: { roles: { id: string, name: str
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="password">Senha Inicial</Label>
-          <Input 
-            id="password" 
-            name="password" 
-            type="password" 
-            placeholder="Mínimo 6 caracteres" 
-            required 
+          <PasswordInput
+            id="password"
+            name="password"
+            placeholder="Mínimo 6 caracteres"
+            required
             minLength={6}
             className="bg-muted/50 focus-visible:ring-primary border-border"
           />

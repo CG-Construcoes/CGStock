@@ -149,36 +149,29 @@ export function resolveEmployeeOffline(
     return { error: "QR Code revogado." }
   }
 
-  let worksite: { id: string; code?: string | null; name: string; status: string } | null =
-    employee.worksites?.find((w) => w.status === "ACTIVE") || employee.worksites?.[0] || null
-  if (!worksite && catalog?.worksites?.length) {
-    worksite = catalog.worksites.find((w) => w.status === "ACTIVE") || null
-  }
-
   const warehouses = catalog?.warehouses ?? []
-  let warehouse = worksite
-    ? warehouses.find((w) => w.worksiteId === worksite!.id && w.status !== "INACTIVE")
+  let warehouse = activeWarehouseId
+    ? warehouses.find((w) => w.id === activeWarehouseId && w.status !== "INACTIVE")
     : undefined
 
-  if (!warehouse && activeWarehouseId) {
-    warehouse = warehouses.find((w) => w.id === activeWarehouseId)
+  let worksite: { id: string; code?: string | null; name: string; status: string } | null =
+    employee.worksites?.find((w) => w.status === "ACTIVE") || employee.worksites?.[0] || null
+
+  if (!warehouse && worksite) {
+    warehouse = warehouses.find((w) => w.worksiteId === worksite!.id && w.status !== "INACTIVE")
   }
   if (!warehouse && warehouses.length > 0) {
-    warehouse = warehouses[0]
+    warehouse = warehouses.find((w) => w.status !== "INACTIVE") ?? warehouses[0]
   }
 
   if (!warehouse) {
-    return { error: "Nenhum almoxarifado ativo encontrado para esta obra." }
+    return { error: "Nenhum almoxarifado ativo encontrado neste aparelho." }
   }
 
-  if (!worksite) {
-    worksite = {
-      id: warehouse.worksiteId || warehouse.id,
-      name: warehouse.name,
-      status: "ACTIVE",
-    }
-  } else if (worksite.status !== "ACTIVE") {
-    return { error: "Nenhuma obra ativa encontrada para este funcionário." }
+  worksite = {
+    id: warehouse.worksiteId || worksite?.id || warehouse.id,
+    name: warehouse.name,
+    status: "ACTIVE",
   }
 
   return {
@@ -243,7 +236,7 @@ export function getProductStockOffline(
   )
 
   if (stock && stock.items.length > 0 && stockItems.length === 0) {
-    return { error: "Este produto não possui estoque disponível nesta obra." }
+    return { error: "Este produto não possui estoque disponível neste almoxarifado." }
   }
 
   const totalAvailable =

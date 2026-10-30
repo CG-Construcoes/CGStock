@@ -40,7 +40,7 @@ describe('parsePedidoSheet — planilha de pedido exportada do Informakon', () =
     expect(items[0].unitCost).toBe(3.25)
   })
 
-  it('descarta linhas sem código e sem nome (vazias/rodapé) e quantidade zero', () => {
+  it('descarta linhas sem código (vazias/rodapé) e mantém quantidade zero p/ preenchimento', () => {
     const rows = [
       PEDIDO_HEADER,
       ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
@@ -48,13 +48,48 @@ describe('parsePedidoSheet — planilha de pedido exportada do Informakon', () =
       ['003', '', 'AR', 'VALIDO 2', '000004-000', '', 'UN', 3, 1, 0, 1, 0, 3, '', '', ''],
     ]
     const items = parsePedidoSheet(rows)
-    expect(items).toHaveLength(1)
-    expect(items[0].productCode).toBe('000004-000')
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({ productCode: '000003-000', quantity: 0 })
+    expect(items[1]).toMatchObject({ productCode: '000004-000', quantity: 3 })
   })
 
   it('retorna vazio para planilha que não é pedido', () => {
     const rows = [['Código', 'Descrição do Material'], ['001', 'ABC']]
     expect(parsePedidoSheet(rows)).toEqual([])
+  })
+})
+
+const LISTA_HEADER = [
+  'Código', 'Tipo', 'Descrição do Material', 'Unid.', 'Categoria',
+  'Classificação', 'Quantidade', 'Preço Unit. (R$)', 'Valor Total (R$)',
+]
+
+describe('parsePedidoSheet — lista de materiais (catálogo)', () => {
+  it('reconhece o formato "Lista de Materiais" mesmo sem quantidades', () => {
+    const rows = [
+      ['Relatório de Materiais'],
+      [],
+      LISTA_HEADER,
+      ['023824', 'Insumo', 'CABO COBRE FLEXIVEL 450/750V 1,5MM PRETO', 'M', 'Fios e cabos', 'Insumo', null, null, null],
+      ['024555', 'Insumo', 'CABO FLEX 2,5MM AZUL', 'M', 'Fios e cabos', 'Insumo', null, 12.5, null],
+      [null, null, 'TOTAL GERAL', null, null, null, null, null, null],
+    ]
+    const items = parsePedidoSheet(rows)
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({
+      productCode: '023824',
+      productName: 'CABO COBRE FLEXIVEL 450/750V 1,5MM PRETO',
+      quantity: 0,
+      unitCode: 'M',
+      categoryName: 'Fios e cabos',
+    })
+    expect(items[1].unitCost).toBe(12.5)
+  })
+
+  it('encontra o cabeçalho além da 15ª linha (relatórios com capa longa)', () => {
+    const rows: unknown[][] = Array.from({ length: 20 }, () => ['relatório', ''])
+    rows.push(LISTA_HEADER, ['001', 'X', 'ITEM A', 'UN', 'Cat', 'Insumo', 2, 1, 2])
+    expect(parsePedidoSheet(rows)).toHaveLength(1)
   })
 })
 
@@ -66,18 +101,34 @@ describe('resolvePedidoProduct — multi-fonte MGA/CV', () => {
   ]
 
   it('escolhe o produto da fonte certa pela especificação do pedido', () => {
-    const item = { productCode: '000209-000', productName: 'ANEL DE VEDAÇÃO PARA VASO SANITÁRIO - FORNECIMENTO CG', quantity: 1, unitCost: 10.5, unitCode: 'UN', totalValue: 10.5 }
+    const item = { productCode: '000209-000', productName: 'ANEL DE VEDAÇÃO PARA VASO SANITÁRIO - FORNECIMENTO CG', quantity: 1, unitCost: 10.5, unitCode: 'UN', totalValue: 10.5, categoryName: null }
     expect(resolvePedidoProduct(item, catalogo)?.id).toBe('p-cv')
   })
 
   it('casa direto quando só existe um candidato', () => {
-    const item = { productCode: '005266-000', productName: 'QUALQUER', quantity: 1, unitCost: 1, unitCode: 'UN', totalValue: 1 }
+    const item = { productCode: '005266-000', productName: 'QUALQUER', quantity: 1, unitCost: 1, unitCode: 'UN', totalValue: 1, categoryName: null }
     expect(resolvePedidoProduct(item, catalogo)?.id).toBe('p-so')
   })
 
   it('não casa quando nome diverge de todos os candidatos', () => {
-    const item = { productCode: '000209-000', productName: 'CABO FLEXÍVEL 750V', quantity: 1, unitCost: 1, unitCode: 'UN', totalValue: 1 }
+    const item = { productCode: '000209-000', productName: 'CABO FLEXÍVEL 750V', quantity: 1, unitCost: 1, unitCode: 'UN', totalValue: 1, categoryName: null }
     expect(resolvePedidoProduct(item, catalogo)).toBeNull()
+  })
+
+  it('casa código sem sub-insumo por prefixo quando o nome confirma', () => {
+    const catalogo2 = [
+      { id: 'p1', code: '023824-000-CV', name: 'CABO COBRE FLEXIVEL 450/750V 1,5MM PRETO' },
+    ]
+    const item = { productCode: '023824', productName: 'CABO COBRE FLEXIVEL 450/750V 1,5MM PRETO', quantity: 0, unitCost: null, unitCode: 'M', totalValue: null, categoryName: null }
+    expect(resolvePedidoProduct(item, catalogo2)?.id).toBe('p1')
+  })
+
+  it('não casa código sem sub-insumo quando o nome diverge', () => {
+    const catalogo2 = [
+      { id: 'p1', code: '023824-999', name: 'PARAFUSO SEXTAVADO 1/2' },
+    ]
+    const item = { productCode: '023824', productName: 'CABO COBRE FLEXIVEL 450/750V', quantity: 0, unitCost: null, unitCode: 'M', totalValue: null, categoryName: null }
+    expect(resolvePedidoProduct(item, catalogo2)).toBeNull()
   })
 
   it('scoreNameMatch mede sobreposição de palavras significativas', () => {

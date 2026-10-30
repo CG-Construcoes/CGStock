@@ -109,6 +109,7 @@ export async function GET() {
               qrToken: true,
               qrStatus: true,
               status: true,
+              loginEnabled: true,
               roles: { select: { name: true } },
               worksiteAccesses: {
                 include: {
@@ -140,6 +141,7 @@ export async function GET() {
       qrToken?: string | null
       qrStatus: string
       status: string
+      loginEnabled?: boolean | null
       roles?: { name: string }[]
       worksiteAccesses?: { worksite: { id: string; code?: string | null; name: string; status: string } }[]
     }[]).map(emp => ({
@@ -151,12 +153,16 @@ export async function GET() {
       qrToken: emp.qrToken ?? null,
       qrStatus: emp.qrStatus,
       status: emp.status,
+      loginEnabled: emp.loginEnabled ?? false,
       roles: (emp.roles ?? []).map(r => r.name),
       worksites: (emp.worksiteAccesses ?? []).map(wa => wa.worksite),
     }))
 
+    // Operadores de coleta = usuários que acessam o sistema (loginEnabled).
+    // Funcionários operacionais (loginEnabled=false) continuam em `employees`
+    // para QR/crachá, mas não operam o coletor.
     const operators = mappedEmployees
-      .filter(emp => emp.roles.some(r => ['ADMIN', 'GESTOR', 'ALMOXARIFE', 'AUX. ALMOXARIFADO', 'CONFERENTE'].includes(r)) || emp.roles.length > 0)
+      .filter(emp => emp.loginEnabled && (emp.roles.some(r => ['ADMIN', 'GESTOR', 'ALMOXARIFE', 'AUX. ALMOXARIFADO', 'CONFERENTE'].includes(r)) || emp.roles.length > 0))
       .map(emp => ({ id: emp.id, name: emp.name, email: emp.email, roles: emp.roles }))
 
     modules.catalog = {

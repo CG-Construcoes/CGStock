@@ -143,7 +143,9 @@ describe("Cenários Obrigatórios Offline (48h+, QR Code, Entrega Rápida, Depen
     expect(byQr.success).toBe(true)
     if (byQr.success) {
       expect(byQr.employee.name).toBe("Carlos Silva")
-      expect(byQr.worksite.name).toBe("Residencial Horizonte")
+      // O sistema opera por almoxarifado; a obra é apenas um detalhe interno de FK
+      expect(byQr.worksite.id).toBe("ws-1")
+      expect(byQr.worksite.name).toBe("Almoxarifado Obra Norte")
       expect(byQr.warehouse.id).toBe("wh-1")
     }
 
@@ -183,9 +185,9 @@ describe("Cenários Obrigatórios Offline (48h+, QR Code, Entrega Rápida, Depen
     const byBarcode = getProductStockOffline(sampleCatalog, sampleStock, "wh-1", "7890000111111")
     expect(byBarcode.success).toBe(true)
 
-    // Produto sem saldo na obra retorna erro amigável
+    // Produto sem saldo no almoxarifado retorna erro amigável
     const noStock = getProductStockOffline(sampleCatalog, sampleStock, "wh-1", "MAT-002")
-    expect(noStock).toEqual({ error: "Este produto não possui estoque disponível nesta obra." })
+    expect(noStock).toEqual({ error: "Este produto não possui estoque disponível neste almoxarifado." })
   })
 
   it("ordena a fila de sincronização respeitando dependências e resolve IDs temporários", () => {

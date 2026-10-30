@@ -61,6 +61,9 @@ model User {
   importBatches        ImportBatch[]
   quickIssuesReceived  QuickIssue[]          @relation("IssueRecipient")
   quickIssuesPerformed QuickIssue[]          @relation("IssueOperator")
+  toolLoansReceived    ToolLoan[]            @relation("ToolLoanRecipient")
+  toolLoansPerformed   ToolLoan[]            @relation("ToolLoanOperator")
+  toolLoansReturned    ToolLoanItem[]        @relation("ToolLoanReturnedBy")
   
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
@@ -152,6 +155,7 @@ model Product {
   returnItems          MaterialReturnItem[]
   transferItems        StockTransferItem[]
   quickIssueItems      QuickIssueItem[]
+  toolLoanItems        ToolLoanItem[]
   
   createdAt            DateTime                  @default(now())
   updatedAt            DateTime                  @updatedAt
@@ -178,6 +182,7 @@ model Warehouse {
   transfersSource      StockTransfer[]     @relation("TransferSourceWarehouse")
   transfersDestination StockTransfer[]     @relation("TransferDestinationWarehouse")
   quickIssues          QuickIssue[]
+  toolLoans            ToolLoan[]
   userAccesses         UserWarehouseAccess[]
   importBatches        ImportBatch[]
   
@@ -209,6 +214,7 @@ model WarehouseLocation {
   transfersSource      StockTransfer[]       @relation("TransferSourceLocation")
   transfersDestination StockTransfer[]       @relation("TransferDestinationLocation")
   quickIssueItems      QuickIssueItem[]
+  toolLoanItems        ToolLoanItem[]
   
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
@@ -224,9 +230,6 @@ model Stock {
   location         WarehouseLocation @relation(fields: [locationId], references: [id])
   quantity         Float
   reservedQuantity Float             @default(0)
-  /// Valor unitário que o próprio centro registra na origem
-  /// (Informakon: Estoque_Valor / Estoque_Quantidade). NULL = origem não informa.
-  unitValue        Float?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -658,6 +661,7 @@ model Worksite {
   warehouses  Warehouse[]
   users       UserWorksiteAccess[]
   quickIssues QuickIssue[]
+  toolLoans   ToolLoan[]
   movements   StockMovement[]
   
   createdAt   DateTime    @default(now())
@@ -715,6 +719,60 @@ model QuickIssueItem {
   location    WarehouseLocation @relation(fields: [locationId], references: [id])
   quantity    Int
   notes       String?
+}
+
+model ToolLoan {
+  id          String         @id @default(uuid())
+  loanNumber  String         @unique
+
+  operatorId  String
+  operator    User           @relation("ToolLoanOperator", fields: [operatorId], references: [id])
+
+  recipientId String
+  recipient   User           @relation("ToolLoanRecipient", fields: [recipientId], references: [id])
+
+  worksiteId  String
+  worksite    Worksite       @relation(fields: [worksiteId], references: [id])
+
+  warehouseId String
+  warehouse   Warehouse      @relation(fields: [warehouseId], references: [id])
+
+  status      String         @default("OPEN") // OPEN, PARTIAL, RETURNED, CANCELLED
+  notes       String?
+
+  items       ToolLoanItem[]
+
+  loanedAt    DateTime       @default(now())
+  returnedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([recipientId, status])
+  @@index([warehouseId, status])
+  @@index([loanedAt])
+}
+
+model ToolLoanItem {
+  id               String            @id @default(uuid())
+  loanId           String
+  loan             ToolLoan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product           @relation(fields: [productId], references: [id])
+  locationId       String
+  location         WarehouseLocation @relation(fields: [locationId], references: [id])
+  quantityLoaned   Int
+  quantityReturned Int               @default(0)
+  status           String            @default("OPEN") // OPEN, PARTIAL, RETURNED
+  notes            String?
+  returnedAt       DateTime?
+  returnedById     String?
+  returnedBy       User?             @relation("ToolLoanReturnedBy", fields: [returnedById], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([loanId])
+  @@index([productId])
+  @@index([status])
 }
 
 model UserWarehouseAccess {
@@ -794,8 +852,6 @@ model SyncRun {
 // reconciliacao por hash e deteccao de exclusoes mesmo sem rowversion.
 model InfMirror {
   id            String    @id @default(uuid())
-  // base Informakon de origem (ex.: 'MGA', 'CV') — multi-fonte
-  source        String    @default("CV")
   entity        String
   sourceKey     String
   hash          String
@@ -806,7 +862,7 @@ model InfMirror {
   lastSeenAt    DateTime  @default(now())
   deletedAt     DateTime?
 
-  @@unique([source, entity, sourceKey])
-  @@index([source, entity, deletedAt])
-  @@index([source, entity, projectedHash])
+  @@unique([entity, sourceKey])
+  @@index([entity, deletedAt])
+  @@index([entity, projectedHash])
 }

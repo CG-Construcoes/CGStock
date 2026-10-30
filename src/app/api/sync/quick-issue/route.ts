@@ -7,6 +7,7 @@ import { assertWarehouseAccess, warehouseScopeIds } from "@/lib/dal"
 import { createStockMovement } from "@/lib/stock"
 import { checkSyncReplay, isSyncKey, isUniqueConflict, payloadHash } from "@/lib/sync-idempotency"
 import { pushMovimentoAoInformakon } from "@/lib/informakon"
+import { ensureWarehouseWorksite } from "@/lib/employee-warehouse"
 
 const MAX_ITEMS = 200
 const MAX_NUMBER_ATTEMPTS = 5
@@ -68,52 +69,79 @@ export async function POST(req: NextRequest) {
               ...(cleanDigits.length >= 8 ? [{ document: cleanDigits }, { document: qrToken }] : []),
             ]
           },
-          include: { worksiteAccesses: { include: { worksite: true } } }
+          include: {
+            warehouseAccesses: {
+              include: { warehouse: { select: { id: true, code: true, name: true, status: true, worksiteId: true } } }
+            }
+          }
         })
       : await userRepo.findUnique({
           where: { qrToken },
-          include: { worksiteAccesses: { include: { worksite: true } } }
+          include: {
+            warehouseAccesses: {
+              include: { warehouse: { select: { id: true, code: true, name: true, status: true, worksiteId: true } } }
+            }
+          }
         })
 
     if (!employee || employee.status !== 'ACTIVE' || (employee.qrToken === qrToken && employee.qrStatus !== 'ACTIVE') || employee.qrStatus === 'REVOKED') {
       return NextResponse.json({ error: "QR do funcionário não pôde ser validado. Revise manualmente." }, { status: 409 })
     }
 
-    let worksite: { id: string; status: string } | null = employee.worksiteAccesses[0]?.worksite ?? null
-    if (!worksite && (db as unknown as { worksite?: typeof db.worksite }).worksite?.findFirst) {
-      worksite = await db.worksite.findFirst({
-        where: {
-          status: 'ACTIVE',
-          ...(typeof payload.worksiteId === 'string' && payload.worksiteId ? { id: payload.worksiteId } : {})
-        }
-      })
-    }
-    if (!worksite || worksite.status !== 'ACTIVE') {
-      return NextResponse.json({ error: "Obra do funcionário está inativa. Revise manualmente." }, { status: 409 })
-    }
-    const activeWorksite = worksite
-
+    // Resolve o almoxarifado onde a entrega ocorreu (sem depender de obra):
+    // 1) almoxarifado enviado no payload, se ativo e no escopo do operador;
+    // 2) almoxarifado ao qual o funcionário já está vinculado;
+    // 3) primeiro almoxarifado ativo do escopo do operador.
     const scope = await warehouseScopeIds(session.userId)
     const requestedWarehouseId = typeof payload.warehouseId === 'string' && payload.warehouseId ? payload.warehouseId : undefined
-    let warehouse = await db.warehouse.findFirst({
-      where: {
-        ...(requestedWarehouseId ? { id: requestedWarehouseId } : { worksiteId: activeWorksite.id }),
-        status: 'ACTIVE',
-        id: { in: scope ?? undefined }
-      }
-    })
-    if (!warehouse && requestedWarehouseId) {
-      warehouse = await db.warehouse.findFirst({
-        where: { worksiteId: activeWorksite.id, status: 'ACTIVE', id: { in: scope ?? undefined } }
-      })
-    }
+    const scopeFilter = scope ? { id: { in: scope } } : {}
+
+    let warehouse = requestedWarehouseId
+      ? await db.warehouse.findFirst({
+          where: { id: requestedWarehouseId, status: 'ACTIVE', ...scopeFilter },
+          select: { id: true, code: true, name: true, status: true, worksiteId: true }
+        })
+      : null
+
+    const activeEmpWhAccesses = (employee.warehouseAccesses ?? []).filter(
+      (a) => a.warehouse && a.warehouse.status === 'ACTIVE'
+    )
+
     if (!warehouse) {
-      return NextResponse.json({ error: "Nenhum almoxarifado acessível para esta obra. Revise manualmente." }, { status: 409 })
+      const empWh = activeEmpWhAccesses.find((a) => !scope || scope.includes(a.warehouse.id))?.warehouse
+      warehouse = empWh
+        ? { id: empWh.id, code: empWh.code, name: empWh.name, status: empWh.status, worksiteId: empWh.worksiteId }
+        : await db.warehouse.findFirst({
+            where: { status: 'ACTIVE', ...scopeFilter },
+            orderBy: { name: 'asc' },
+            select: { id: true, code: true, name: true, status: true, worksiteId: true }
+          })
+    }
+
+    if (!warehouse) {
+      return NextResponse.json({ error: "Nenhum almoxarifado ativo acessível. Revise manualmente." }, { status: 409 })
     }
     try {
       await assertWarehouseAccess(warehouse.id, session.userId)
     } catch {
       return NextResponse.json({ error: "Sem acesso a este almoxarifado." }, { status: 403 })
+    }
+
+    // Garante worksite interno para satisfazer a FK de QuickIssue (detalhe técnico, não regra de negócio)
+    const activeWorksite = await ensureWarehouseWorksite({
+      id: warehouse.id,
+      code: warehouse.code || 'ALM',
+      name: warehouse.name || 'Almoxarifado',
+      worksiteId: warehouse.worksiteId ?? null,
+    })
+
+    // Se o funcionário ainda não estiver vinculado a nenhum almoxarifado, vincula a este (1ª vez escaneado)
+    if (activeEmpWhAccesses.length === 0 && db.userWarehouseAccess?.upsert) {
+      await db.userWarehouseAccess.upsert({
+        where: { userId_warehouseId: { userId: employee.id, warehouseId: warehouse.id } },
+        update: {},
+        create: { userId: employee.id, warehouseId: warehouse.id, grantedById: session.userId }
+      })
     }
 
     // Resolver produtos pelo código bipado (exato, código de barras ou ID)

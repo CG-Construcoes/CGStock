@@ -23,8 +23,8 @@ type PrintEmployee = {
   phone: string | null
   email: string | null
   qrToken: string | null
-  worksiteAccesses: {
-    worksite: { name: string; code: string }
+  warehouseAccesses: {
+    warehouse: { name: string; code: string }
   }[]
 }
 

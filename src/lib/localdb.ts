@@ -118,6 +118,7 @@ export interface LocalEmployee {
   qrToken?: string | null;
   qrStatus: string;
   status: string;
+  loginEnabled?: boolean;
   roles?: string[];
   worksites: LocalWorksite[];
 }

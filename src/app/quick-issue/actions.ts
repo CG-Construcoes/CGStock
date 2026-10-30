@@ -1,108 +1,26 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { cookies } from "next/headers"
-import { assertWarehouseAccess, warehouseScopeIds } from "@/lib/dal"
+import { assertWarehouseAccess } from "@/lib/dal"
 import { revalidatePath } from "next/cache"
 import { createWithUniqueNumber } from "@/lib/sequential"
 import { requireActionPermission } from "@/lib/action-guard"
 import { createStockMovement } from "@/lib/stock"
 import { pushMovimentoAoInformakon } from "@/lib/informakon"
+import { ensureWarehouseWorksite, resolveEmployeeForOperatorWarehouse } from "@/lib/employee-warehouse"
 
-export async function verifyEmployeeQR(qrToken: string) {
+export async function verifyEmployeeQR(
+  qrToken: string,
+  options?: { confirmTransfer?: boolean; explicitWarehouseId?: string }
+) {
   let session
   try {
     session = await requireActionPermission('STOCK_EXIT')
   } catch {
     return { error: "Não autorizado." }
   }
-  
-  const trimmed = qrToken.trim()
-  const cleanDigits = trimmed.replace(/\D/g, "")
-  const withoutEmpPrefix = trimmed.replace(/^EMP-/i, "")
 
-  // 1. Localizar usuário pelo token QR, código de funcionário, CPF, e-mail ou ID
-  const employee = await db.user.findFirst({
-    where: {
-      OR: [
-        { qrToken: trimmed },
-        { qrToken: `EMP-${trimmed}` },
-        { employeeCode: trimmed },
-        { employeeCode: withoutEmpPrefix },
-        { email: trimmed },
-        { id: trimmed },
-        ...(cleanDigits.length >= 8 ? [{ document: cleanDigits }, { document: trimmed }] : []),
-      ]
-    },
-    include: {
-      worksiteAccesses: {
-        include: { worksite: true }
-      }
-    }
-  })
-  
-  if (!employee) return { error: "Funcionário não encontrado ou código inválido." }
-  if (employee.status !== "ACTIVE") return { error: "Funcionário inativo." }
-  if (employee.qrToken === trimmed && employee.qrStatus !== "ACTIVE") return { error: "QR Code revogado." }
-  
-  // 2. Obra da saída: a do funcionário quando ele tem vínculo; senão a obra
-  // do almoxarifado que o operador selecionou (quem entrega tem acesso ao
-  // almox — o contexto é dele, não do recebedor).
-  const scope = await warehouseScopeIds(session.userId)
-  const selectedWhId = (await cookies()).get("cgstock_active_warehouse")?.value || ""
-  const selectedWh = selectedWhId
-    ? await db.warehouse.findFirst({
-        where: { id: selectedWhId, status: "ACTIVE", AND: scope ? [{ id: { in: scope } }] : [] },
-        select: { id: true, worksiteId: true }
-      })
-    : null
-
-  let worksite: any = null
-  if (employee.worksiteAccesses.length > 0) {
-    const match = selectedWh && employee.worksiteAccesses.find(a => a.worksiteId === selectedWh.worksiteId)
-    worksite = (match?.worksite) ?? employee.worksiteAccesses[0].worksite
-  } else if (selectedWh?.worksiteId) {
-    worksite = await db.worksite.findFirst({ where: { id: selectedWh.worksiteId } })
-  }
-  if (!worksite) {
-    worksite = await db.worksite.findFirst({ where: { status: "ACTIVE" } })
-  }
-
-  if (!worksite || worksite.status !== "ACTIVE") {
-    return { error: "Nenhuma obra ativa encontrada para este funcionário." }
-  }
-
-  // 3. Almoxarifado da saída: o selecionado pelo operador se pertence à
-  // obra; senão um almoxarifado padrão dessa obra no escopo do operador.
-  const warehouse = (selectedWh && selectedWh.worksiteId === worksite.id)
-    ? await db.warehouse.findFirst({ where: { id: selectedWh.id, status: "ACTIVE" } })
-    : await db.warehouse.findFirst({
-        where: { worksiteId: worksite.id, status: "ACTIVE", id: { in: scope ?? undefined } }
-      })
-
-  if (!warehouse) {
-    return { error: "Nenhum almoxarifado ativo encontrado para esta obra." }
-  }
-  
-  return {
-    success: true,
-    employee: {
-      id: employee.id,
-      name: employee.name,
-      email: employee.email,
-      employeeCode: employee.employeeCode,
-      document: employee.document,
-    },
-    worksite: {
-      id: worksite.id,
-      name: worksite.name,
-    },
-    worksiteAssigned: employee.worksiteAccesses.length > 0,
-    warehouse: {
-      id: warehouse.id,
-      name: warehouse.name,
-    }
-  }
+  return resolveEmployeeForOperatorWarehouse(qrToken, session.userId, options)
 }
 
 export async function getProductStockForQuickIssue(worksiteId: string, warehouseId: string, productCode: string) {
@@ -113,9 +31,9 @@ export async function getProductStockForQuickIssue(worksiteId: string, warehouse
     return { error: "Não autorizado." }
   }
 
-  // Verificar se o almoxarife/operador logado tem acesso à obra (no backend!)
-  const warehouse = await db.warehouse.findFirst({ where: { id: warehouseId, worksiteId, status: 'ACTIVE' } })
-  if (!warehouse) return { error: "Almoxarifado inválido para esta obra." }
+  // Valida pelo almoxarifado (sem depender de obra)
+  const warehouse = await db.warehouse.findFirst({ where: { id: warehouseId, status: 'ACTIVE' } })
+  if (!warehouse) return { error: "Almoxarifado inválido ou inativo." }
   try {
     await assertWarehouseAccess(warehouseId, session.userId)
   } catch {
@@ -133,7 +51,7 @@ export async function getProductStockForQuickIssue(worksiteId: string, warehouse
   
   if (!product) return { error: "Produto não encontrado no catálogo." }
 
-  // Buscar o estoque SOMENTE na obra informada
+  // Buscar o estoque SOMENTE no almoxarifado informado
   const stocks = await db.stock.findMany({
     where: {
       productId: product.id,
@@ -147,7 +65,7 @@ export async function getProductStockForQuickIssue(worksiteId: string, warehouse
   const availableStocks = stocks.filter(s => Number(s.quantity) > 0)
   
   if (availableStocks.length === 0) {
-    return { error: "Este produto não possui estoque disponível nesta obra." }
+    return { error: "Este produto não possui estoque disponível neste almoxarifado." }
   }
 
   const totalAvailable = availableStocks.reduce((sum, s) => sum + Number(s.quantity), 0)
@@ -184,24 +102,29 @@ export async function confirmQuickIssue(payload: {
   } catch {
     return { error: "Não autorizado." }
   }
-  const warehouse = await db.warehouse.findFirst({ where: { id: payload.warehouseId, worksiteId: payload.worksiteId, status: 'ACTIVE' } })
-  if (!warehouse) return { error: "Almoxarifado inválido para esta obra." }
+  const warehouse = await db.warehouse.findFirst({
+    where: { id: payload.warehouseId, status: 'ACTIVE' },
+    select: { id: true, code: true, name: true, worksiteId: true }
+  })
+  if (!warehouse) return { error: "Almoxarifado inválido ou inativo." }
   try {
     await assertWarehouseAccess(payload.warehouseId, session.userId)
   } catch {
     return { error: "Você não tem acesso a este almoxarifado." }
   }
-  // Funcionário COM vínculo fica restrito às obras dele; funcionário SEM
-  // vínculo (ex.: sincronizado do MGA, que não tem Empreendimento) pode
-  // receber — a obra vem do almoxarifado do operador, já validado acima.
+
   const employee = await db.user.findFirst({
     where: { id: payload.employeeId, status: 'ACTIVE', qrStatus: 'ACTIVE' },
-    include: { worksiteAccesses: { select: { worksiteId: true } } }
   })
   if (!employee) return { error: "Funcionário não encontrado ou inativo." }
-  if (employee.worksiteAccesses.length > 0 && !employee.worksiteAccesses.some(a => a.worksiteId === payload.worksiteId)) {
-    return { error: "Funcionário não autorizado nesta obra." }
-  }
+
+  const resolvedWorksite = await ensureWarehouseWorksite({
+    id: warehouse.id,
+    code: warehouse.code || "ALM",
+    name: warehouse.name || "Almoxarifado",
+    worksiteId: warehouse.worksiteId ?? payload.worksiteId ?? null,
+  })
+  const effectiveWorksiteId = resolvedWorksite.id
   
   if (!payload.items || payload.items.length === 0) {
     return { error: "Nenhum item informado." }
@@ -221,7 +144,7 @@ export async function confirmQuickIssue(payload: {
           issueNumber,
           operatorId: session.userId,
           recipientId: payload.employeeId,
-          worksiteId: payload.worksiteId,
+          worksiteId: effectiveWorksiteId,
           warehouseId: payload.warehouseId,
           status: "COMPLETED",
           completedAt: new Date()
@@ -230,7 +153,7 @@ export async function confirmQuickIssue(payload: {
 
       // 2. Processar cada item
       for (const item of payload.items) {
-        // Buscar estoques em todas as localizações dessa obra para esse produto, ordenados
+        // Buscar estoques em todas as localizações desse almoxarifado para esse produto, ordenados
         const stocks = await tx.stock.findMany({
           where: {
             productId: item.productId,
@@ -281,7 +204,7 @@ export async function confirmQuickIssue(payload: {
             where: { id: movement.id },
             data: {
               recipientUserId: payload.employeeId,
-              worksiteId: payload.worksiteId
+              worksiteId: effectiveWorksiteId
             }
           })
           

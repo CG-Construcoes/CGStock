@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { QrCode, User, Building, Package, Plus, Minus, CheckCircle2, Loader2, ArrowLeft, Camera } from "lucide-react"
+import { QrCode, User, Building, Plus, Minus, CheckCircle2, Loader2, ArrowLeft, Camera } from "lucide-react"
 import { queueOfflineOperation } from "@/lib/offline-sync"
 import {
   getOfflineSnapshot,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/offline-snapshot"
 import type { CatalogSnapshotData, StockSnapshotData, LocalCatalogProduct } from "@/lib/localdb"
 import { CameraScannerModal } from "@/components/ui/camera-scanner-modal"
+import { EmployeeTransferModal, type PendingEmployeeTransfer } from "@/components/ui/employee-transfer-modal"
 
 type EmployeeContext = {
   employee: { id: string; name: string; email?: string | null; employeeCode?: string | null; document?: string | null }
@@ -34,7 +35,7 @@ type CartItem = {
   availableQuantity: number | null
 }
 
-export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string; sessionExpiresAt: string }) {
+export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }: { userId: string; sessionExpiresAt: string; activeWarehouseId?: string | null }) {
   const [context, setContext] = useState<EmployeeContext | null>(null)
 
   // Scanners
@@ -47,6 +48,8 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string;
   const [isScanningEmployee, setIsScanningEmployee] = useState(false)
   const [isScanningProduct, setIsScanningProduct] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
+  const [pendingTransfer, setPendingTransfer] = useState<PendingEmployeeTransfer | null>(null)
+  const [isTransferringEmployee, setIsTransferringEmployee] = useState(false)
 
   // Cart & Local Catalog cache for instant suggestions
   const [cart, setCart] = useState<CartItem[]>([])
@@ -81,7 +84,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string;
   const resolveEmployeeFromLocal = async (trimmed: string) => {
     const catSnap = await getOfflineSnapshot<CatalogSnapshotData>("catalog", userId)
     const catalogData = isSnapshotAvailableOffline(catSnap, userId) ? catSnap?.data : localCatalog
-    const resolved = resolveEmployeeOffline(trimmed, catalogData)
+    const resolved = resolveEmployeeOffline(trimmed, catalogData, activeWarehouseId ?? undefined)
     if ("error" in resolved && resolved.error) {
       toast.error(resolved.error)
       setEmployeeQr("")
@@ -104,7 +107,10 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string;
     }
   }
 
-  const processEmployeeScan = async (code: string) => {
+  const processEmployeeScan = async (
+    code: string,
+    options?: { confirmTransfer?: boolean; explicitWarehouseId?: string }
+  ) => {
     const trimmed = code.trim()
     if (!trimmed) return
 
@@ -116,27 +122,62 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string;
     }
 
     try {
-      const result = await verifyEmployeeQR(trimmed)
+      const result = await verifyEmployeeQR(trimmed, options)
       setIsScanningEmployee(false)
 
-      if (result.error) {
-        toast.error(result.error)
+      if ("success" in result && result.success) {
+        setPendingTransfer(null)
+        setContext({
+          employee: result.employee,
+          worksite: result.worksite,
+          warehouse: result.warehouse,
+          qrToken: trimmed,
+        })
+        setEmployeeQr("")
+        if (result.transferredFromWarehouseName) {
+          toast.success(
+            `${result.employee.name} transferido de ${result.transferredFromWarehouseName} para ${result.warehouse.name}!`
+          )
+        } else if (result.autoLinkedFirstTime) {
+          toast.success(
+            `${result.employee.name} vinculado ao almoxarifado ${result.warehouse.name}!`
+          )
+        } else {
+          toast.success(`Funcionário ${result.employee.name} identificado com sucesso!`)
+        }
+        return
+      }
+
+      if ("requiresTransfer" in result && result.requiresTransfer) {
+        setPendingTransfer({
+          employee: result.employee,
+          currentWarehouse: result.currentWarehouse,
+          targetWarehouse: result.targetWarehouse,
+          qrToken: result.qrToken,
+        })
         setEmployeeQr("")
         return
       }
 
-      setContext({
-        employee: result.employee!,
-        worksite: result.worksite!,
-        warehouse: result.warehouse!,
-        qrToken: trimmed,
-      })
+      toast.error("error" in result && result.error ? result.error : "Falha ao validar funcionário.")
       setEmployeeQr("")
-      toast.success(`Funcionário ${result.employee?.name} identificado com sucesso!`)
     } catch {
       // Queda abrupta de conexão durante a chamada ao servidor: faz fallback transparente para o banco local
       await resolveEmployeeFromLocal(trimmed)
       setIsScanningEmployee(false)
+    }
+  }
+
+  const handleConfirmEmployeeTransfer = async () => {
+    if (!pendingTransfer) return
+    setIsTransferringEmployee(true)
+    try {
+      await processEmployeeScan(pendingTransfer.qrToken, {
+        confirmTransfer: true,
+        explicitWarehouseId: pendingTransfer.targetWarehouse.id,
+      })
+    } finally {
+      setIsTransferringEmployee(false)
     }
   }
 
@@ -443,6 +484,16 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string;
           title="Escanear Capacete ou Crachá"
           subtitle="Aponte a câmera para o QR Code do funcionário"
         />
+
+        <EmployeeTransferModal
+          transfer={pendingTransfer}
+          isTransferring={isTransferringEmployee}
+          onConfirm={() => void handleConfirmEmployeeTransfer()}
+          onCancel={() => {
+            setPendingTransfer(null)
+            toast.info("Transferência cancelada. Não é possível registrar a saída sem transferir o colaborador.")
+          }}
+        />
       </div>
     )
   }
@@ -473,14 +524,10 @@ export function QuickIssueClient({ userId, sessionExpiresAt }: { userId: string;
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-100 dark:border-emerald-900/30">
+          <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/30">
             <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <Building className="h-4 w-4 text-emerald-500" />
-              <span className="truncate">{context.worksite.name}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <Package className="h-4 w-4 text-emerald-500" />
-              <span className="truncate">{context.warehouse.name}</span>
+              <Building className="h-4 w-4 text-emerald-500 shrink-0" />
+              <span className="truncate font-medium">Almoxarifado: {context.warehouse.name}</span>
             </div>
           </div>
         </CardContent>

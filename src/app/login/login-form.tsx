@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Package } from "lucide-react"
 import { useActionState, useEffect } from "react"
@@ -76,12 +77,12 @@ export function LoginForm() {
                       Esqueceu a senha?
                     </a>
                   </div>
-                  <Input
+                  <PasswordInput
                     id="password"
                     name="password"
-                    type="password"
                     required
                     className="h-11 bg-[#45364d] border-[#6b4c68] text-white focus-visible:ring-[#ffb597]"
+                    toggleClassName="text-zinc-400 hover:bg-white/10 hover:text-white"
                   />
                 </div>
 

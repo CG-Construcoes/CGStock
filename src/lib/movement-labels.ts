@@ -21,6 +21,8 @@ export function isManualAdjustment(referenceType: string | null | undefined): bo
 
 export function getMovementTypeLabel(type: string, referenceType?: string | null): string {
   const manual = isManualAdjustment(referenceType)
+  if (referenceType === "TOOL_LOAN") return "Saída — Cautela"
+  if (referenceType === "TOOL_LOAN_RETURN") return "Devolução — Cautela"
   switch (type) {
     case "ENTRY": return "Entrada"
     case "EXIT": return "Saída"

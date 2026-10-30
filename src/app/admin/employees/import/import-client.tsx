@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { importEmployeesBatchAction, type EmployeeBatchItem } from "../actions"
 
-type Worksite = {
+type Warehouse = {
   id: string
   name: string
   code: string
@@ -39,13 +39,13 @@ type ParsedEmployee = {
 
 const BATCH_SIZE = 500
 
-export function EmployeeImportClient({ worksites }: { worksites: Worksite[] }) {
+export function EmployeeImportClient({ warehouses }: { warehouses: Warehouse[] }) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [parsedRows, setParsedRows] = useState<ParsedEmployee[]>([])
-  const [targetWorksiteId, setTargetWorksiteId] = useState<string>(worksites[0]?.id || "")
+  const [targetWarehouseId, setTargetWarehouseId] = useState<string>("")
   const [isParsing, setIsParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
 
@@ -212,7 +212,7 @@ export function EmployeeImportClient({ worksites }: { worksites: Worksite[] }) {
       }))
 
       try {
-        const result = await importEmployeesBatchAction(batchItems, targetWorksiteId || undefined)
+        const result = await importEmployeesBatchAction(batchItems, targetWarehouseId || undefined)
         if (result.success) {
           totalInserted += result.inserted || 0
           totalUpdated += result.updated || 0
@@ -333,14 +333,15 @@ export function EmployeeImportClient({ worksites }: { worksites: Worksite[] }) {
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <div className="text-xs text-muted-foreground">Vincular à obra:</div>
+                  <div className="text-xs text-muted-foreground">Vincular ao almoxarifado:</div>
                   <select
-                    value={targetWorksiteId}
-                    onChange={(e) => setTargetWorksiteId(e.target.value)}
+                    value={targetWarehouseId}
+                    onChange={(e) => setTargetWarehouseId(e.target.value)}
                     disabled={isImporting}
                     className="rounded-md border border-input bg-background px-2.5 py-1.5 text-xs shadow-xs focus:ring-1 focus:ring-primary"
                   >
-                    {worksites.map((w) => (
+                    <option value="">Vincular no 1º bip</option>
+                    {warehouses.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.name} ({w.code})
                       </option>

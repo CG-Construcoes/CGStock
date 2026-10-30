@@ -28,7 +28,7 @@ export type EmployeeBatchItem = {
 
 export async function importEmployeesBatchAction(
   rows: EmployeeBatchItem[],
-  targetWorksiteId?: string
+  targetWarehouseId?: string
 ) {
   let session
   try {
@@ -41,14 +41,14 @@ export async function importEmployeesBatchAction(
     return { success: true, inserted: 0, updated: 0, errors: [] }
   }
 
-  // Obra padrão se não especificada
-  let worksiteId = targetWorksiteId
-  if (!worksiteId) {
-    const defaultWorksite = await db.worksite.findFirst({
+  // Almoxarifado padrão se não especificado
+  let warehouseId = targetWarehouseId
+  if (!warehouseId) {
+    const defaultWarehouse = await db.warehouse.findFirst({
       where: { status: "ACTIVE" },
       select: { id: true }
     })
-    worksiteId = defaultWorksite?.id
+    warehouseId = defaultWarehouse?.id
   }
 
   let inserted = 0
@@ -130,16 +130,14 @@ export async function importEmployeesBatchAction(
       })
       inserted += createData.length
 
-      // Vincular à obra se houver obra ativa
-      if (worksiteId) {
+      // Vincular ao almoxarifado se houver um ativo
+      if (warehouseId) {
         try {
-          await db.userWorksiteAccess.createMany({
+          await db.userWarehouseAccess.createMany({
             data: createData.map(u => ({
               userId: u.id,
-              worksiteId: worksiteId!,
-              canViewStock: true,
-              canRequestMaterial: false,
-              canUseQuickIssue: false
+              warehouseId: warehouseId!,
+              grantedById: session.userId
             })),
             skipDuplicates: true
           })
@@ -165,12 +163,12 @@ export async function importEmployeesBatchAction(
             }
           })
           inserted++
-          if (worksiteId) {
-            await db.userWorksiteAccess.create({
+          if (warehouseId) {
+            await db.userWarehouseAccess.create({
               data: {
                 userId: created.id,
-                worksiteId,
-                canViewStock: true
+                warehouseId,
+                grantedById: session.userId
               }
             }).catch(() => {})
           }
@@ -197,19 +195,19 @@ export async function importEmployeesBatchAction(
         })
         updated++
 
-        if (worksiteId) {
-          await db.userWorksiteAccess.upsert({
+        if (warehouseId) {
+          await db.userWarehouseAccess.upsert({
             where: {
-              userId_worksiteId: {
+              userId_warehouseId: {
                 userId: existing.id,
-                worksiteId
+                warehouseId
               }
             },
             update: {},
             create: {
               userId: existing.id,
-              worksiteId,
-              canViewStock: true
+              warehouseId,
+              grantedById: session.userId
             }
           }).catch(() => {})
         }
@@ -240,6 +238,7 @@ export async function createEmployeeAction(formData: FormData) {
   const document = String(formData.get("document") || "").trim() || null
   const phone = String(formData.get("phone") || "").trim() || null
   const worksiteId = String(formData.get("worksiteId") || "").trim() || null
+  const warehouseId = String(formData.get("warehouseId") || "").trim() || worksiteId
 
   if (!name) {
     return { error: "O nome do funcionário é obrigatório." }
@@ -268,10 +267,10 @@ export async function createEmployeeAction(formData: FormData) {
         qrToken,
         status: "ACTIVE",
         loginEnabled: false, // Funcionário de campo não tem login por padrão
-        worksiteAccesses: worksiteId ? {
+        warehouseAccesses: warehouseId ? {
           create: {
-            worksiteId,
-            canViewStock: true
+            warehouseId,
+            grantedById: session.userId
           }
         } : undefined
       }
@@ -299,7 +298,7 @@ export async function updateEmployeeAction(
     document?: string | null
     phone?: string | null
     status?: string
-    worksiteId?: string | null
+    warehouseId?: string | null
   }
 ) {
   let session
@@ -336,21 +335,18 @@ export async function updateEmployeeAction(
       }
     })
 
-    if (data.worksiteId) {
-      await db.userWorksiteAccess.upsert({
-        where: {
-          userId_worksiteId: {
+    if (data.warehouseId) {
+      // O colaborador pertence a um único almoxarifado por vez — substitui o vínculo anterior
+      await db.$transaction(async (tx) => {
+        await tx.userWarehouseAccess.deleteMany({ where: { userId: employeeId } })
+        await tx.userWarehouseAccess.create({
+          data: {
             userId: employeeId,
-            worksiteId: data.worksiteId
+            warehouseId: data.warehouseId!,
+            grantedById: session.userId
           }
-        },
-        update: {},
-        create: {
-          userId: employeeId,
-          worksiteId: data.worksiteId,
-          canViewStock: true
-        }
-      }).catch(() => {})
+        }).catch(() => {})
+      })
     }
 
     await logAudit("EMPLOYEE_UPDATED", "User", updated.id, {
@@ -366,7 +362,7 @@ export async function updateEmployeeAction(
   }
 }
 
-export async function assignEmployeesWorksiteAction(employeeIds: string[], worksiteId: string) {
+export async function assignEmployeesWarehouseAction(employeeIds: string[], warehouseId: string) {
   let session
   try {
     session = await requireEmployeeManagePermission()
@@ -375,40 +371,35 @@ export async function assignEmployeesWorksiteAction(employeeIds: string[], works
   }
 
   if (!employeeIds || employeeIds.length === 0) return { error: "Nenhum funcionário selecionado." }
-  if (!worksiteId) return { error: "Selecione uma obra." }
+  if (!warehouseId) return { error: "Selecione um almoxarifado." }
 
-  const worksite = await db.worksite.findFirst({ where: { id: worksiteId, status: "ACTIVE" }, select: { id: true } })
-  if (!worksite) return { error: "Obra inválida." }
+  const warehouse = await db.warehouse.findFirst({ where: { id: warehouseId, status: "ACTIVE" }, select: { id: true } })
+  if (!warehouse) return { error: "Almoxarifado inválido." }
 
   try {
-    const existing = await db.userWorksiteAccess.findMany({
-      where: { userId: { in: employeeIds }, worksiteId },
-      select: { userId: true }
-    })
-    const existingSet = new Set(existing.map(e => e.userId))
-    const toCreate = employeeIds.filter(id => !existingSet.has(id))
-
-    if (toCreate.length > 0) {
-      await db.userWorksiteAccess.createMany({
-        data: toCreate.map(userId => ({
+    // Transferência: cada colaborador passa a pertencer apenas ao almoxarifado escolhido
+    await db.$transaction(async (tx) => {
+      await tx.userWarehouseAccess.deleteMany({ where: { userId: { in: employeeIds } } })
+      await tx.userWarehouseAccess.createMany({
+        data: employeeIds.map(userId => ({
           userId,
-          worksiteId,
-          canViewStock: true
+          warehouseId,
+          grantedById: session.userId
         })),
         skipDuplicates: true
       })
-    }
+    })
 
-    await logAudit("EMPLOYEES_WORKSITE_ASSIGNED", "UserWorksiteAccess", worksiteId, {
-      employeeCount: toCreate.length,
-      worksiteId
+    await logAudit("EMPLOYEES_WAREHOUSE_ASSIGNED", "UserWarehouseAccess", warehouseId, {
+      employeeCount: employeeIds.length,
+      warehouseId
     }, session.userId)
 
     revalidatePath("/admin/employees")
-    return { success: true, assigned: toCreate.length }
+    return { success: true, assigned: employeeIds.length }
   } catch (error: any) {
-    console.error("Erro ao vincular funcionários à obra:", error)
-    return { error: "Erro ao vincular funcionários à obra." }
+    console.error("Erro ao vincular funcionários ao almoxarifado:", error)
+    return { error: "Erro ao vincular funcionários ao almoxarifado." }
   }
 }
 

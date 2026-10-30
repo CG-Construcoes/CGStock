@@ -6,16 +6,18 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Save, Plus, Trash2, CheckCircle, Loader2, FileUp, X } from "lucide-react"
+import { Save, Plus, Trash2, CheckCircle, Loader2, FileUp, PackagePlus, Link2 } from "lucide-react"
 import Link from "next/link"
 import * as XLSX from "xlsx"
 import { createReceiptAction } from "../actions"
 import { BackButton } from "@/components/ui/back-button"
+import { Badge } from "@/components/ui/badge"
 import { formatCurrency, cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { queueOfflineOperation } from "@/lib/offline-sync"
 import { parsePedidoSheet, resolvePedidoProduct } from "@/lib/pedido-parser"
+import { QuickProductModal, type CreatedProduct, type PendingProduct } from "./quick-product-modal"
 
 type ItemData = {
   id: string
@@ -23,18 +25,27 @@ type ItemData = {
   locationId: string
   quantity: number
   unitCost: number
+  /** insumo importado sem cadastro no catálogo — exige cadastro ou vínculo */
+  pending?: PendingProduct
+  /** mostra o seletor de produto existente em vez do cartão "produto novo" */
+  linkExisting?: boolean
 }
+
+type ProductOption = { id: string; code: string; name: string; averageCost: unknown }
 
 type ReceiptFormProps = {
   userId: string
   sessionExpiresAt: string
   suppliers: { id: string; name: string; document: string | null }[]
   warehouses: { id: string; name: string }[]
-  products: { id: string; code: string; name: string; averageCost: unknown }[]
+  products: ProductOption[]
   locations: { id: string; code: string; name: string; warehouseId: string }[]
+  categories: { id: string; name: string }[]
+  units: { id: string; code: string; name: string }[]
+  canCreateProduct: boolean
 }
 
-export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, warehouses, products, locations }: ReceiptFormProps) {
+export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, warehouses, products, locations, categories, units, canCreateProduct }: ReceiptFormProps) {
   const router = useRouter()
   const [warehouseId, setWarehouseId] = useState("")
   const [items, setItems] = useState<ItemData[]>([])
@@ -43,8 +54,12 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
   const [isSuccess, setIsSuccess] = useState(false)
   const [pendingAction, setPendingAction] = useState<"DRAFT" | "COMPLETED">("COMPLETED")
   const [isImportingPedido, setIsImportingPedido] = useState(false)
-  const [unmatchedCodes, setUnmatchedCodes] = useState<string[]>([])
+  // catálogo local: cresce quando um produto é cadastrado pelo modal
+  const [productList, setProductList] = useState<ProductOption[]>(products)
+  const [creatingFor, setCreatingFor] = useState<ItemData | null>(null)
   const pedidoFileRef = useRef<HTMLInputElement>(null)
+
+  const pendingCount = items.filter((i) => i.pending && !i.productId).length
 
   const filteredLocations = warehouseId ? locations.filter((l) => l.warehouseId === warehouseId) : []
 
@@ -67,25 +82,43 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
     try {
       const data = await file.arrayBuffer()
       const workbook = XLSX.read(data, { type: "array" })
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-      const grid = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: null })
-      const parsed = parsePedidoSheet(grid)
+      // varre todas as abas — exportações trazem capa/subtotal em abas extras
+      let parsed: ReturnType<typeof parsePedidoSheet> = []
+      for (const sheetName of workbook.SheetNames) {
+        const grid = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, defval: null })
+        parsed = parsePedidoSheet(grid)
+        if (parsed.length > 0) break
+      }
 
       if (parsed.length === 0) {
-        toast.error("Nenhum item de pedido encontrado. Verifique se a planilha foi exportada do Informakon.")
+        toast.error("Nenhum item encontrado. Verifique se a planilha é um pedido ou lista de materiais do Informakon.")
         return
       }
 
       const locationId = defaultLocationId()
       const novos: ItemData[] = []
-      const naoEncontrados: string[] = []
+      let naoEncontrados = 0
 
       for (const it of parsed) {
         // resolvePedidoProduct escolhe entre code / code-MGA / code-CV pelo
         // nome mais parecido com a especificação do pedido (multi-fonte)
-        const product = resolvePedidoProduct(it, products)
+        const product = resolvePedidoProduct(it, productList)
         if (!product) {
-          naoEncontrados.push(it.productCode)
+          // insumo sem cadastro: entra como "produto novo" p/ cadastro ou vínculo
+          novos.push({
+            id: crypto.randomUUID(),
+            productId: "",
+            locationId,
+            quantity: it.quantity,
+            unitCost: it.unitCost ?? 0,
+            pending: {
+              code: it.productCode,
+              name: it.productName,
+              unitCode: it.unitCode,
+              categoryName: it.categoryName,
+            },
+          })
+          naoEncontrados++
           continue
         }
         novos.push({
@@ -98,11 +131,10 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
       }
 
       setItems((prev) => [...prev, ...novos])
-      setUnmatchedCodes(naoEncontrados)
 
-      if (naoEncontrados.length > 0) {
+      if (naoEncontrados > 0) {
         toast.warning(
-          `${novos.length} itens importados. ${naoEncontrados.length} insumos não encontrados no cadastro (lista abaixo).`,
+          `${novos.length} itens importados — ${naoEncontrados} sem cadastro: cadastre ou vincule nos itens abaixo.`,
           { duration: 6000 }
         )
       } else {
@@ -125,6 +157,17 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
 
   const updateItemFields = (id: string, fields: Partial<ItemData>) => {
     setItems(prev => prev.map(i => i.id === id ? { ...i, ...fields } : i))
+  }
+
+  const handleProductCreated = (itemId: string, product: CreatedProduct) => {
+    setProductList((prev) => (prev.some((p) => p.id === product.id) ? prev : [...prev, product]))
+    setItems((prev) => prev.map((i) => {
+      // vincula o item de origem e outros pendentes com o mesmo código final
+      const samePending = i.pending && !i.productId &&
+        i.pending.code.trim().toUpperCase() === product.code.trim().toUpperCase()
+      if (i.id !== itemId && !samePending) return i
+      return { ...i, productId: product.id, pending: undefined, linkExisting: false }
+    }))
   }
 
   const total = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0)
@@ -161,7 +204,11 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
     const invalidItem = items.find(i => !i.productId || !i.locationId || !i.quantity || i.quantity <= 0)
     if (invalidItem) {
       if (!invalidItem.productId) {
-        toast.error("Selecione o produto em todos os itens.")
+        toast.error(
+          invalidItem.pending
+            ? `O insumo ${invalidItem.pending.code} ainda não tem produto — cadastre, vincule um existente ou remova o item.`
+            : "Selecione o produto em todos os itens."
+        )
         return
       }
       if (!invalidItem.quantity || invalidItem.quantity <= 0) {
@@ -331,15 +378,17 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
                 </div>
               </div>
 
-              {unmatchedCodes.length > 0 && (
-                <div className="p-3 bg-amber-50 text-amber-800 text-sm rounded-md border border-amber-200 flex items-start gap-2">
+              {pendingCount > 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-sm rounded-md border border-amber-200 dark:border-amber-800 flex items-start gap-2">
+                  <PackagePlus className="h-4 w-4 mt-0.5 shrink-0" />
                   <div className="flex-1">
-                    <span className="font-medium">{unmatchedCodes.length} insumo(s) do pedido sem cadastro ativo:</span>
-                    <span className="ml-1 break-all">{unmatchedCodes.join(", ")}</span>
+                    <span className="font-medium">
+                      {pendingCount} insumo(s) importado(s) sem cadastro no catálogo.
+                    </span>
+                    <span className="ml-1">
+                      Use o botão <strong>Cadastrar</strong> em cada item laranja para criar o produto, ou vincule um existente.
+                    </span>
                   </div>
-                  <button type="button" onClick={() => setUnmatchedCodes([])} className="text-amber-600 hover:text-amber-800 shrink-0">
-                    <X className="h-4 w-4" />
-                  </button>
                 </div>
               )}
 
@@ -360,22 +409,57 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
                   <div key={item.id} className="grid grid-cols-12 gap-3 items-end border p-4 rounded-md bg-muted">
                     <div className="col-span-12 md:col-span-4 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Produto *</label>
-                      <SearchableSelect 
-                        name="item_productId" 
-                        required 
-                        value={item.productId}
-                        onChange={val => {
-                          const product = products.find((p) => p.id === val)
-                          updateItemFields(item.id, { 
-                            productId: val, 
-                            unitCost: product && product.averageCost ? Number(product.averageCost) : 0 
-                          })
-                        }}
-                        options={products.map((p) => ({
-                          value: p.id,
-                          label: `${p.code} - ${p.name}`
-                        }))}
-                      />
+                      {item.pending && !item.linkExisting && !item.productId ? (
+                        <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/30 p-2.5 space-y-2">
+                          {/* mantém os arrays item_* alinhados no FormData */}
+                          <input type="hidden" name="item_productId" value="" />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="warning">Produto novo</Badge>
+                            <span className="font-mono text-xs text-muted-foreground">{item.pending.code}</span>
+                          </div>
+                          <p className="text-xs font-medium leading-snug line-clamp-2" title={item.pending.name}>
+                            {item.pending.name || "Sem descrição na planilha"}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            {canCreateProduct && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => setCreatingFor(item)}
+                              >
+                                <PackagePlus className="h-3.5 w-3.5 mr-1" /> Cadastrar
+                              </Button>
+                            )}
+                            <button
+                              type="button"
+                              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground inline-flex items-center gap-1"
+                              onClick={() => updateItemFields(item.id, { linkExisting: true })}
+                            >
+                              <Link2 className="h-3 w-3" /> vincular existente
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <SearchableSelect 
+                          name="item_productId" 
+                          required 
+                          value={item.productId}
+                          onChange={val => {
+                            const product = productList.find((p) => p.id === val)
+                            updateItemFields(item.id, { 
+                              productId: val,
+                              pending: val ? undefined : item.pending,
+                              linkExisting: false,
+                              unitCost: product && product.averageCost ? Number(product.averageCost) : item.unitCost 
+                            })
+                          }}
+                          options={productList.map((p) => ({
+                            value: p.id,
+                            label: `${p.code} - ${p.name}`
+                          }))}
+                        />
+                      )}
                     </div>
                     
                     <div className="col-span-6 md:col-span-2 space-y-1">
@@ -536,6 +620,19 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
           </form>
         </CardContent>
       </Card>
+
+      {creatingFor?.pending && (
+        <QuickProductModal
+          pending={creatingFor.pending}
+          categories={categories}
+          units={units}
+          locations={filteredLocations}
+          warehouseId={warehouseId}
+          defaultLocationId={creatingFor.locationId}
+          onClose={() => setCreatingFor(null)}
+          onCreated={(product) => handleProductCreated(creatingFor.id, product)}
+        />
+      )}
     </>
   )
 }

@@ -23,9 +23,11 @@ export type PedidoItem = {
   unitCode: string | null
   /** valor total da linha (conferência) */
   totalValue: number | null
+  /** coluna "Categoria" de relatórios de lista de materiais (pré-seleção no cadastro) */
+  categoryName: string | null
 }
 
-type ColKey = 'item' | 'name' | 'code' | 'unit' | 'quantity' | 'unitCost' | 'unitCostInitial' | 'totalValue'
+type ColKey = 'item' | 'name' | 'code' | 'unit' | 'quantity' | 'unitCost' | 'unitCostInitial' | 'totalValue' | 'category'
 
 const norm = (v: unknown) =>
   String(v ?? '')
@@ -39,16 +41,21 @@ const norm = (v: unknown) =>
 
 const HEADER_ALIASES: Record<ColKey, string[]> = {
   item: ['item', 'seq', 'sequencia'],
-  name: ['especificacao', 'descricao', 'descricao do material', 'especificacao do material'],
-  code: ['insumo sub', 'insumosub', 'insumo', 'codigo', 'material'],
+  name: ['especificacao', 'descricao', 'descricao do material', 'especificacao do material', 'descricao do insumo', 'especificacao do insumo', 'nome do material'],
+  code: ['insumo sub', 'insumosub', 'insumo', 'codigo', 'codigo do insumo', 'cod insumo', 'codigo insumo', 'material'],
   unit: ['unid', 'unidade', 'un'],
-  quantity: ['quantidade', 'qtd', 'qtde'],
-  unitCost: ['prunit insumo', 'pr unit insumo', 'preco unitario insumo', 'prunit final', 'preco unitario'],
+  quantity: ['quantidade', 'qtd', 'qtde', 'qtd prevista'],
+  unitCost: ['prunit insumo', 'pr unit insumo', 'preco unitario insumo', 'prunit final', 'preco unitario', 'preco unit', 'valor unitario', 'vlr unitario'],
   unitCostInitial: ['prunit inicial', 'pr unit inicial', 'preco inicial'],
-  totalValue: ['total do item', 'total item', 'valor total', 'total'],
+  totalValue: ['total do item', 'total item', 'valor total', 'vlr total', 'total'],
+  category: ['categoria', 'grupo', 'classe'],
 }
 
-const HEADER_SCAN_LIMIT = 15
+const HEADER_SCAN_LIMIT = 60
+
+function aliasMatch(normalizedCell: string, alias: string) {
+  return normalizedCell === alias || normalizedCell.startsWith(`${alias} `)
+}
 
 function locateHeader(rows: unknown[][]): { index: number; cols: Partial<Record<ColKey, number>> } | null {
   for (let i = 0; i < Math.min(rows.length, HEADER_SCAN_LIMIT); i++) {
@@ -57,7 +64,7 @@ function locateHeader(rows: unknown[][]): { index: number; cols: Partial<Record<
       const n = norm(cell)
       if (!n) return
       for (const key of Object.keys(HEADER_ALIASES) as ColKey[]) {
-        if (cols[key] === undefined && HEADER_ALIASES[key].includes(n)) cols[key] = j
+        if (cols[key] === undefined && HEADER_ALIASES[key].some((a) => aliasMatch(n, a))) cols[key] = j
       }
     })
     // exige código + quantidade para reconhecer a grade de pedido
@@ -98,17 +105,20 @@ export function parsePedidoSheet(rows: unknown[][]): PedidoItem[] {
     const productCode = toText(get(row, 'code'))
     const productName = toText(get(row, 'name'))
 
-    // ignora linhas vazias e o rodapé de totalização (só Total do Item preenchido)
-    if (!productCode && !productName) continue
+    // sem código não há como vincular/cadastrar — descarta vazias e o
+    // rodapé de totalização ("TOTAL GERAL" / só Total do Item preenchido)
+    if (!productCode) continue
+    if (/^total\b/i.test(productCode) || /^total\b/i.test(productName)) continue
 
-    const quantity = toNumber(get(row, 'quantity')) ?? 0
+    // quantidade pode vir vazia (listas de materiais) — entra como 0 para
+    // preenchimento manual na tela de entrada
+    const quantity = Math.max(0, toNumber(get(row, 'quantity')) ?? 0)
     const unitCost = toNumber(get(row, 'unitCost')) ?? toNumber(get(row, 'unitCostInitial'))
     const totalValue = toNumber(get(row, 'totalValue'))
     const unitCode = toText(get(row, 'unit')).toUpperCase() || null
+    const categoryName = toText(get(row, 'category')) || null
 
-    if (quantity <= 0) continue
-
-    out.push({ productCode, productName, quantity, unitCost, unitCode, totalValue })
+    out.push({ productCode, productName, quantity, unitCost, unitCode, totalValue, categoryName })
   }
   return out
 }
@@ -153,12 +163,19 @@ export function resolvePedidoProduct(
   minScore = 0.4,
 ): PedidoProductCandidate | null {
   const nat = item.productCode.trim().toUpperCase()
-  const candidates = products.filter(p => {
+  const exact = products.filter(p => {
     const c = p.code.trim().toUpperCase()
     return c === nat || c === `${nat}-MGA` || c === `${nat}-CV`
   })
+  if (exact.length === 1) return exact[0]
+
+  // Código sem sufixo de sub-insumo ("023824"): aceita prefixo ("023824-000",
+  // "023824-000-CV"), mas exige confirmação pelo nome para não vincular errado.
+  const candidates = exact.length > 0
+    ? exact
+    : products.filter(p => p.code.trim().toUpperCase().startsWith(`${nat}-`))
+
   if (candidates.length === 0) return null
-  if (candidates.length === 1) return candidates[0]
   let best: PedidoProductCandidate | null = null
   let bestScore = 0
   for (const c of candidates) {

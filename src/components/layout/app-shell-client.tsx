@@ -13,6 +13,7 @@ import type { UserContextSnapshotData } from "@/lib/localdb"
 
 const CLIENT_FORM_ROUTES = new Set([
   "/quick-issue",
+  "/tool-loans",
   "/collector/sync",
   "/receipts/new",
   "/adjustments/new",

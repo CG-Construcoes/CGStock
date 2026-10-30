@@ -1,6 +1,6 @@
 "use client"
 import { Suspense, useState } from "react"
-import { Bell, Download, Menu, Package, Search } from "lucide-react"
+import { Bell, Download, Menu, Search } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { logoutAction } from "@/app/auth-actions"
@@ -37,6 +37,7 @@ export function Topbar({
     'users': 'Usuários',
     'products': 'Produtos',
     'stock': 'Estoque e Saldos',
+    'product-lookup': 'Consulta de Produto',
     'categories': 'Categorias',
     'units': 'Unidades',
     'warehouses': 'Almoxarifados',
@@ -46,6 +47,7 @@ export function Topbar({
     'receipts': 'Entradas',
     'issues': 'Saídas',
     'quick-issue': 'Entrega Rápida',
+    'tool-loans': 'Cautela Diária',
     'adjustments': 'Ajuste Manual',
     'requests': 'Requisições',
     'fulfillment': 'Atender Requisição',

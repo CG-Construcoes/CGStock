@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { editUserAction } from "./actions"
 import { AlertCircle, Loader2 } from "lucide-react"
@@ -66,11 +67,10 @@ export function EditUserForm({ user, roles, worksites, warehouses }: { user: Use
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="password">Nova Senha (opcional)</Label>
-          <Input 
-            id="password" 
-            name="password" 
-            type="password" 
-            placeholder="Deixe em branco para manter a atual" 
+          <PasswordInput
+            id="password"
+            name="password"
+            placeholder="Deixe em branco para manter a atual"
             minLength={6}
             className="bg-muted/50 focus-visible:ring-primary border-border"
           />

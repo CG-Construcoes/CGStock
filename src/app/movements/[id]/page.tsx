@@ -49,6 +49,12 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
     originLabel = "Transferência entre Almoxarifados"
   } else if (mov.referenceType === 'QUICK_ISSUE') {
     originLabel = "Entrega Rápida (saída por QR/matricula)"
+  } else if (mov.referenceType === 'TOOL_LOAN') {
+    originLink = `/tool-loans`
+    originLabel = "Cautela Diária (empréstimo de ferramenta/material)"
+  } else if (mov.referenceType === 'TOOL_LOAN_RETURN') {
+    originLink = `/tool-loans`
+    originLabel = "Cautela Diária (devolução de ferramenta/material)"
   } else if (mov.referenceType === 'INFORMAKON') {
     originLabel = `Sincronização Informakon (${mov.documentNumber ?? 'documento ERP'})`
   }
@@ -82,7 +88,9 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
             </p>
             {mov.recipientUser && (
               <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                <User className="h-4 w-4" /> Destinatário: <span className="font-medium text-foreground">{mov.recipientUser.name}</span>
+                <User className="h-4 w-4" />
+                {isPositive ? 'Devolvido por' : 'Entregue para'}:
+                <span className="font-medium text-foreground">{mov.recipientUser.name}</span>
               </p>
             )}
           </CardContent>

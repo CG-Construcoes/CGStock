@@ -13,6 +13,7 @@ export default async function EmployeesPage({
     q?: string
     page?: string
     type?: string
+    warehouse?: string
     worksite?: string
   }>
 }) {
@@ -22,7 +23,8 @@ export default async function EmployeesPage({
   const q = resolved?.q?.trim() || ""
   const page = Math.max(1, parseInt(resolved?.page || "1", 10) || 1)
   const typeFilter = resolved?.type || "ALL" // 'ALL' | 'FIELD' | 'SYSTEM'
-  const worksiteFilter = resolved?.worksite || "ALL" // 'ALL' | 'NONE' | <worksiteId>
+  // Aceita ?warehouse= (novo) e ?worksite= (links antigos) — o vínculo é por almoxarifado
+  const warehouseFilter = resolved?.warehouse || resolved?.worksite || "ALL" // 'ALL' | 'NONE' | <warehouseId>
   const pageSize = 50
 
   const whereCondition: any = {}
@@ -33,10 +35,10 @@ export default async function EmployeesPage({
     whereCondition.loginEnabled = true
   }
 
-  if (worksiteFilter === "NONE") {
-    whereCondition.worksiteAccesses = { none: {} }
-  } else if (worksiteFilter !== "ALL") {
-    whereCondition.worksiteAccesses = { some: { worksiteId: worksiteFilter } }
+  if (warehouseFilter === "NONE") {
+    whereCondition.warehouseAccesses = { none: {} }
+  } else if (warehouseFilter !== "ALL") {
+    whereCondition.warehouseAccesses = { some: { warehouseId: warehouseFilter } }
   }
 
   if (q) {
@@ -58,7 +60,7 @@ export default async function EmployeesPage({
     withQrCode,
     totalMatching,
     employees,
-    worksites,
+    warehouses,
   ] = await Promise.all([
     db.user.count(),
     db.user.count({ where: { loginEnabled: false, status: "ACTIVE" } }),
@@ -80,9 +82,9 @@ export default async function EmployeesPage({
         qrStatus: true,
         createdAt: true,
         roles: { select: { id: true, name: true } },
-        worksiteAccesses: {
+        warehouseAccesses: {
           select: {
-            worksite: { select: { id: true, name: true, code: true } },
+            warehouse: { select: { id: true, name: true, code: true } },
           },
         },
       },
@@ -90,7 +92,7 @@ export default async function EmployeesPage({
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    db.worksite.findMany({
+    db.warehouse.findMany({
       where: { status: "ACTIVE" },
       select: { id: true, name: true, code: true },
       orderBy: { name: "asc" },
@@ -108,7 +110,7 @@ export default async function EmployeesPage({
         systemUsers,
         withQrCode,
       }}
-      worksites={worksites}
+      warehouses={warehouses}
       pagination={{
         page,
         pageSize,
@@ -118,7 +120,7 @@ export default async function EmployeesPage({
       currentFilter={{
         q,
         type: typeFilter,
-        worksite: worksiteFilter,
+        warehouse: warehouseFilter,
       }}
     />
   )

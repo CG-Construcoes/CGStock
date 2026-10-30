@@ -3,7 +3,7 @@
 import { useActionState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Lock, LogOut } from "lucide-react"
 import { toast } from "sonner"
 import { changePasswordAction } from "./actions"
@@ -47,32 +47,29 @@ export default function ChangePasswordPage() {
         <form action={formAction} className="space-y-5 relative z-10">
           <div className="space-y-2">
             <label className="text-sm font-medium">Senha Temporária / Atual</label>
-            <Input 
-              name="currentPassword" 
-              type="password" 
-              placeholder="••••••••" 
-              required 
+            <PasswordInput
+              name="currentPassword"
+              placeholder="••••••••"
+              required
               className="h-12 bg-background/50"
             />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Nova Senha</label>
-            <Input 
-              name="newPassword" 
-              type="password" 
-              placeholder="Mínimo 10 caracteres, com letras e números" 
-              required 
+            <PasswordInput
+              name="newPassword"
+              placeholder="Mínimo 10 caracteres, com letras e números"
+              required
               className="h-12 bg-background/50"
               minLength={10}
             />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Confirme a Nova Senha</label>
-            <Input 
-              name="confirmPassword" 
-              type="password" 
-              placeholder="Repita a nova senha" 
-              required 
+            <PasswordInput
+              name="confirmPassword"
+              placeholder="Repita a nova senha"
+              required
               className="h-12 bg-background/50"
               minLength={10}
             />

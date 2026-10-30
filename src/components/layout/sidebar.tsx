@@ -2,14 +2,27 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Package, ChevronDown } from "lucide-react"
-import { getNavSections, isNavItemActive, type NavItem, type NavUser } from "./nav-config"
+import { Package, ChevronDown, LogOut } from "lucide-react"
+import { logoutAction } from "@/app/auth-actions"
+import { clearOfflineSnapshots } from "@/lib/offline-snapshot"
+import { getNavSections, isNavItemActive, roleLabel, type NavItem, type NavUser } from "./nav-config"
 
 /** Menu lateral fixo (telas grandes). No celular é usado o MobileMenu. */
 export function Sidebar({ user }: { user?: NavUser }) {
   const pathname = usePathname()
   const sections = getNavSections(user)
+
+  const logout = async () => {
+    if (!user) return
+    try {
+      await clearOfflineSnapshots(user.userId)
+    } catch {
+      toast.warning("Dados locais não puderam ser limpos neste aparelho.")
+    }
+    await logoutAction()
+  }
 
   // A seção "Mais" já começa aberta se a página atual estiver dentro dela
   const moreHasActive = sections.some((s) => s.collapsible && s.items.some((i) => isNavItemActive(pathname, i.href)))
@@ -82,6 +95,31 @@ export function Sidebar({ user }: { user?: NavUser }) {
           })}
         </nav>
       </div>
+
+      {/* Rodapé: usuário logado + sair */}
+      {user && (
+        <div className="shrink-0 border-t border-[#5e2750] p-3">
+          <div className="flex items-center gap-3 px-2 pb-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e95420] text-sm font-black text-white">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold leading-tight text-white">
+                {user.name.split(" ").slice(0, 2).join(" ")}
+              </p>
+              <p className="truncate text-xs text-[#ffb597]">{roleLabel(user.roles)}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-[#5e2750] px-3 py-2.5 text-sm font-semibold text-[#ffb597] transition-colors hover:bg-[#5e2750] hover:text-white"
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </button>
+        </div>
+      )}
     </aside>
   )
 }

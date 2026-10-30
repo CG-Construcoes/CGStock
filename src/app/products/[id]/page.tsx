@@ -44,40 +44,51 @@ export default async function ProductDetailPage({
   const totalQuantity = product.stocks.reduce((acc, stock) => acc + Number(stock.quantity), 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackButton />
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-2xl font-bold tracking-tight">{product.name}</h2>
+    <div className="space-y-6 pb-20 sm:pb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="shrink-0 pt-0.5">
+            <BackButton />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight break-words leading-snug">
+                {product.name}
+              </h2>
               <Badge variant={product.status === 'ACTIVE' ? 'success' : 'secondary'}>
                 {product.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
               </Badge>
             </div>
-            <p className="text-muted-foreground">Cód.Insumo: {product.code} {product.barcode ? `• Cód. Barras: ${product.barcode}` : ''}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 break-all">
+              Cód.Insumo: {product.code} {product.barcode ? `• Cód. Barras: ${product.barcode}` : ''}
+            </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto shrink-0">
           {warehouses.length > 1 && (
             <Suspense fallback={null}>
               <WarehouseSelectFilter
                 warehouses={warehouses}
                 selectedWarehouseId={selectedWarehouseId}
-                className="w-56"
+                className="w-full sm:w-56"
               />
             </Suspense>
           )}
-          <Link href={`/stock/${product.id}`}>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Archive className="h-4 w-4" />
-              Ver Estoque
-            </Button>
-          </Link>
-          <Button className="flex items-center gap-2">
-            <Edit className="h-4 w-4" />
-            Editar Produto
-          </Button>
+          <div className="grid grid-cols-2 sm:flex items-center gap-2">
+            <Link href={`/stock/${product.id}`} className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full flex items-center justify-center gap-2">
+                <Archive className="h-4 w-4 shrink-0" />
+                <span>Ver Estoque</span>
+              </Button>
+            </Link>
+            <Link href={`/products/${product.id}/edit`} className="w-full sm:w-auto">
+              <Button className="w-full flex items-center justify-center gap-2">
+                <Edit className="h-4 w-4 shrink-0" />
+                <span>Editar Produto</span>
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -87,7 +98,7 @@ export default async function ProductDetailPage({
             <CardTitle>Detalhes do Produto</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Categoria</p>
                 <p className="font-medium">{product.category.name}</p>

@@ -154,7 +154,7 @@ async function StockContent({
               TRIM(COALESCE(u.name, COALESCE(u.code, 'UN'))) AS unit_name,
               COALESCE(SUM(s.quantity), 0)::float8 AS qty,
               COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS res,
-              COALESCE(SUM(s.quantity * COALESCE(s."unitValue", p."averageCost", 0)), 0)::float8 AS erp_val
+              COALESCE(SUM(s.quantity * COALESCE(p."averageCost", 0)), 0)::float8 AS erp_val
             FROM "Product" p
             LEFT JOIN "ProductUnit" u ON u.id = p."unitId"
             ${stockJoin}
@@ -189,7 +189,7 @@ async function StockContent({
             COUNT(DISTINCT s."warehouseId")::int AS "warehouseCount",
             COALESCE(SUM(s.quantity), 0)::float8 AS "totalQuantity",
             COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS "totalReserved",
-            COALESCE(SUM(s.quantity * COALESCE(s."unitValue", p."averageCost", 0)), 0)::float8 AS "totalValue"
+            COALESCE(SUM(s.quantity * COALESCE(p."averageCost", 0)), 0)::float8 AS "totalValue"
           FROM "Product" p
           INNER JOIN "ProductCategory" c ON c.id = p."categoryId"
           INNER JOIN "ProductUnit" u ON u.id = p."unitId"

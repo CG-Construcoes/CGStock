@@ -35,9 +35,9 @@ export default async function PrintBadgesPage({
       phone: true,
       email: true,
       qrToken: true,
-      worksiteAccesses: {
+      warehouseAccesses: {
         select: {
-          worksite: { select: { name: true, code: true } },
+          warehouse: { select: { name: true, code: true } },
         },
       },
     },
