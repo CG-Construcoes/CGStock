@@ -66,7 +66,7 @@ export async function createLocationAction(formData: FormData) {
 export async function updateLocationAction(formData: FormData) {
   const session = await getSession()
   if (!session) redirect("/login")
-  await requirePermission('CONFIG_MANAGE')
+  await requirePermission('LOCATION_UPDATE')
 
   const id = formData.get("id") as string
   const warehouseId = formData.get("warehouseId") as string

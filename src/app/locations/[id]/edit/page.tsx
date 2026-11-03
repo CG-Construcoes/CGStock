@@ -15,7 +15,7 @@ export default async function EditLocationPage(props: {
   params: Promise<{ id: string }>
   searchParams: Promise<{ error?: string }>
 }) {
-  await requirePermissionPage('CONFIG_MANAGE')
+  await requirePermissionPage('LOCATION_UPDATE')
   const params = await props.params;
   const searchParams = await props.searchParams;
 
