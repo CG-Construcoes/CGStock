@@ -43,6 +43,7 @@ interface WarehouseLocationsManagerProps {
   warehouseCode: string
   locations: LocationItem[]
   canCreate?: boolean
+  canDelete?: boolean
 }
 
 export function WarehouseLocationsManager({
@@ -51,6 +52,7 @@ export function WarehouseLocationsManager({
   warehouseCode,
   locations,
   canCreate = true,
+  canDelete = true,
 }: WarehouseLocationsManagerProps) {
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -249,21 +251,23 @@ export function WarehouseLocationsManager({
                     {loc.status === "ACTIVE" ? "Ativo" : "Inativo"}
                   </Badge>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteLocation(loc.id, loc.code)}
-                    disabled={deletingId === loc.id}
-                    className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                    title="Excluir localização"
-                  >
-                    {deletingId === loc.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
+                  {canDelete && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteLocation(loc.id, loc.code)}
+                      disabled={deletingId === loc.id}
+                      className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                      title="Excluir localização"
+                    >
+                      {deletingId === loc.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

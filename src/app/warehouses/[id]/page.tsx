@@ -9,17 +9,24 @@ import { BackButton } from "@/components/ui/back-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Settings } from "lucide-react"
+import { WarehouseLocationsManager } from "@/app/admin/warehouses/warehouse-locations-manager"
 
 export default async function WarehouseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAnyPermissionPage('STOCK_VIEW', 'STOCK_ENTRY', 'STOCK_TRANSFER')
   const session = await getValidatedSession()
   const canManage = session?.roles?.includes('ADMIN') || (await hasPermission('CONFIG_MANAGE'))
+  const canCreateLocation = await hasPermission('LOCATION_CREATE')
   const resolvedParams = await params
 
   const scope = await warehouseScopeIds(session!.userId)
   const warehouse = await db.warehouse.findFirst({
     where: { id: { equals: resolvedParams.id, in: scope ?? undefined } },
-    include: { locations: { orderBy: { name: 'asc' } } }
+    include: {
+      locations: {
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { stocks: true, products: true } } }
+      }
+    }
   })
 
   if (!warehouse) notFound()
@@ -60,28 +67,17 @@ export default async function WarehouseDetailPage({ params }: { params: Promise<
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Localizações ({warehouse.locations.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {warehouse.locations.map(loc => (
-                <li key={loc.id} className="flex justify-between border-b border-border pb-2 last:border-0">
-                  <span className="font-medium">{loc.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">{loc.code}</span>
-                  </div>
-                </li>
-              ))}
-              {warehouse.locations.length === 0 && (
-                <li className="text-sm text-muted-foreground">Nenhuma localização cadastrada.</li>
-              )}
-            </ul>
-          </CardContent>
-        </Card>
       </div>
+
+      {/* Gerenciamento das localizações: criação liberada por LOCATION_CREATE; exclusão exige CONFIG_MANAGE */}
+      <WarehouseLocationsManager
+        warehouseId={warehouse.id}
+        warehouseName={warehouse.name}
+        warehouseCode={warehouse.code}
+        locations={warehouse.locations}
+        canCreate={canCreateLocation}
+        canDelete={canManage}
+      />
     </div>
   )
 }
