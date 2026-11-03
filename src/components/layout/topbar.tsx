@@ -47,7 +47,7 @@ export function Topbar({
     'receipts': 'Entradas',
     'issues': 'Saídas',
     'quick-issue': 'Entrega Rápida',
-    'tool-loans': 'Cautela Diária',
+    'tool-loans': 'Ferramentaria',
     'adjustments': 'Ajuste Manual',
     'requests': 'Requisições',
     'fulfillment': 'Atender Requisição',

@@ -51,10 +51,10 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
     originLabel = "Entrega Rápida (saída por QR/matricula)"
   } else if (mov.referenceType === 'TOOL_LOAN') {
     originLink = `/tool-loans`
-    originLabel = "Cautela Diária (empréstimo de ferramenta/material)"
+    originLabel = "Ferramentaria (empréstimo de ferramenta)"
   } else if (mov.referenceType === 'TOOL_LOAN_RETURN') {
     originLink = `/tool-loans`
-    originLabel = "Cautela Diária (devolução de ferramenta/material)"
+    originLabel = "Ferramentaria (devolução de ferramenta)"
   } else if (mov.referenceType === 'INFORMAKON') {
     originLabel = `Sincronização Informakon (${mov.documentNumber ?? 'documento ERP'})`
   }

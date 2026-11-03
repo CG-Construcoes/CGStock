@@ -184,6 +184,7 @@ model Warehouse {
   transfersDestination StockTransfer[]     @relation("TransferDestinationWarehouse")
   quickIssues          QuickIssue[]
   toolLoans            ToolLoan[]
+  toolAssets           ToolAsset[]
   userAccesses         UserWarehouseAccess[]
   importBatches        ImportBatch[]
   
@@ -731,6 +732,34 @@ model QuickIssueItem {
   notes       String?
 }
 
+model ToolAsset {
+  id            String         @id @default(uuid())
+  warehouseId   String
+  warehouse     Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  code          String         // Patrimônio ou código da ferramenta (ex.: CV-360, FER-001)
+  qrToken       String         @unique // Token impresso no QR Code da etiqueta
+  name          String         // Ex.: Furadeira DeWalt, Pá de Bico, Marreta 5kg
+  category      String?        // Ex.: Equipamento Elétrico, Ferramenta Manual, Solda
+  brand         String?        // Ex.: DeWalt, Bosch, Tramontina
+  serialNumber  String?
+  trackingType  String         @default("ASSET") // ASSET (patrimônio único, qtd=1) | QUANTITY (por quantidade, ex.: pás)
+  totalQuantity Int            @default(1)
+  unit          String         @default("UN")
+  condition     String         @default("GOOD") // GOOD, MAINTENANCE, DAMAGED
+  status        String         @default("ACTIVE") // ACTIVE, INACTIVE
+  notes         String?
+
+  loanItems     ToolLoanItem[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([warehouseId, code])
+  @@index([warehouseId, status])
+  @@index([code])
+}
+
 model ToolLoan {
   id          String         @id @default(uuid())
   loanNumber  String         @unique
@@ -763,24 +792,27 @@ model ToolLoan {
 }
 
 model ToolLoanItem {
-  id               String            @id @default(uuid())
+  id               String             @id @default(uuid())
   loanId           String
-  loan             ToolLoan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  productId        String
-  product          Product           @relation(fields: [productId], references: [id])
-  locationId       String
-  location         WarehouseLocation @relation(fields: [locationId], references: [id])
+  loan             ToolLoan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  toolAssetId      String?
+  toolAsset        ToolAsset?         @relation(fields: [toolAssetId], references: [id])
+  productId        String?
+  product          Product?           @relation(fields: [productId], references: [id])
+  locationId       String?
+  location         WarehouseLocation? @relation(fields: [locationId], references: [id])
   quantityLoaned   Int
-  quantityReturned Int               @default(0)
-  status           String            @default("OPEN") // OPEN, PARTIAL, RETURNED
+  quantityReturned Int                @default(0)
+  status           String             @default("OPEN") // OPEN, PARTIAL, RETURNED
   notes            String?
   returnedAt       DateTime?
   returnedById     String?
-  returnedBy       User?             @relation("ToolLoanReturnedBy", fields: [returnedById], references: [id])
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  returnedBy       User?              @relation("ToolLoanReturnedBy", fields: [returnedById], references: [id])
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   @@index([loanId])
+  @@index([toolAssetId])
   @@index([productId])
   @@index([status])
 }

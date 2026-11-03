@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { getValidatedSession } from "@/lib/auth"
 import { hasAnyPermission } from "@/lib/permissions"
-import { listOpenToolLoans } from "./actions"
+import { listToolRoomData } from "./actions"
 import { ToolLoansClient } from "./tool-loans-client"
 
 export default async function ToolLoansPage() {
@@ -11,13 +11,16 @@ export default async function ToolLoansPage() {
   const allowed = await hasAnyPermission("STOCK_EXIT", "STOCK_ENTRY")
   if (!allowed) redirect("/unauthorized")
 
-  const { summaries, activeWarehouseName } = await listOpenToolLoans()
+  const data = await listToolRoomData()
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <ToolLoansClient
-        initialSummaries={summaries}
-        initialWarehouseName={activeWarehouseName}
+        initialSummaries={data.summaries}
+        initialTools={data.tools}
+        initialWarehouses={data.warehouses}
+        initialWarehouseId={data.activeWarehouseId}
+        initialWarehouseName={data.activeWarehouseName}
       />
     </div>
   )

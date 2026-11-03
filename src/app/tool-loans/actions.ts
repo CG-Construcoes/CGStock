@@ -2,27 +2,60 @@
 
 import { db } from "@/lib/db"
 import { cookies } from "next/headers"
-import { assertWarehouseAccess, warehouseScopeIds } from "@/lib/dal"
+import { assertWarehouseAccess, getAccessibleWarehouses, warehouseScopeIds } from "@/lib/dal"
 import { revalidatePath } from "next/cache"
 import { createWithUniqueNumber } from "@/lib/sequential"
 import { requireActionPermission } from "@/lib/action-guard"
 import { hasAnyPermission } from "@/lib/permissions"
-import { createStockMovement } from "@/lib/stock"
 import { logAudit } from "@/lib/audit"
 import { sendNotification } from "@/lib/notification"
 import { ensureWarehouseWorksite, resolveEmployeeForOperatorWarehouse } from "@/lib/employee-warehouse"
+
+export type ToolTrackingType = "ASSET" | "QUANTITY"
+
+export type ToolAssetDTO = {
+  id: string
+  warehouseId: string
+  warehouseName: string
+  warehouseCode: string
+  code: string
+  qrToken: string
+  name: string
+  category: string | null
+  brand: string | null
+  serialNumber: string | null
+  trackingType: ToolTrackingType
+  totalQuantity: number
+  loanedQuantity: number
+  availableQuantity: number
+  unit: string
+  condition: string
+  status: string
+  notes: string | null
+  currentHolders: {
+    itemId: string
+    loanNumber: string
+    employeeId: string
+    employeeName: string
+    employeeCode: string | null
+    quantityPending: number
+    loanedAt: string
+  }[]
+}
 
 export type OpenLoanItemDTO = {
   itemId: string
   loanId: string
   loanNumber: string
   loanedAt: string
-  productId: string
-  productCode: string
-  productName: string
+  toolAssetId: string | null
+  toolCode: string
+  toolQrToken: string | null
+  toolName: string
+  toolCategory: string | null
+  toolBrand: string | null
+  trackingType: ToolTrackingType
   unitCode: string
-  locationId: string
-  locationCode: string
   quantityLoaned: number
   quantityReturned: number
   quantityPending: number
@@ -61,43 +94,81 @@ async function requireLoanPermission() {
   }
 }
 
-export async function getEmployeeOpenLoanItems(employeeId: string, warehouseId: string): Promise<OpenLoanItemDTO[]> {
+function mapLoanItemToDTO(it: {
+  id: string
+  loan: { id: string; loanNumber: string; loanedAt: Date }
+  toolAssetId: string | null
+  toolAsset: {
+    id: string
+    code: string
+    qrToken: string
+    name: string
+    category: string | null
+    brand: string | null
+    trackingType: string
+    unit: string
+  } | null
+  product: { code: string; name: string; unit: { code: string } } | null
+  quantityLoaned: number
+  quantityReturned: number
+  status: string
+  notes: string | null
+}): OpenLoanItemDTO {
+  const asset = it.toolAsset
+  const prod = it.product
+  return {
+    itemId: it.id,
+    loanId: it.loan.id,
+    loanNumber: it.loan.loanNumber,
+    loanedAt: it.loan.loanedAt.toISOString(),
+    toolAssetId: it.toolAssetId,
+    toolCode: asset?.code ?? prod?.code ?? "SEM-COD",
+    toolQrToken: asset?.qrToken ?? null,
+    toolName: asset?.name ?? prod?.name ?? "Ferramenta",
+    toolCategory: asset?.category ?? null,
+    toolBrand: asset?.brand ?? null,
+    trackingType: asset?.trackingType === "QUANTITY" ? "QUANTITY" : "ASSET",
+    unitCode: asset?.unit ?? prod?.unit.code ?? "UN",
+    quantityLoaned: it.quantityLoaned,
+    quantityReturned: it.quantityReturned,
+    quantityPending: Math.max(0, it.quantityLoaned - it.quantityReturned),
+    status: it.status,
+    notes: it.notes,
+  }
+}
+
+export async function getEmployeeOpenLoanItems(employeeId: string, warehouseId?: string): Promise<OpenLoanItemDTO[]> {
+  const scope = await warehouseScopeIds()
   const items = await db.toolLoanItem.findMany({
     where: {
       status: { in: ["OPEN", "PARTIAL"] },
       loan: {
         recipientId: employeeId,
-        warehouseId,
         status: { in: ["OPEN", "PARTIAL"] },
+        ...(scope !== null ? { warehouseId: { in: scope } } : {}),
       },
     },
     include: {
       loan: { select: { id: true, loanNumber: true, loanedAt: true } },
+      toolAsset: {
+        select: {
+          id: true,
+          code: true,
+          qrToken: true,
+          name: true,
+          category: true,
+          brand: true,
+          trackingType: true,
+          unit: true,
+        },
+      },
       product: { include: { unit: true } },
-      location: { select: { id: true, code: true } },
     },
     orderBy: [{ loan: { loanedAt: "asc" } }, { createdAt: "asc" }],
   })
 
-  return items
-    .map((it) => ({
-      itemId: it.id,
-      loanId: it.loan.id,
-      loanNumber: it.loan.loanNumber,
-      loanedAt: it.loan.loanedAt.toISOString(),
-      productId: it.productId,
-      productCode: it.product.code,
-      productName: it.product.name,
-      unitCode: it.product.unit.code,
-      locationId: it.locationId,
-      locationCode: it.location.code,
-      quantityLoaned: it.quantityLoaned,
-      quantityReturned: it.quantityReturned,
-      quantityPending: Math.max(0, it.quantityLoaned - it.quantityReturned),
-      status: it.status,
-      notes: it.notes,
-    }))
-    .filter((it) => it.quantityPending > 0)
+  void warehouseId
+  return items.map(mapLoanItemToDTO).filter((it) => it.quantityPending > 0)
 }
 
 export async function verifyEmployeeForToolLoan(
@@ -132,7 +203,12 @@ export async function verifyEmployeeForToolLoan(
   }
 }
 
-export async function getProductStockForToolLoan(worksiteId: string, warehouseId: string, productCode: string) {
+/**
+ * Consulta uma ferramenta da Ferramentaria pelo QR Code, patrimônio/código ou nome.
+ * Prioriza o almoxarifado atual, mas também aceita qualquer ferramenta ativa no escopo do operador
+ * para nunca travar a entrega por diferença de obra/almoxarifado.
+ */
+export async function lookupToolForLoan(warehouseId: string, rawCode: string) {
   let session
   try {
     session = await requireLoanPermission()
@@ -140,83 +216,121 @@ export async function getProductStockForToolLoan(worksiteId: string, warehouseId
     return { error: "Não autorizado." }
   }
 
-  const code = productCode.trim()
-  if (!code) return { error: "Informe ou escaneie o código do produto." }
+  const code = rawCode.trim()
+  if (!code) return { error: "Informe ou escaneie o QR Code / patrimônio da ferramenta." }
 
-  const warehouse = await db.warehouse.findFirst({ where: { id: warehouseId, status: "ACTIVE" } })
-  if (!warehouse) return { error: "Almoxarifado inválido ou inativo." }
-  try {
-    await assertWarehouseAccess(warehouseId, session.userId)
-  } catch {
-    return { error: "Você não tem acesso a este almoxarifado." }
-  }
+  const scope = await warehouseScopeIds(session.userId)
+  const scopeFilter = scope !== null ? { warehouseId: { in: scope } } : {}
 
-  const product =
-    (await db.product.findFirst({
-      where: {
-        status: "ACTIVE",
-        OR: [
-          { code: { equals: code, mode: "insensitive" } },
-          { barcode: { equals: code, mode: "insensitive" } },
-          { id: code },
-        ],
-      },
-      include: { unit: true },
+  const exactConditions = [
+    { qrToken: { equals: code, mode: "insensitive" as const } },
+    { code: { equals: code, mode: "insensitive" as const } },
+    { serialNumber: { equals: code, mode: "insensitive" as const } },
+    { id: code },
+  ]
+  const partialConditions = [
+    { code: { contains: code, mode: "insensitive" as const } },
+    { name: { contains: code, mode: "insensitive" as const } },
+    { brand: { contains: code, mode: "insensitive" as const } },
+  ]
+
+  // 1º tenta no almoxarifado selecionado; 2º em qualquer almoxarifado acessível pelo operador
+  const tool =
+    (warehouseId
+      ? await db.toolAsset.findFirst({
+          where: { warehouseId, status: "ACTIVE", OR: exactConditions },
+        })
+      : null) ??
+    (await db.toolAsset.findFirst({
+      where: { ...scopeFilter, status: "ACTIVE", OR: exactConditions },
     })) ??
-    (await db.product.findFirst({
-      where: {
-        status: "ACTIVE",
-        OR: [
-          { code: { contains: code, mode: "insensitive" } },
-          { barcode: { contains: code, mode: "insensitive" } },
-          { name: { contains: code, mode: "insensitive" } },
-        ],
-      },
-      include: { unit: true },
+    (warehouseId
+      ? await db.toolAsset.findFirst({
+          where: { warehouseId, status: "ACTIVE", OR: partialConditions },
+          orderBy: { code: "asc" },
+        })
+      : null) ??
+    (await db.toolAsset.findFirst({
+      where: { ...scopeFilter, status: "ACTIVE", OR: partialConditions },
       orderBy: { code: "asc" },
     }))
 
-  if (!product) return { error: "Produto não encontrado no catálogo." }
+  if (!tool) {
+    return {
+      error: `Ferramenta "${code}" não encontrada na Ferramentaria. Cadastre-a na aba "Ferramentas".`,
+    }
+  }
 
-  const stocks = await db.stock.findMany({
+  if (tool.condition === "MAINTENANCE" || tool.condition === "DAMAGED") {
+    return {
+      error: `A ferramenta "${tool.name}" (${tool.code}) está marcada como ${
+        tool.condition === "MAINTENANCE" ? "Em Manutenção" : "Danificada"
+      } e não pode ser emprestada.`,
+    }
+  }
+
+  const activeLoanItems = await db.toolLoanItem.findMany({
     where: {
-      productId: product.id,
-      warehouseId,
+      toolAssetId: tool.id,
+      status: { in: ["OPEN", "PARTIAL"] },
+      loan: { status: { in: ["OPEN", "PARTIAL"] } },
     },
     include: {
-      location: true,
+      loan: {
+        include: {
+          recipient: { select: { name: true, employeeCode: true } },
+        },
+      },
     },
   })
 
-  const availableStocks = stocks.filter((s) => Number(s.quantity) > 0)
-  const totalAvailable = availableStocks.reduce((sum, s) => sum + Number(s.quantity), 0)
+  const loanedQuantity = activeLoanItems.reduce(
+    (sum, it) => sum + Math.max(0, it.quantityLoaned - it.quantityReturned),
+    0
+  )
+  const availableQuantity = Math.max(0, tool.totalQuantity - loanedQuantity)
+
+  if (availableQuantity <= 0) {
+    const holderNames = activeLoanItems
+      .filter((it) => it.quantityLoaned - it.quantityReturned > 0)
+      .map((it) => it.loan.recipient.name)
+      .join(", ")
+    return {
+      error: holderNames
+        ? `"${tool.name}" (${tool.code}) já está emprestada para: ${holderNames}.`
+        : `"${tool.name}" (${tool.code}) está sem unidades disponíveis na Ferramentaria.`,
+    }
+  }
 
   return {
-    success: true,
-    product: {
-      id: product.id,
-      code: product.code,
-      name: product.name,
-      unit: product.unit.code,
+    success: true as const,
+    tool: {
+      id: tool.id,
+      code: tool.code,
+      qrToken: tool.qrToken,
+      name: tool.name,
+      category: tool.category,
+      brand: tool.brand,
+      trackingType: (tool.trackingType === "QUANTITY" ? "QUANTITY" : "ASSET") as ToolTrackingType,
+      unit: tool.unit,
+      totalQuantity: tool.totalQuantity,
+      loanedQuantity,
+      availableQuantity,
     },
-    totalAvailable,
-    locations: availableStocks
-      .map((s) => ({
-        locationId: s.locationId,
-        locationCode: s.location.code,
-        quantity: Number(s.quantity),
-      }))
-      .sort((a, b) => Number(b.quantity) - Number(a.quantity)),
   }
 }
 
+/**
+ * Registra o empréstimo de ferramentas na Ferramentaria.
+ * NÃO altera Stock nem gera StockMovement (totalmente separado do estoque de materiais).
+ */
 export async function confirmToolLoan(payload: {
   employeeId: string
   worksiteId: string
   warehouseId: string
   notes?: string
   items: {
-    productId: string
+    toolAssetId: string
     requestedQuantity: number
   }[]
 }) {
@@ -253,14 +367,14 @@ export async function confirmToolLoan(payload: {
 
   const validItems = (payload.items || []).filter((i) => Math.floor(Number(i.requestedQuantity)) > 0)
   if (validItems.length === 0) {
-    return { error: "Adicione pelo menos um produto com quantidade maior que zero." }
+    return { error: "Adicione pelo menos uma ferramenta para emprestar." }
   }
 
   try {
     const loanResult = await createWithUniqueNumber(
       async (attempt) => {
         const count = await db.toolLoan.count()
-        return `CAU-${String(count + 1 + attempt).padStart(6, "0")}`
+        return `FER-${String(count + 1 + attempt).padStart(6, "0")}`
       },
       (loanNumber) =>
         db.$transaction(async (tx) => {
@@ -278,70 +392,45 @@ export async function confirmToolLoan(payload: {
 
           for (const item of validItems) {
             const qtyWanted = Math.floor(Number(item.requestedQuantity))
-            const stocks = await tx.stock.findMany({
+            const tool = await tx.toolAsset.findFirst({
               where: {
-                productId: item.productId,
-                warehouseId: payload.warehouseId,
-                quantity: { gt: 0 },
+                id: item.toolAssetId,
+                status: "ACTIVE",
               },
-              orderBy: { quantity: "desc" },
             })
+            if (!tool) {
+              throw new Error("Ferramenta não encontrada ou inativa.")
+            }
 
-            const totalAvailable = stocks.reduce((sum, s) => sum + Number(s.quantity), 0)
-            if (qtyWanted > totalAvailable) {
-              const prod = await tx.product.findUnique({ where: { id: item.productId }, select: { name: true } })
+            const openLoanItems = await tx.toolLoanItem.findMany({
+              where: {
+                toolAssetId: tool.id,
+                status: { in: ["OPEN", "PARTIAL"] },
+                loan: { status: { in: ["OPEN", "PARTIAL"] } },
+              },
+              select: { quantityLoaned: true, quantityReturned: true },
+            })
+            const currentlyLoaned = openLoanItems.reduce(
+              (sum, li) => sum + Math.max(0, li.quantityLoaned - li.quantityReturned),
+              0
+            )
+            const available = Math.max(0, tool.totalQuantity - currentlyLoaned)
+
+            if (qtyWanted > available) {
               throw new Error(
-                `Estoque insuficiente para "${prod?.name ?? item.productId}" (disponível: ${totalAvailable}, solicitado: ${qtyWanted}).`
+                `Quantidade indisponível para "${tool.name}" (${tool.code}) — disponível: ${available}, solicitado: ${qtyWanted}.`
               )
             }
 
-            let remaining = qtyWanted
-            for (const stock of stocks) {
-              if (remaining <= 0) break
-              const qtyToTake = Math.min(Math.floor(Number(stock.quantity)), remaining)
-              if (qtyToTake <= 0) continue
-
-              await tx.toolLoanItem.create({
-                data: {
-                  loanId: loan.id,
-                  productId: item.productId,
-                  locationId: stock.locationId,
-                  quantityLoaned: qtyToTake,
-                  quantityReturned: 0,
-                  status: "OPEN",
-                },
-              })
-
-              const { movement } = await createStockMovement(
-                {
-                  productId: item.productId,
-                  warehouseId: stock.warehouseId,
-                  locationId: stock.locationId,
-                  type: "EXIT",
-                  quantity: qtyToTake,
-                  referenceType: "TOOL_LOAN",
-                  referenceId: loan.id,
-                  documentNumber: loanNumber,
-                  reason: `Empréstimo diário (cautela) para ${employee.name}`,
-                  performedById: session.userId,
-                },
-                tx
-              )
-
-              await tx.stockMovement.update({
-                where: { id: movement.id },
-                data: {
-                  recipientUserId: payload.employeeId,
-                  worksiteId: effectiveWorksiteId,
-                },
-              })
-
-              remaining -= qtyToTake
-            }
-
-            if (remaining > 0) {
-              throw new Error("Falha ao alocar saldo nas localizações do almoxarifado.")
-            }
+            await tx.toolLoanItem.create({
+              data: {
+                loanId: loan.id,
+                toolAssetId: tool.id,
+                quantityLoaned: qtyWanted,
+                quantityReturned: 0,
+                status: "OPEN",
+              },
+            })
           }
 
           await logAudit(
@@ -359,23 +448,26 @@ export async function confirmToolLoan(payload: {
 
     const openItems = await getEmployeeOpenLoanItems(payload.employeeId, payload.warehouseId)
     revalidatePath("/tool-loans")
-    revalidatePath("/movements")
-    revalidatePath("/stock")
 
     return {
-      success: true,
+      success: true as const,
       loanNumber: loanResult.loanNumber,
       openItems,
     }
   } catch (error) {
     console.error("confirmToolLoan error:", error)
-    return { error: error instanceof Error ? error.message : "Erro ao registrar empréstimo." }
+    return { error: error instanceof Error ? error.message : "Erro ao registrar empréstimo de ferramenta." }
   }
 }
 
+/**
+ * Registra a devolução (total ou parcial) de uma ferramenta na Ferramentaria.
+ * NÃO altera Stock nem gera StockMovement.
+ */
 export async function returnToolLoanItem(payload: {
   itemId: string
   quantityReturning: number
+  conditionAfterReturn?: "GOOD" | "MAINTENANCE" | "DAMAGED"
   notes?: string
 }) {
   let session
@@ -399,8 +491,8 @@ export async function returnToolLoanItem(payload: {
           warehouse: { select: { id: true, name: true } },
         },
       },
+      toolAsset: true,
       product: { include: { unit: true } },
-      location: { select: { id: true, code: true } },
     },
   })
 
@@ -414,12 +506,12 @@ export async function returnToolLoanItem(payload: {
 
   const pendingBefore = loanItem.quantityLoaned - loanItem.quantityReturned
   if (pendingBefore <= 0) {
-    return { error: "Este item já foi totalmente devolvido." }
+    return { error: "Esta ferramenta já foi totalmente devolvida." }
   }
 
   if (qtyReturning > pendingBefore) {
     return {
-      error: `Quantidade maior que o pendente! Você emprestou ${loanItem.quantityLoaned} (${pendingBefore} pendente) e tentou devolver ${qtyReturning}.`,
+      error: `Quantidade maior que o pendente! Foi emprestado ${loanItem.quantityLoaned} (${pendingBefore} pendente) e tentou devolver ${qtyReturning}.`,
     }
   }
 
@@ -427,13 +519,17 @@ export async function returnToolLoanItem(payload: {
   const missingAfter = loanItem.quantityLoaned - newTotalReturned
   const newItemStatus = missingAfter === 0 ? "RETURNED" : "PARTIAL"
 
+  const toolCode = loanItem.toolAsset?.code ?? loanItem.product?.code ?? "SEM-COD"
+  const toolName = loanItem.toolAsset?.name ?? loanItem.product?.name ?? "Ferramenta"
+  const unitCode = loanItem.toolAsset?.unit ?? loanItem.product?.unit.code ?? "UN"
+
   try {
     await db.$transaction(async (tx) => {
       const noteText =
         missingAfter > 0
           ? [
               payload.notes?.trim(),
-              `Entregou ${newTotalReturned} de ${loanItem.quantityLoaned} (faltam ${missingAfter})`,
+              `Devolveu ${newTotalReturned} de ${loanItem.quantityLoaned} (faltam ${missingAfter})`,
             ]
               .filter(Boolean)
               .join(" — ")
@@ -450,35 +546,17 @@ export async function returnToolLoanItem(payload: {
         },
       })
 
-      const { movement } = await createStockMovement(
-        {
-          productId: loanItem.productId,
-          warehouseId: loanItem.loan.warehouseId,
-          locationId: loanItem.locationId,
-          type: "RETURN",
-          quantity: qtyReturning,
-          referenceType: "TOOL_LOAN_RETURN",
-          referenceId: loanItem.loan.id,
-          documentNumber: loanItem.loan.loanNumber,
-          reason:
-            missingAfter > 0
-              ? `Devolução parcial de cautela (${newTotalReturned}/${loanItem.quantityLoaned}) — ${loanItem.loan.recipient.name}`
-              : `Devolução de cautela (${newTotalReturned}/${loanItem.quantityLoaned}) — ${loanItem.loan.recipient.name}`,
-          notes: noteText || null,
-          performedById: session.userId,
-        },
-        tx
-      )
+      if (
+        loanItem.toolAssetId &&
+        payload.conditionAfterReturn &&
+        ["GOOD", "MAINTENANCE", "DAMAGED"].includes(payload.conditionAfterReturn)
+      ) {
+        await tx.toolAsset.update({
+          where: { id: loanItem.toolAssetId },
+          data: { condition: payload.conditionAfterReturn },
+        })
+      }
 
-      await tx.stockMovement.update({
-        where: { id: movement.id },
-        data: {
-          recipientUserId: loanItem.loan.recipientId,
-          worksiteId: loanItem.loan.worksiteId,
-        },
-      })
-
-      // Recalcula status geral da cautela
       const siblingItems = await tx.toolLoanItem.findMany({
         where: { loanId: loanItem.loanId },
         select: { quantityLoaned: true, quantityReturned: true },
@@ -502,8 +580,8 @@ export async function returnToolLoanItem(payload: {
         {
           loanNumber: loanItem.loan.loanNumber,
           recipientName: loanItem.loan.recipient.name,
-          productCode: loanItem.product.code,
-          productName: loanItem.product.name,
+          toolCode,
+          toolName,
           quantityLoaned: loanItem.quantityLoaned,
           quantityReturnedNow: qtyReturning,
           totalReturned: newTotalReturned,
@@ -515,35 +593,33 @@ export async function returnToolLoanItem(payload: {
     })
 
     if (missingAfter > 0) {
-      const alertTitle = `Divergência na cautela ${loanItem.loan.loanNumber}`
-      const alertMessage = `${loanItem.loan.recipient.name} entregou ${newTotalReturned} ${loanItem.product.unit.code} de "${loanItem.product.name}", mas recebeu ${loanItem.quantityLoaned} ${loanItem.product.unit.code}. Faltam ${missingAfter} ${loanItem.product.unit.code}!`
+      const alertTitle = `Divergência na Ferramentaria (${loanItem.loan.loanNumber})`
+      const alertMessage = `${loanItem.loan.recipient.name} devolveu ${newTotalReturned} ${unitCode} de "${toolName}" (${toolCode}), mas retirou ${loanItem.quantityLoaned} ${unitCode}. Faltam ${missingAfter} ${unitCode}!`
       await sendNotification(session.userId, alertTitle, alertMessage, "WARNING")
     }
 
     const openItems = await getEmployeeOpenLoanItems(loanItem.loan.recipientId, loanItem.loan.warehouseId)
     revalidatePath("/tool-loans")
-    revalidatePath("/movements")
-    revalidatePath("/stock")
 
     return {
-      success: true,
+      success: true as const,
       openItems,
-      returnedProduct: {
-        code: loanItem.product.code,
-        name: loanItem.product.name,
-        unit: loanItem.product.unit.code,
+      returnedTool: {
+        code: toolCode,
+        name: toolName,
+        unit: unitCode,
       },
       discrepancy:
         missingAfter > 0
           ? {
               employeeName: loanItem.loan.recipient.name,
-              productName: loanItem.product.name,
-              unitCode: loanItem.product.unit.code,
+              productName: `${toolName} (${toolCode})`,
+              unitCode,
               loaned: loanItem.quantityLoaned,
               returnedNow: qtyReturning,
               totalReturned: newTotalReturned,
               missing: missingAfter,
-              message: `Ele entregou ${newTotalReturned}, mas você emprestou ${loanItem.quantityLoaned} para ele! Faltam ${missingAfter} ${loanItem.product.unit.code}.`,
+              message: `Ele devolveu ${newTotalReturned}, mas retirou ${loanItem.quantityLoaned}! Faltam ${missingAfter} ${unitCode}.`,
             }
           : null,
     }
@@ -553,62 +629,119 @@ export async function returnToolLoanItem(payload: {
   }
 }
 
-export async function listOpenToolLoans(): Promise<{
+/**
+ * Lista o inventário de ferramentas da Ferramentaria + empréstimos em aberto.
+ */
+export async function listToolRoomData(explicitWarehouseId?: string): Promise<{
   summaries: OpenEmployeeLoanSummary[]
+  tools: ToolAssetDTO[]
+  warehouses: { id: string; code: string; name: string }[]
+  activeWarehouseId: string | null
   activeWarehouseName: string | null
 }> {
   let session
   try {
     session = await requireLoanPermission()
   } catch {
-    return { summaries: [], activeWarehouseName: null }
+    return {
+      summaries: [],
+      tools: [],
+      warehouses: [],
+      activeWarehouseId: null,
+      activeWarehouseName: null,
+    }
   }
 
+  const accessibleWarehouses = await getAccessibleWarehouses(session.userId)
   const scope = await warehouseScopeIds(session.userId)
-  const selectedWhId = (await cookies()).get("cgstock_active_warehouse")?.value || ""
+  const cookieWhId = (await cookies()).get("cgstock_active_warehouse")?.value || ""
+  const candidateWhId = explicitWarehouseId ?? cookieWhId
 
+  let activeWarehouseId: string | null = null
   let activeWarehouseName: string | null = null
-  if (selectedWhId) {
-    const wh = await db.warehouse.findFirst({
-      where: { id: selectedWhId, ...(scope ? { id: { in: scope } } : {}) },
-      select: { name: true },
-    })
-    activeWarehouseName = wh?.name ?? null
+
+  if (candidateWhId) {
+    const matched = accessibleWarehouses.find((w) => w.id === candidateWhId)
+    if (matched) {
+      activeWarehouseId = matched.id
+      activeWarehouseName = matched.name
+    }
+  }
+  if (!activeWarehouseId && accessibleWarehouses.length === 1) {
+    activeWarehouseId = accessibleWarehouses[0].id
+    activeWarehouseName = accessibleWarehouses[0].name
   }
 
-  const warehouseFilter = selectedWhId
-    ? { warehouseId: selectedWhId }
+  const warehouseFilter = activeWarehouseId
+    ? { warehouseId: activeWarehouseId }
     : scope !== null
     ? { warehouseId: { in: scope } }
     : {}
 
-  const openItems = await db.toolLoanItem.findMany({
-    where: {
-      status: { in: ["OPEN", "PARTIAL"] },
-      loan: {
+  const [openItems, rawTools] = await Promise.all([
+    db.toolLoanItem.findMany({
+      where: {
         status: { in: ["OPEN", "PARTIAL"] },
-        ...warehouseFilter,
-      },
-    },
-    include: {
-      loan: {
-        include: {
-          recipient: { select: { id: true, name: true, employeeCode: true, document: true } },
-          warehouse: { select: { id: true, name: true } },
-          worksite: { select: { id: true, name: true } },
+        loan: {
+          status: { in: ["OPEN", "PARTIAL"] },
+          ...warehouseFilter,
         },
       },
-      product: { include: { unit: true } },
-      location: { select: { id: true, code: true } },
-    },
-    orderBy: [{ loan: { loanedAt: "asc" } }, { createdAt: "asc" }],
-  })
+      include: {
+        loan: {
+          include: {
+            recipient: { select: { id: true, name: true, employeeCode: true, document: true } },
+            warehouse: { select: { id: true, name: true } },
+            worksite: { select: { id: true, name: true } },
+          },
+        },
+        toolAsset: {
+          select: {
+            id: true,
+            code: true,
+            qrToken: true,
+            name: true,
+            category: true,
+            brand: true,
+            trackingType: true,
+            unit: true,
+          },
+        },
+        product: { include: { unit: true } },
+      },
+      orderBy: [{ loan: { loanedAt: "asc" } }, { createdAt: "asc" }],
+    }),
+    db.toolAsset.findMany({
+      where: {
+        ...warehouseFilter,
+      },
+      include: {
+        warehouse: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: [{ status: "asc" }, { category: "asc" }, { name: "asc" }, { code: "asc" }],
+    }),
+  ])
 
   const byKey = new Map<string, OpenEmployeeLoanSummary>()
+  const holdersByToolId = new Map<string, ToolAssetDTO["currentHolders"]>()
 
   for (const it of openItems) {
     const pending = Math.max(0, it.quantityLoaned - it.quantityReturned)
     if (pending <= 0) continue
+
+    if (it.toolAssetId) {
+      const holders = holdersByToolId.get(it.toolAssetId) ?? []
+      holders.push({
+        itemId: it.id,
+        loanNumber: it.loan.loanNumber,
+        employeeId: it.loan.recipient.id,
+        employeeName: it.loan.recipient.name,
+        employeeCode: it.loan.recipient.employeeCode,
+        quantityPending: pending,
+        loanedAt: it.loan.loanedAt.toISOString(),
+      })
+      holdersByToolId.set(it.toolAssetId, holders)
+    }
 
     const key = `${it.loan.recipientId}_${it.loan.warehouseId}`
     let group = byKey.get(key)
@@ -640,28 +773,234 @@ export async function listOpenToolLoans(): Promise<{
     if (it.quantityReturned > 0 && pending > 0) {
       group.hasPartialDiscrepancy = true
     }
-
-    group.items.push({
-      itemId: it.id,
-      loanId: it.loan.id,
-      loanNumber: it.loan.loanNumber,
-      loanedAt: it.loan.loanedAt.toISOString(),
-      productId: it.productId,
-      productCode: it.product.code,
-      productName: it.product.name,
-      unitCode: it.product.unit.code,
-      locationId: it.locationId,
-      locationCode: it.location.code,
-      quantityLoaned: it.quantityLoaned,
-      quantityReturned: it.quantityReturned,
-      quantityPending: pending,
-      status: it.status,
-      notes: it.notes,
-    })
+    group.items.push(mapLoanItemToDTO(it))
   }
+
+  const tools: ToolAssetDTO[] = rawTools.map((t) => {
+    const holders = holdersByToolId.get(t.id) ?? []
+    const loanedQuantity = holders.reduce((sum, h) => sum + h.quantityPending, 0)
+    const availableQuantity = Math.max(0, t.totalQuantity - loanedQuantity)
+    return {
+      id: t.id,
+      warehouseId: t.warehouseId,
+      warehouseName: t.warehouse.name,
+      warehouseCode: t.warehouse.code,
+      code: t.code,
+      qrToken: t.qrToken,
+      name: t.name,
+      category: t.category,
+      brand: t.brand,
+      serialNumber: t.serialNumber,
+      trackingType: t.trackingType === "QUANTITY" ? "QUANTITY" : "ASSET",
+      totalQuantity: t.totalQuantity,
+      loanedQuantity,
+      availableQuantity,
+      unit: t.unit,
+      condition: t.condition,
+      status: t.status,
+      notes: t.notes,
+      currentHolders: holders,
+    }
+  })
 
   return {
     summaries: Array.from(byKey.values()),
+    tools,
+    warehouses: accessibleWarehouses.map((w) => ({ id: w.id, code: w.code, name: w.name })),
+    activeWarehouseId,
     activeWarehouseName,
+  }
+}
+
+export async function listOpenToolLoans() {
+  const data = await listToolRoomData()
+  return {
+    summaries: data.summaries,
+    activeWarehouseName: data.activeWarehouseName,
+  }
+}
+
+/**
+ * Cadastra uma nova ferramenta/equipamento no inventário da Ferramentaria.
+ */
+export async function createToolAssetAction(input: {
+  warehouseId: string
+  code: string
+  name: string
+  category?: string
+  brand?: string
+  serialNumber?: string
+  trackingType: ToolTrackingType
+  totalQuantity?: number
+  unit?: string
+  condition?: string
+  notes?: string
+}) {
+  let session
+  try {
+    session = await requireLoanPermission()
+  } catch {
+    return { error: "Não autorizado." }
+  }
+
+  const warehouseId = input.warehouseId?.trim()
+  const code = input.code?.trim().toUpperCase()
+  const name = input.name?.trim()
+
+  if (!warehouseId) return { error: "Selecione o almoxarifado da ferramenta." }
+  if (!code) return { error: "Informe o código / patrimônio da ferramenta (ex.: CV-360, PA-BICO)." }
+  if (!name) return { error: "Informe o nome da ferramenta (ex.: Furadeira DeWalt, Pá de Bico)." }
+
+  try {
+    await assertWarehouseAccess(warehouseId, session.userId)
+  } catch {
+    return { error: "Você não tem acesso a este almoxarifado." }
+  }
+
+  const duplicate = await db.toolAsset.findUnique({
+    where: { warehouseId_code: { warehouseId, code } },
+  })
+  if (duplicate) {
+    return { error: `Já existe uma ferramenta com o código/patrimônio "${code}" neste almoxarifado.` }
+  }
+
+  const totalQuantity = Math.max(1, Math.floor(Number(input.totalQuantity) || 1))
+  const trackingType: ToolTrackingType = totalQuantity > 1 ? "QUANTITY" : "ASSET"
+  const unit = (input.unit?.trim().toUpperCase() || "UN").slice(0, 10)
+  const condition = ["GOOD", "MAINTENANCE", "DAMAGED"].includes(input.condition || "")
+    ? input.condition!
+    : "GOOD"
+
+  // Token QR: se o código não conflitar globalmente, usa o próprio código; caso contrário, prefixa com código do almoxarifado
+  let qrToken = code
+  const existingToken = await db.toolAsset.findUnique({ where: { qrToken } })
+  if (existingToken) {
+    const wh = await db.warehouse.findUnique({ where: { id: warehouseId }, select: { code: true } })
+    const candidate = `${wh?.code ?? "FER"}:${code}`
+    const existingCandidate = await db.toolAsset.findUnique({ where: { qrToken: candidate } })
+    qrToken = existingCandidate ? `${candidate}:${Date.now().toString(36).toUpperCase()}` : candidate
+  }
+
+  try {
+    const created = await db.toolAsset.create({
+      data: {
+        warehouseId,
+        code,
+        qrToken,
+        name,
+        category: input.category?.trim() || null,
+        brand: input.brand?.trim() || null,
+        serialNumber: input.serialNumber?.trim() || null,
+        trackingType,
+        totalQuantity,
+        unit,
+        condition,
+        status: "ACTIVE",
+        notes: input.notes?.trim() || null,
+      },
+    })
+
+    await logAudit(
+      "TOOL_ASSET_CREATED",
+      "ToolAsset",
+      created.id,
+      { warehouseId, code, name, trackingType, totalQuantity },
+      session.userId
+    )
+
+    revalidatePath("/tool-loans")
+    revalidatePath("/tool-loans/print-labels")
+
+    return { success: true as const, toolId: created.id }
+  } catch (error) {
+    console.error("createToolAssetAction error:", error)
+    return { error: error instanceof Error ? error.message : "Erro ao cadastrar ferramenta." }
+  }
+}
+
+/**
+ * Atualiza os dados de uma ferramenta cadastrada na Ferramentaria.
+ */
+export async function updateToolAssetAction(input: {
+  id: string
+  code: string
+  name: string
+  category?: string
+  brand?: string
+  serialNumber?: string
+  trackingType: ToolTrackingType
+  totalQuantity?: number
+  unit?: string
+  condition?: string
+  status?: string
+  notes?: string
+}) {
+  let session
+  try {
+    session = await requireLoanPermission()
+  } catch {
+    return { error: "Não autorizado." }
+  }
+
+  const existing = await db.toolAsset.findUnique({ where: { id: input.id } })
+  if (!existing) return { error: "Ferramenta não encontrada." }
+
+  try {
+    await assertWarehouseAccess(existing.warehouseId, session.userId)
+  } catch {
+    return { error: "Você não tem acesso a este almoxarifado." }
+  }
+
+  const code = input.code?.trim().toUpperCase()
+  const name = input.name?.trim()
+  if (!code || !name) return { error: "Código/patrimônio e nome são obrigatórios." }
+
+  if (code !== existing.code) {
+    const dup = await db.toolAsset.findUnique({
+      where: { warehouseId_code: { warehouseId: existing.warehouseId, code } },
+    })
+    if (dup && dup.id !== existing.id) {
+      return { error: `Já existe outra ferramenta com o código/patrimônio "${code}" neste almoxarifado.` }
+    }
+  }
+
+  const totalQuantity = Math.max(1, Math.floor(Number(input.totalQuantity) || 1))
+  const trackingType: ToolTrackingType = totalQuantity > 1 ? "QUANTITY" : "ASSET"
+
+  try {
+    await db.toolAsset.update({
+      where: { id: existing.id },
+      data: {
+        code,
+        name,
+        category: input.category?.trim() || null,
+        brand: input.brand?.trim() || null,
+        serialNumber: input.serialNumber?.trim() || null,
+        trackingType,
+        totalQuantity,
+        unit: (input.unit?.trim().toUpperCase() || existing.unit).slice(0, 10),
+        condition: ["GOOD", "MAINTENANCE", "DAMAGED"].includes(input.condition || "")
+          ? input.condition!
+          : existing.condition,
+        status: input.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+        notes: input.notes?.trim() || null,
+      },
+    })
+
+    await logAudit(
+      "TOOL_ASSET_UPDATED",
+      "ToolAsset",
+      existing.id,
+      { code, name, trackingType, totalQuantity, condition: input.condition, status: input.status },
+      session.userId
+    )
+
+    revalidatePath("/tool-loans")
+    revalidatePath("/tool-loans/print-labels")
+
+    return { success: true as const }
+  } catch (error) {
+    console.error("updateToolAssetAction error:", error)
+    return { error: error instanceof Error ? error.message : "Erro ao atualizar ferramenta." }
   }
 }

@@ -158,7 +158,7 @@ export function getNavSections(user: NavUser): NavSection[] {
         { name: "Saídas", href: "/issues", icon: ArrowUpFromLine, description: "Histórico do que saiu", perm: "STOCK_EXIT" },
         { name: "Movimentações", href: "/movements", icon: ArrowRightLeft, description: "Tudo o que entrou e saiu", perm: "STOCK_VIEW" },
         { name: "Registrar Saída", href: "/quick-issue", icon: Zap, description: "Saída rápida de material para alguém", perm: "STOCK_EXIT" },
-        { name: "Cautela Diária", href: "/tool-loans", icon: Repeat, description: "Empréstimo e devolução de ferramentas do dia", perm: "STOCK_EXIT" },
+        { name: "Ferramentaria", href: "/tool-loans", icon: Repeat, description: "Inventário, QR Code e empréstimo de ferramentas", perm: "STOCK_EXIT" },
         { name: "Ajuste Manual", href: "/adjustments/new", icon: SlidersHorizontal, description: "Corrigir uma quantidade", perm: "STOCK_ENTRY" },
         REQUESTS,
         { name: "Devoluções", href: "/returns", icon: RotateCcw, description: "Itens que voltaram ao estoque", perm: "STOCK_ENTRY" },
@@ -209,7 +209,7 @@ export function getQuickActions(user: NavUser): QuickAction[] {
         { name: "Meus pedidos", href: "/requests", icon: ClipboardList, description: "Acompanhar requisições", anyPerm: ["REQUEST_CREATE", "REQUEST_APPROVE", "REQUEST_FULFILL"] },
       ]
     : [
-        { name: "Cautela diária", href: "/tool-loans", icon: Repeat, description: "Emprestar e devolver ferramentas do dia", anyPerm: ["STOCK_EXIT", "STOCK_ENTRY"] },
+        { name: "Ferramentaria", href: "/tool-loans", icon: Repeat, description: "Inventário e empréstimo de ferramentas", anyPerm: ["STOCK_EXIT", "STOCK_ENTRY"] },
         { name: "Registrar saída", href: "/quick-issue", icon: PackageMinus, description: "Saída rápida para uma pessoa", perm: "STOCK_EXIT" },
         { name: "Registrar entrada", href: "/receipts/new", icon: PackagePlus, description: "Chegou material novo", perm: "STOCK_ENTRY" },
         { name: "Consultar estoque", href: "/stock", icon: Search, description: "Ver quanto tem de cada item", perm: "STOCK_VIEW" },
