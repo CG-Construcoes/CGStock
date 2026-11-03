@@ -109,15 +109,22 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
 
   // Pre-fetch existing products for all codes in this chunk (isolado por almoxarifado)
   const productCodes = Array.from(new Set(rowsToProcess.map(r => r.productCode).filter(Boolean)))
-  const existingProducts = await db.product.findMany({
-    where: {
-      code: { in: productCodes },
-      OR: [
-        { stocks: { some: { warehouseId } } },
-        { defaultLocation: { warehouseId } }
-      ]
-    }
-  })
+  const [existingProducts, warehouseLocations] = await Promise.all([
+    db.product.findMany({
+      where: {
+        code: { in: productCodes },
+        OR: [
+          { stocks: { some: { warehouseId } } },
+          { defaultLocation: { warehouseId } }
+        ]
+      }
+    }),
+    db.warehouseLocation.findMany({
+      where: { warehouseId },
+      select: { id: true }
+    })
+  ])
+  const warehouseLocationIds = new Set(warehouseLocations.map(l => l.id))
   const productMap = new Map(existingProducts.map(p => [p.code, p]))
 
   // Create missing products in bulk if needed (exclusivos deste almoxarifado)
@@ -213,6 +220,13 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
         const targetQty = Math.max(0, Math.round(rawQty))
         const unitCost = row.unitCost != null ? Number(row.unitCost) : undefined
 
+        // Respeita a localização configurada no produto (se for deste almoxarifado);
+        // só usa a localização padrão do almoxarifado quando o produto ainda não foi endereçado.
+        const targetLocationId =
+          product.defaultLocationId && warehouseLocationIds.has(product.defaultLocationId)
+            ? product.defaultLocationId
+            : locationId
+
         let actionMessage = "Sem alterações (estoque já igual)"
 
         await db.$transaction(async (tx) => {
@@ -229,12 +243,12 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
           const diff = targetQty - currentWarehouseQty
 
           if (diff > 0) {
-            // Planilha tem MAIS do que o sistema: adiciona apenas a diferença no saldo (sem gerar histórico de movimentação)
+            // Planilha tem MAIS do que o sistema: adiciona apenas a diferença na localização do produto
             await tx.stock.upsert({
               where: {
                 productId_locationId: {
                   productId: product.id,
-                  locationId,
+                  locationId: targetLocationId,
                 }
               },
               update: {
@@ -243,7 +257,7 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
               create: {
                 productId: product.id,
                 warehouseId,
-                locationId,
+                locationId: targetLocationId,
                 quantity: diff,
                 reservedQuantity: 0
               }
@@ -260,10 +274,10 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
             // Planilha tem MENOS do que o sistema: reduz a diferença para igualar à planilha (sem gerar histórico de movimentação)
             let remainingToDeduct = Math.abs(diff)
 
-            // Prioriza deduzir da localização padrão primeiro, depois das demais localizações do almoxarifado
+            // Prioriza deduzir da localização do produto primeiro, depois das demais localizações do almoxarifado
             const sortedStocks = [...warehouseStocks].sort((a, b) => {
-              if (a.locationId === locationId) return -1
-              if (b.locationId === locationId) return 1
+              if (a.locationId === targetLocationId) return -1
+              if (b.locationId === targetLocationId) return 1
               return b.quantity - a.quantity
             })
 
@@ -288,14 +302,14 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
                 where: {
                   productId_locationId: {
                     productId: product.id,
-                    locationId,
+                    locationId: targetLocationId,
                   }
                 },
                 update: {},
                 create: {
                   productId: product.id,
                   warehouseId,
-                  locationId,
+                  locationId: targetLocationId,
                   quantity: 0,
                   reservedQuantity: 0
                 }
@@ -309,10 +323,10 @@ export async function executeImportBatchAction(batchId: string, rowIds?: string[
             }
           }
 
-          // Atualiza nome do produto e/ou custo unitário se necessário
+          // Atualiza nome do produto e/ou custo unitário se necessário (nunca sobrescreve defaultLocationId existente)
           const productUpdates: { name?: string; averageCost?: number; defaultLocationId?: string } = {}
           if (!product.defaultLocationId) {
-            productUpdates.defaultLocationId = locationId
+            productUpdates.defaultLocationId = targetLocationId
           }
           if (row.productName && row.productName !== 'N/A' && row.productName !== product.name) {
             productUpdates.name = row.productName

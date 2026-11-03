@@ -105,17 +105,30 @@ export async function POST(request: Request) {
 
       // 4. Produtos: pré-carrega os existentes neste almoxarifado e separa criação de atualização
       const codes = rows.map(r => r.code)
-      const existingProducts = await tx.product.findMany({
-        where: {
-          code: { in: codes },
-          OR: [
-            { stocks: { some: { warehouseId: warehouse.id } } },
-            { defaultLocation: { warehouseId: warehouse.id } }
-          ]
-        },
-        select: { id: true, code: true }
-      })
+      const [existingProducts, whLocations] = await Promise.all([
+        tx.product.findMany({
+          where: {
+            code: { in: codes },
+            OR: [
+              { stocks: { some: { warehouseId: warehouse.id } } },
+              { defaultLocation: { warehouseId: warehouse.id } }
+            ]
+          },
+          select: { id: true, code: true, defaultLocationId: true }
+        }),
+        tx.warehouseLocation.findMany({
+          where: { warehouseId: warehouse.id },
+          select: { id: true }
+        })
+      ])
+      const whLocationIds = new Set(whLocations.map(l => l.id))
       const productByCode = new Map(existingProducts.map(p => [p.code, p.id]))
+      const productDefaultLoc = new Map(
+        existingProducts.map(p => [
+          p.id,
+          p.defaultLocationId && whLocationIds.has(p.defaultLocationId) ? p.defaultLocationId : location.id
+        ])
+      )
 
       const toCreate = rows.filter(r => !productByCode.has(r.code))
       const toUpdate = rows.filter(r => productByCode.has(r.code))
@@ -155,12 +168,19 @@ export async function POST(request: Request) {
         })
       }
 
-      // 5. Estoque: ajusta apenas onde houve diferença
+      // 5. Estoque: ajusta apenas onde houve diferença (respeitando a localização do produto)
       const productIds = rows.map(r => productByCode.get(r.code)!).filter(Boolean)
       const existingStocks = await tx.stock.findMany({
-        where: { productId: { in: productIds }, locationId: location.id }
+        where: { productId: { in: productIds }, warehouseId: warehouse.id }
       })
-      const stockByProduct = new Map(existingStocks.map(s => [s.productId, s]))
+      const stockByProduct = new Map<string, typeof existingStocks[number]>()
+      for (const s of existingStocks) {
+        const targetLoc = productDefaultLoc.get(s.productId) ?? location.id
+        const prev = stockByProduct.get(s.productId)
+        if (!prev || s.locationId === targetLoc) {
+          stockByProduct.set(s.productId, s)
+        }
+      }
 
       const stockCreates: Prisma.StockCreateManyInput[] = []
       const stockUpdates: { id: string, quantity: number }[] = []
@@ -170,6 +190,7 @@ export async function POST(request: Request) {
         const productId = productByCode.get(r.code)
         if (!productId) continue
 
+        const targetLocId = productDefaultLoc.get(productId) ?? location.id
         const current = stockByProduct.get(productId)
         const currentQty = current?.quantity || 0
         const difference = Number(r.quantity) - Number(currentQty)
@@ -179,7 +200,7 @@ export async function POST(request: Request) {
             stockCreates.push({
               productId,
               warehouseId: warehouse.id,
-              locationId: location.id,
+              locationId: targetLocId,
               quantity: 0
             })
           }
@@ -192,7 +213,7 @@ export async function POST(request: Request) {
           stockCreates.push({
             productId,
             warehouseId: warehouse.id,
-            locationId: location.id,
+            locationId: targetLocId,
             quantity: r.quantity
           })
         }

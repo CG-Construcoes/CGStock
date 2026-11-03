@@ -273,10 +273,12 @@ export async function updateProductAction(formData: FormData) {
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
+  let targetLocation: { id: string; warehouseId: string } | null = null
   if (defaultLocationId) {
-    const location = await db.warehouseLocation.findUnique({ where: { id: defaultLocationId } })
+    const location = await db.warehouseLocation.findUnique({ where: { id: defaultLocationId }, select: { id: true, warehouseId: true } })
     if (!location) throw new Error("Localização inválida.")
     await assertWarehouseAccess(location.warehouseId, session.userId)
+    targetLocation = location
   }
   const status = (formData.get("status") as string) || "ACTIVE"
 
@@ -323,10 +325,41 @@ export async function updateProductAction(formData: FormData) {
         status
       }
     })
+
+    // Quando uma localização padrão é definida, consolida o estoque do produto
+    // naquele almoxarifado para essa localização (assim /locations e /stock refletem a troca).
+    if (targetLocation && "stock" in db && db.stock?.findMany) {
+      const whStocks = await db.stock.findMany({
+        where: { productId: id, warehouseId: targetLocation.warehouseId }
+      })
+      const totalQty = whStocks.reduce((sum, s) => sum + Number(s.quantity ?? 0), 0)
+      const totalRes = whStocks.reduce((sum, s) => sum + Number(s.reservedQuantity ?? 0), 0)
+      const otherStockIds = whStocks.filter(s => s.locationId !== targetLocation.id).map(s => s.id)
+
+      await db.stock.upsert({
+        where: { productId_locationId: { productId: id, locationId: targetLocation.id } },
+        update: { quantity: totalQty, reservedQuantity: totalRes },
+        create: {
+          productId: id,
+          warehouseId: targetLocation.warehouseId,
+          locationId: targetLocation.id,
+          quantity: totalQty,
+          reservedQuantity: totalRes,
+        },
+      })
+      if (otherStockIds.length > 0) {
+        await db.stock.deleteMany({ where: { id: { in: otherStockIds } } })
+      }
+    }
   } catch (error) {
     console.error(error)
     redirect(`/products/${id}/edit?error=update_failed`)
   }
+
+  revalidatePath("/products")
+  revalidatePath("/locations")
+  revalidatePath("/admin/locations")
+  revalidatePath("/stock")
 
   // Write-back: produto vinculado ao ERP → atualiza especificação/unidade no Informakon
   const prod = await db.product.findUnique({ where: { id }, select: { informakonKey: true } })
