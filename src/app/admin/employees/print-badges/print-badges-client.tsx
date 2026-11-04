@@ -14,6 +14,7 @@ import {
   RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { STICKER_SHEET, StickerLabel, StickerSheet, stickerText } from "@/components/ui/sticker-sheet"
 
 type PrintEmployee = {
   id: string
@@ -28,7 +29,7 @@ type PrintEmployee = {
   }[]
 }
 
-type GridPreset = "GRID_9" | "GRID_8" | "GRID_12" | "GRID_6" | "THERMAL"
+type GridPreset = "GRID_9" | "GRID_8" | "GRID_12" | "GRID_6" | "STICKER" | "THERMAL"
 
 export function PrintBadgesClient({
   employees,
@@ -172,6 +173,17 @@ export function PrintBadgesClient({
                 6 por folha (2x3 - Crachá)
               </button>
               <button
+                onClick={() => setGridPreset("STICKER")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  gridPreset === "STICKER"
+                    ? "bg-background text-foreground shadow-xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title={STICKER_SHEET.description}
+              >
+                {STICKER_SHEET.label} (18)
+              </button>
+              <button
                 onClick={() => setGridPreset("THERMAL")}
                 className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
                   gridPreset === "THERMAL"
@@ -185,16 +197,18 @@ export function PrintBadgesClient({
             </div>
 
             {/* Toggle Guias de Corte para Tesoura */}
-            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showCutGuides}
-                onChange={(e) => setShowCutGuides(e.target.checked)}
-                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-              />
-              <Scissors className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>Linhas para Tesoura</span>
-            </label>
+            {gridPreset !== "STICKER" && (
+              <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showCutGuides}
+                  onChange={(e) => setShowCutGuides(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                />
+                <Scissors className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>Linhas para Tesoura</span>
+              </label>
+            )}
 
             {/* Cópias por Funcionário */}
             <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 text-xs">
@@ -236,13 +250,31 @@ export function PrintBadgesClient({
             💡 <strong>Configuração Recomendada da Impressora:</strong> Defina <strong>Margens como "Mínimas" ou "Nenhuma"</strong> e marque <strong>"Gráficos de segundo plano"</strong> para que as linhas de corte e o contraste preto e branco saiam 100% nítidos.
           </span>
           <span className="font-mono text-[11px] shrink-0 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30">
-            {gridPreset === "GRID_9" ? "Papel A4 (9 por folha)" : gridPreset === "GRID_8" ? "Papel A4 (8 por folha)" : gridPreset === "GRID_12" ? "Papel A4 (12 por folha)" : gridPreset === "GRID_6" ? "Papel A4 (6 por folha)" : "Rolo Térmico"}
+            {gridPreset === "GRID_9" ? "Papel A4 (9 por folha)" : gridPreset === "GRID_8" ? "Papel A4 (8 por folha)" : gridPreset === "GRID_12" ? "Papel A4 (12 por folha)" : gridPreset === "GRID_6" ? "Papel A4 (6 por folha)" : gridPreset === "STICKER" ? `${STICKER_SHEET.label} (18 por folha)` : "Rolo Térmico"}
           </span>
         </div>
       </div>
 
       {/* Área Imprimível */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 print:p-[8mm] print:m-0 print:max-w-none print:w-full">
+      <main className={`max-w-7xl mx-auto p-4 sm:p-6 print:m-0 print:max-w-none print:w-full ${gridPreset === "STICKER" ? "print:p-0" : "print:p-[8mm]"}`}>
+        {gridPreset === "STICKER" ? (
+          <StickerSheet
+            items={expandedList}
+            getKey={({ employee, copyIndex }, idx) => `${employee.id}-${copyIndex}-${idx}`}
+            renderLabel={({ employee: emp }) => {
+              const qrValue = emp.qrToken || (emp.employeeCode ? `EMP-${emp.employeeCode}` : emp.id)
+              const cpfFormatted = formatCpf(emp.document)
+              return (
+                <StickerLabel qrValue={qrValue} footerLeft={qrValue} footerRight="EPI / CAPACETE">
+                  {emp.employeeCode && <span className={stickerText.code}>MAT: {emp.employeeCode}</span>}
+                  <span className={stickerText.name}>{emp.name}</span>
+                  {cpfFormatted && <span className={stickerText.meta}>CPF: {cpfFormatted}</span>}
+                  {emp.phone && <span className={stickerText.meta}>{formatPhone(emp.phone)}</span>}
+                </StickerLabel>
+              )
+            }}
+          />
+        ) : (
         <div
           className={`grid justify-center ${
             gridPreset === "GRID_9"
@@ -582,6 +614,7 @@ export function PrintBadgesClient({
             )
           })}
         </div>
+        )}
       </main>
 
       {/* Regras CSS Específicas de Impressão */}

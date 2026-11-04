@@ -13,6 +13,7 @@ import {
   Sliders,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { STICKER_SHEET, StickerLabel, StickerSheet, stickerText } from "@/components/ui/sticker-sheet"
 
 export type ToolLabelItem = {
   id: string
@@ -28,7 +29,7 @@ export type ToolLabelItem = {
   warehouseCode: string
 }
 
-type GridPreset = "GRID_9" | "GRID_12" | "GRID_6" | "THERMAL"
+type GridPreset = "GRID_9" | "GRID_12" | "GRID_6" | "STICKER" | "THERMAL"
 
 export function PrintToolLabelsClient({ tools }: { tools: ToolLabelItem[] }) {
   const [gridPreset, setGridPreset] = useState<GridPreset>("GRID_9")
@@ -80,6 +81,7 @@ export function PrintToolLabelsClient({ tools }: { tools: ToolLabelItem[] }) {
       case "GRID_12":
         return "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 print:grid-cols-4 gap-2.5 print:gap-2"
       case "THERMAL":
+      case "STICKER":
         return "grid-cols-1 max-w-xs mx-auto gap-3 print:gap-2"
     }
   }
@@ -93,12 +95,13 @@ export function PrintToolLabelsClient({ tools }: { tools: ToolLabelItem[] }) {
       case "GRID_12":
         return 68
       case "THERMAL":
+      case "STICKER":
         return 120
     }
   }
 
   return (
-    <div className="min-h-screen bg-background pb-16">
+    <div className="min-h-screen bg-background pb-16 print:pb-0 print:min-h-0">
       {/* Barra de controle (oculta na impressão) */}
       <div className="print:hidden sticky top-0 z-20 bg-card/95 backdrop-blur border-b border-border px-4 sm:px-6 py-3">
         <div className="max-w-6xl mx-auto flex flex-col gap-3">
@@ -153,6 +156,7 @@ export function PrintToolLabelsClient({ tools }: { tools: ToolLabelItem[] }) {
                   { id: "GRID_6", label: "Grande (2 col)" },
                   { id: "GRID_9", label: "Padrão A4 (3 col)" },
                   { id: "GRID_12", label: "Compacta (4 col)" },
+                  { id: "STICKER", label: `${STICKER_SHEET.label} (18)` },
                   { id: "THERMAL", label: "Rolo Térmico" },
                 ] as const
               ).map((preset) => (
@@ -172,14 +176,16 @@ export function PrintToolLabelsClient({ tools }: { tools: ToolLabelItem[] }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showCutGuides}
-                  onChange={(e) => setShowCutGuides(e.target.checked)}
-                />
-                <Scissors className="h-3.5 w-3.5" /> Guias de corte
-              </label>
+              {gridPreset !== "STICKER" && (
+                <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showCutGuides}
+                    onChange={(e) => setShowCutGuides(e.target.checked)}
+                  />
+                  <Scissors className="h-3.5 w-3.5" /> Guias de corte
+                </label>
+              )}
               <label className="inline-flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -258,6 +264,25 @@ export function PrintToolLabelsClient({ tools }: { tools: ToolLabelItem[] }) {
               Volte à Ferramentaria e cadastre ou selecione as ferramentas que deseja imprimir.
             </p>
           </div>
+        ) : gridPreset === "STICKER" ? (
+          <StickerSheet
+            items={expandedLabels}
+            getKey={({ tool, copyIndex }) => `${tool.id}-${copyIndex}`}
+            renderLabel={({ tool }) => (
+              <StickerLabel qrValue={tool.qrToken} footerLeft={tool.code} footerRight="FERRAMENTARIA">
+                <span className={stickerText.code}>{tool.code}</span>
+                <span className={stickerText.name}>{tool.name}</span>
+                {showCategory && (tool.category || tool.brand) && (
+                  <span className={stickerText.meta}>{[tool.category, tool.brand].filter(Boolean).join(" · ")}</span>
+                )}
+                {showWarehouse && (
+                  <span className={stickerText.meta}>
+                    {tool.warehouseCode} — {tool.warehouseName}
+                  </span>
+                )}
+              </StickerLabel>
+            )}
+          />
         ) : (
           <div className={`grid ${getGridClasses()}`}>
             {expandedLabels.map(({ tool, copyIndex }) => (

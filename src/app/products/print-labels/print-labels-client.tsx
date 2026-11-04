@@ -17,6 +17,7 @@ import {
   Scissors,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { STICKER_SHEET, StickerLabel, StickerSheet, stickerText } from "@/components/ui/sticker-sheet"
 
 export type ProductLabelItem = {
   id: string
@@ -33,7 +34,7 @@ export type ProductLabelItem = {
   warehouses: string[]
 }
 
-type GridPreset = "GRID_9" | "GRID_12" | "GRID_6" | "THERMAL"
+type GridPreset = "GRID_9" | "GRID_12" | "GRID_6" | "STICKER" | "THERMAL"
 
 export function PrintLabelsClient({
   products,
@@ -194,6 +195,17 @@ export function PrintLabelsClient({
                 6 por folha (2x3 - Gôndola)
               </button>
               <button
+                onClick={() => setGridPreset("STICKER")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  gridPreset === "STICKER"
+                    ? "bg-background text-foreground shadow-xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title={STICKER_SHEET.description}
+              >
+                {STICKER_SHEET.label} (18)
+              </button>
+              <button
                 onClick={() => setGridPreset("THERMAL")}
                 className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
                   gridPreset === "THERMAL"
@@ -207,16 +219,18 @@ export function PrintLabelsClient({
             </div>
 
             {/* Toggle Linhas para Tesoura */}
-            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showCutGuides}
-                onChange={(e) => setShowCutGuides(e.target.checked)}
-                className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-              />
-              <Scissors className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>Linhas para Tesoura</span>
-            </label>
+            {gridPreset !== "STICKER" && (
+              <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showCutGuides}
+                  onChange={(e) => setShowCutGuides(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                />
+                <Scissors className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>Linhas para Tesoura</span>
+              </label>
+            )}
 
             {/* Botão de Gestão de Quantidades */}
             <Button
@@ -250,7 +264,9 @@ export function PrintLabelsClient({
             💡 <strong>Configuração Recomendada da Impressora:</strong> Defina <strong>Margens como "Mínimas" ou "Nenhuma"</strong> e marque <strong>"Gráficos de segundo plano"</strong> para que as linhas de corte e o contraste preto e branco saiam 100% nítidos.
           </span>
           <span className="font-mono text-[11px] shrink-0 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30">
-            Papel A4 {gridPreset === "GRID_9" ? "(9 por folha)" : gridPreset === "GRID_12" ? "(12 por folha)" : ""}
+            {gridPreset === "STICKER"
+              ? `${STICKER_SHEET.label} (18 por folha)`
+              : `Papel A4 ${gridPreset === "GRID_9" ? "(9 por folha)" : gridPreset === "GRID_12" ? "(12 por folha)" : ""}`}
           </span>
         </div>
 
@@ -397,7 +413,7 @@ export function PrintLabelsClient({
       </div>
 
       {/* Área Imprimível (A4 / Térmica) */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 print:p-[8mm] print:m-0 print:max-w-none print:w-full">
+      <main className={`max-w-7xl mx-auto p-4 sm:p-6 print:m-0 print:max-w-none print:w-full ${gridPreset === "STICKER" ? "print:p-0" : "print:p-[8mm]"}`}>
         {labelsToPrint.length === 0 ? (
           <div className="py-20 text-center bg-card rounded-xl border border-dashed border-border p-8 print:hidden">
             <Package className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
@@ -415,6 +431,31 @@ export function PrintLabelsClient({
               Restaurar 1 Etiqueta por Produto
             </Button>
           </div>
+        ) : gridPreset === "STICKER" ? (
+          <StickerSheet
+            items={labelsToPrint}
+            getKey={({ product, copyIndex }, idx) => `${product.id}-${copyIndex}-${idx}`}
+            renderLabel={({ product, copyIndex, totalCopies }) => (
+              <StickerLabel
+                qrValue={product.code}
+                footerLeft={showHumanCode ? product.code : undefined}
+                footerRight={totalCopies > 1 ? `VIA ${copyIndex}/${totalCopies}` : "PRODUTO"}
+              >
+                <span className={stickerText.code}>{product.code}</span>
+                <span className={stickerText.name}>{product.name}</span>
+                {(showUnit || showCategory) && (
+                  <span className={stickerText.meta}>
+                    {[showUnit ? product.unitCode : null, showCategory ? product.categoryName : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                )}
+                {showPrice && product.averageCost && (
+                  <span className={stickerText.meta}>R$ {product.averageCost.toFixed(2)}</span>
+                )}
+              </StickerLabel>
+            )}
+          />
         ) : (
           <div
             className={`grid justify-center ${
