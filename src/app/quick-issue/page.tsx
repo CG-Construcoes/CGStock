@@ -14,7 +14,7 @@ export default async function QuickIssuePage() {
   const { selectedWarehouseId } = await resolveWarehouseContext(undefined, session.userId)
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-[calc(100vh-4rem)] bg-background">
       <QuickIssueClient
         userId={session.userId}
         sessionExpiresAt={new Date(session.expiresAt).toISOString()}

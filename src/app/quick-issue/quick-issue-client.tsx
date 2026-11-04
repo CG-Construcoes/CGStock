@@ -35,6 +35,14 @@ type CartItem = {
   availableQuantity: number | null
 }
 
+const formatQty = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
+const parseQty = (value: string) => Number(value.replace(",", ".")) || 0
+const omitKey = (obj: Record<string, string>, key: string) => {
+  const next = { ...obj }
+  delete next[key]
+  return next
+}
+
 export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }: { userId: string; sessionExpiresAt: string; activeWarehouseId?: string | null }) {
   const [context, setContext] = useState<EmployeeContext | null>(null)
 
@@ -53,6 +61,8 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
 
   // Cart & Local Catalog cache for instant suggestions
   const [cart, setCart] = useState<CartItem[]>([])
+  // Texto digitado no campo de quantidade enquanto o usuário edita (permite "12," ou "0,5")
+  const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({})
   const [localCatalog, setLocalCatalog] = useState<CatalogSnapshotData | undefined>(undefined)
   const [localStock, setLocalStock] = useState<StockSnapshotData | undefined>(undefined)
 
@@ -306,25 +316,46 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
       .reduce((sum, s) => sum + Number(s.quantity), 0)
   }
 
+  const setQuantity = (productId: string, newQty: number, notify = true) => {
+    const item = cart.find((c) => c.productId === productId)
+    if (!item) return false
+    const qty = Math.round(newQty * 1000) / 1000
+    if (!Number.isFinite(qty) || qty <= 0) return false
+    if (item.availableQuantity !== null && qty > item.availableQuantity) {
+      if (notify) toast.error(`Quantidade superior ao estoque disponível (${formatQty(item.availableQuantity)} ${item.unit}).`)
+      return false
+    }
+    setCart((prev) => prev.map((c) => (c.productId === productId ? { ...c, requestedQuantity: qty } : c)))
+    return true
+  }
+
   const updateQuantity = (productId: string, delta: number) => {
-    setCart((prev) =>
-      prev.map((item) => {
-        if (item.productId === productId) {
-          const newQty = item.requestedQuantity + delta
-          if (newQty < 1) return item
-          if (item.availableQuantity !== null && newQty > item.availableQuantity) {
-            toast.error("Quantidade superior ao estoque disponível.")
-            return item
-          }
-          return { ...item, requestedQuantity: newQty }
-        }
-        return item
-      })
-    )
+    const item = cart.find((c) => c.productId === productId)
+    if (!item) return
+    setQtyDrafts((prev) => omitKey(prev, productId))
+    setQuantity(productId, item.requestedQuantity + delta)
+  }
+
+  const handleQtyInput = (productId: string, raw: string) => {
+    const value = raw.replace(/[^\d.,]/g, "")
+    setQtyDrafts((prev) => ({ ...prev, [productId]: value }))
+    setQuantity(productId, parseQty(value), false)
+  }
+
+  const commitQtyDraft = (productId: string) => {
+    const draft = qtyDrafts[productId]
+    if (draft === undefined) return
+    setQtyDrafts((prev) => omitKey(prev, productId))
+    const item = cart.find((c) => c.productId === productId)
+    if (!item || parseQty(draft) === item.requestedQuantity) return
+    if (!setQuantity(productId, parseQty(draft))) {
+      if (!(parseQty(draft) > 0)) toast.error("Informe uma quantidade maior que zero.")
+    }
   }
 
   const removeItem = (productId: string) => {
     setCart((prev) => prev.filter((item) => item.productId !== productId))
+    setQtyDrafts((prev) => omitKey(prev, productId))
   }
 
   const saveOfflineIssue = async (activeContext: EmployeeContext) => {
@@ -351,6 +382,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
     toast.success("Entrega registrada no dispositivo! Sincronizaremos automaticamente assim que houver conexão.")
     setContext(null)
     setCart([])
+    setQtyDrafts({})
   }
 
   const handleConfirm = async () => {
@@ -397,6 +429,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
         }
         setContext(null)
         setCart([])
+        setQtyDrafts({})
       }
     } catch {
       try {
@@ -408,8 +441,6 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
       }
     }
   }
-
-  const totalItems = cart.reduce((sum, item) => sum + item.requestedQuantity, 0)
 
   if (!context) {
     return (
@@ -507,6 +538,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
             onClick={() => {
               setContext(null)
               setCart([])
+              setQtyDrafts({})
             }}
             className="text-emerald-100 hover:text-white p-1"
           >
@@ -519,13 +551,13 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
               <User className="h-5 w-5" />
             </div>
             <div>
-              <p className="font-bold text-gray-900 dark:text-gray-100">{context.employee.name}</p>
+              <p className="font-bold text-foreground">{context.employee.name}</p>
               <p className="text-xs text-muted-foreground">Destinatário</p>
             </div>
           </div>
 
           <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/30">
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex items-center gap-2 text-sm text-foreground">
               <Building className="h-4 w-4 text-emerald-500 shrink-0" />
               <span className="truncate font-medium">Almoxarifado: {context.warehouse.name}</span>
             </div>
@@ -583,7 +615,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
           </div>
         )}
 
-        <Button type="submit" variant="outline" className="w-full text-xs" disabled={isScanningProduct || !productQr}>
+        <Button type="submit" variant="outline" className="w-full text-xs text-foreground" disabled={isScanningProduct || !productQr}>
           {isScanningProduct ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar Item Manualmente"}
         </Button>
       </form>
@@ -609,45 +641,65 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
             {cart.map((item) => (
               <div
                 key={item.productId}
-                className="flex flex-col gap-2 p-3 bg-white dark:bg-zinc-900 rounded-md border border-gray-100 dark:border-zinc-800 shadow-sm"
+                className="flex flex-col gap-2 p-3 bg-card text-card-foreground rounded-md border border-border shadow-sm"
               >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">{item.name}</p>
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground line-clamp-2">{item.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {item.code} • Disp: {item.availableQuantity === null ? "—" : item.availableQuantity} {item.unit}
+                      {item.code} • Disp:{" "}
+                      <span className="font-semibold text-foreground">
+                        {item.availableQuantity === null ? "—" : formatQty(item.availableQuantity)} {item.unit}
+                      </span>
                     </p>
                   </div>
                   <button
                     onClick={() => removeItem(item.productId)}
-                    className="text-red-400 hover:text-red-600 text-xs font-medium"
+                    className="shrink-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-semibold"
                   >
                     Remover
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-1 bg-gray-50 dark:bg-zinc-950 p-1 rounded-lg border border-gray-200 dark:border-zinc-800">
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
                     <button
                       type="button"
                       onClick={() => updateQuantity(item.productId, -1)}
-                      className="w-8 h-8 flex items-center justify-center rounded-md bg-white dark:bg-zinc-900 shadow-sm text-gray-600 hover:text-red-500 active:scale-95"
+                      aria-label="Diminuir quantidade"
+                      className="w-9 h-9 flex items-center justify-center rounded-md bg-card border border-border shadow-sm text-foreground hover:text-red-600 active:scale-95"
                     >
                       <Minus className="h-4 w-4" />
                     </button>
-                    <div className="w-12 text-center font-bold text-lg">{item.requestedQuantity}</div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      aria-label={`Quantidade de ${item.name}`}
+                      value={qtyDrafts[item.productId] ?? formatQty(item.requestedQuantity)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => handleQtyInput(item.productId, e.target.value)}
+                      onBlur={() => commitQtyDraft(item.productId)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          e.currentTarget.blur()
+                        }
+                      }}
+                      className="w-20 h-9 rounded-md border border-border bg-background text-center font-bold text-lg text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
                     <button
                       type="button"
                       onClick={() => updateQuantity(item.productId, 1)}
-                      className="w-8 h-8 flex items-center justify-center rounded-md bg-white dark:bg-zinc-900 shadow-sm text-gray-600 hover:text-emerald-600 active:scale-95"
+                      aria-label="Aumentar quantidade"
+                      className="w-9 h-9 flex items-center justify-center rounded-md bg-card border border-border shadow-sm text-foreground hover:text-emerald-600 active:scale-95"
                     >
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
                   <div className="text-right">
                     <span className="text-sm text-muted-foreground">Total: </span>
-                    <span className="font-bold text-lg">
-                      {item.requestedQuantity} {item.unit}
+                    <span className="font-bold text-lg text-foreground whitespace-nowrap">
+                      {formatQty(item.requestedQuantity)} {item.unit}
                     </span>
                   </div>
                 </div>
@@ -659,7 +711,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
             <Button
               onClick={handleConfirm}
               disabled={isConfirming}
-              className="w-full h-14 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 shadow-sm shadow-emerald-600/20 active:scale-95 "
+              className="w-full h-14 text-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shadow-emerald-600/20 active:scale-95"
             >
               {isConfirming ? (
                 <>
@@ -667,7 +719,7 @@ export function QuickIssueClient({ userId, sessionExpiresAt, activeWarehouseId }
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-5 w-5 mr-2" /> Confirmar {totalItems} {totalItems === 1 ? "item" : "itens"}
+                  <CheckCircle2 className="h-5 w-5 mr-2" /> Confirmar {cart.length} {cart.length === 1 ? "item" : "itens"}
                 </>
               )}
             </Button>

@@ -32,6 +32,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#2c001e",
+  // Declara suporte a claro/escuro: impede o "modo escuro forçado" do Chrome/Samsung Internet
+  // de inverter cores por conta própria e deixar textos ilegíveis
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

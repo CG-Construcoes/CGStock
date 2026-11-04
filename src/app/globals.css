@@ -1,7 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* As utilidades dark: seguem o tema escolhido no app (classe .dark do next-themes),
+   e não o tema do sistema operacional — evita telas "meio claras, meio escuras" */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  color-scheme: light;
   --background: #f6f5f4;
   --foreground: #2d2530;
   --card: #ffffff;
@@ -36,6 +41,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #241f31;
   --foreground: #f6f5f4;
   --card: #312b3b;
