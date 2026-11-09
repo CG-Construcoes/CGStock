@@ -7,7 +7,7 @@ import { headers } from "next/headers"
 import bcrypt from "bcryptjs"
 
 const MAX_FAILED_ATTEMPTS = 5
-const LOCKOUT_WINDOW_MINUTES = 15
+const LOCKOUT_WINDOW_MINUTES = 1
 
 async function getClientIp(): Promise<string> {
   try {
@@ -37,7 +37,7 @@ export async function loginAction(prevState: unknown, formData: FormData) {
   })
 
   if (recentFailures >= MAX_FAILED_ATTEMPTS) {
-    return { error: `Muitas tentativas de login. Tente novamente em ${LOCKOUT_WINDOW_MINUTES} minutos.` }
+    return { error: `Muitas tentativas de login. Tente novamente em ${LOCKOUT_WINDOW_MINUTES} ${LOCKOUT_WINDOW_MINUTES === 1 ? "minuto" : "minutos"}.` }
   }
 
   const cleanDigits = email.replace(/\D/g, "")
