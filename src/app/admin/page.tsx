@@ -1,6 +1,6 @@
 import { requirePermissionPage } from "@/lib/permissions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Shield, MapPin, Tags, Settings, Activity, ShieldCheck, Database, PackageOpen, Truck } from "lucide-react"
+import { Users, Shield, MapPin, Tags, Settings, Activity, ShieldCheck, Database, DatabaseBackup, PackageOpen, Truck } from "lucide-react"
 import Link from "next/link"
 
 export default async function AdminHubPage() {
@@ -30,6 +30,7 @@ export default async function AdminHubPage() {
         { name: "Auditoria (Logs)", href: "/admin/audit", icon: Shield, description: "Rastreabilidade de ações" },
         { name: "Configurações", href: "/admin/settings", icon: Settings, description: "Parametrização global" },
         { name: "Saúde do Sistema", href: "/admin/system", icon: Activity, description: "Status e métricas do DB" },
+        { name: "Backup & Restauração", href: "/admin/backup", icon: DatabaseBackup, description: "Exportar e restaurar o banco completo" },
       ]
     }
   ]
