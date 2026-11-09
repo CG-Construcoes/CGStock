@@ -9,7 +9,9 @@ import { Prisma } from "@prisma/client"
 
 export const BACKUP_FORMAT = "cgstock-backup"
 export const BACKUP_VERSION = 1
-const INSERT_CHUNK = 1000
+// Chunks menores: INSERTs multi-linha muito largos estouravam a memória do
+// compute do Neon (53200 out of memory) dentro da transação única.
+const INSERT_CHUNK = 250
 
 type DmmfModel = { name: string; fields: { name: string; type: string; relationName?: string; relationFromFields?: string[] }[] }
 
@@ -104,11 +106,28 @@ export async function buildBackupData() {
   }
 }
 
+/** Progresso da restauração — emitido por etapa para a UI acompanhar. */
+export interface RestoreProgress {
+  /** "wiping": apagando dados atuais · "table": uma etapa concluída */
+  phase: "wiping" | "table"
+  /** Nome da tabela recém-restaurada (somente em phase="table") */
+  table?: string
+  /** Quantas etapas (tabelas) já foram concluídas */
+  done: number
+  /** Total de etapas (tabelas de modelos + implícitas) */
+  total: number
+  /** Linhas inseridas até agora */
+  rows: number
+}
+
 /**
  * Restaura o backup: apaga TODAS as tabelas e reinsere o conteúdo do arquivo.
  * Roda numa única transação — qualquer falha desfaz tudo e o banco fica intacto.
  */
-export async function restoreBackupData(payload: unknown) {
+export async function restoreBackupData(
+  payload: unknown,
+  onProgress?: (p: RestoreProgress) => void,
+) {
   const p = payload as { format?: string; version?: number; tables?: Record<string, unknown[]> }
   if (p?.format !== BACKUP_FORMAT || !p.tables || typeof p.tables !== "object") {
     throw new Error("Arquivo inválido: não é um backup do CGStock.")
@@ -123,12 +142,19 @@ export async function restoreBackupData(payload: unknown) {
       const t = tx as unknown as Record<string, { deleteMany: () => Promise<unknown>; createMany: (a: { data: unknown[] }) => Promise<unknown> }>
       // M-N implícitas primeiro na exclusão (dependem dos dois lados)
       const implicitNames = await listImplicitTables(tx)
-      for (const name of implicitNames) {
-        await tx.$executeRawUnsafe(`DELETE FROM "${name}"`)
-      }
-      for (const name of DELETE_ORDER) {
-        await t[delegateOf(name)].deleteMany()
-      }
+      const totalSteps = INSERT_ORDER.length + implicitNames.length
+      let done = 0
+      let rowsDone = 0
+      onProgress?.({ phase: "wiping", done: 0, total: totalSteps, rows: 0 })
+      // TRUNCATE em vez de DELETE: um único comando para todas as tabelas
+      // (CASCADE cobre as implícitas e as FKs entre elas). DELETE linha-a-linha
+      // enfileirava eventos de gatilho de FK até estourar a memória do Neon.
+      const allTables = await tx.$queryRawUnsafe<{ t: string }[]>(`
+        SELECT table_name t FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+          AND table_name <> '_prisma_migrations'`)
+      const quoted = allTables.map((r) => `"${r.t}"`).join(", ")
+      await tx.$executeRawUnsafe(`TRUNCATE ${quoted} RESTART IDENTITY CASCADE`)
       for (const name of INSERT_ORDER) {
         const rows = (p.tables![name] as Record<string, unknown>[]) ?? []
         summary[name] = rows.length
@@ -136,22 +162,27 @@ export async function restoreBackupData(payload: unknown) {
         for (let i = 0; i < sorted.length; i += INSERT_CHUNK) {
           await t[delegateOf(name)].createMany({ data: sorted.slice(i, i + INSERT_CHUNK) })
         }
+        rowsDone += rows.length
+        onProgress?.({ phase: "table", table: name, done: ++done, total: totalSteps, rows: rowsDone })
       }
       // M-N implícitas por último na inserção
       const implicit = (p as { implicitTables?: Record<string, Record<string, unknown>[]> }).implicitTables ?? {}
       for (const name of implicitNames) {
         const rows = implicit[name] ?? []
         summary[name] = rows.length
-        if (!rows.length) continue
-        const cols = await tableColumns(name, tx)
-        const colSql = cols.map((c) => `"${c}"`).join(", ")
-        const chunkSize = Math.max(1, Math.floor(3000 / cols.length))
-        for (let i = 0; i < rows.length; i += chunkSize) {
-          const chunk = rows.slice(i, i + chunkSize)
-          const values: unknown[] = []
-          const placeholders = chunk.map((r) => `(${cols.map((c) => `$${values.push(r[c] ?? null)}`).join(", ")})`).join(", ")
-          await tx.$executeRawUnsafe(`INSERT INTO "${name}" (${colSql}) VALUES ${placeholders}`, ...values)
+        if (rows.length) {
+          const cols = await tableColumns(name, tx)
+          const colSql = cols.map((c) => `"${c}"`).join(", ")
+          const chunkSize = Math.max(1, Math.floor(3000 / cols.length))
+          for (let i = 0; i < rows.length; i += chunkSize) {
+            const chunk = rows.slice(i, i + chunkSize)
+            const values: unknown[] = []
+            const placeholders = chunk.map((r) => `(${cols.map((c) => `$${values.push(r[c] ?? null)}`).join(", ")})`).join(", ")
+            await tx.$executeRawUnsafe(`INSERT INTO "${name}" (${colSql}) VALUES ${placeholders}`, ...values)
+          }
         }
+        rowsDone += rows.length
+        onProgress?.({ phase: "table", table: name, done: ++done, total: totalSteps, rows: rowsDone })
       }
     },
     { maxWait: 30_000, timeout: 300_000 }
