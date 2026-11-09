@@ -40,32 +40,53 @@ export async function getProductStockForQuickIssue(worksiteId: string, warehouse
     return { error: "Você não tem acesso a este almoxarifado." }
   }
 
-  // Buscar o produto primeiro globalmente
-  const product = await db.product.findFirst({
-    where: { 
-      code: { contains: productCode, mode: 'insensitive' }
-    },
-    include: { unit: true },
-    orderBy: { code: 'asc' }
-  })
-  
-  if (!product) return { error: "Produto não encontrado no catálogo." }
+  // Buscar o produto globalmente. O catálogo pode ter o mesmo código em
+  // produtos distintos (importações por empresa) — precisamos considerar
+  // todos os gêmeos e não o primeiro que o banco retornar.
+  const trimmedCode = productCode.trim()
+  const match = { OR: [
+    { code: { equals: trimmedCode, mode: 'insensitive' as const } },
+    { barcode: { equals: trimmedCode, mode: 'insensitive' as const } },
+  ]}
+  let candidates = await db.product.findMany({ where: match, include: { unit: true }, orderBy: { code: 'asc' } })
 
-  // Buscar o estoque SOMENTE no almoxarifado informado
+  // Fallback tolerante: código parcial / código de barras
+  if (candidates.length === 0) {
+    candidates = await db.product.findMany({
+      where: { OR: [
+        { code: { contains: trimmedCode, mode: 'insensitive' } },
+        { barcode: { contains: trimmedCode, mode: 'insensitive' } },
+      ]},
+      include: { unit: true },
+      orderBy: { code: 'asc' },
+      take: 10,
+    })
+  }
+
+  if (candidates.length === 0) return { error: "Produto não encontrado no catálogo." }
+
+  // Estoque de TODOS os candidatos com saldo (neste e em outros almoxarifados)
   const stocks = await db.stock.findMany({
     where: {
-      productId: product.id,
-      warehouseId
+      productId: { in: candidates.map((p) => p.id) },
+      quantity: { gt: 0 },
     },
     include: {
-      location: true
-    }
+      location: true,
+      warehouse: { select: { name: true } },
+    },
   })
 
-  const availableStocks = stocks.filter(s => Number(s.quantity) > 0)
-  
+  // Preferir o gêmeo que tem saldo NESTE almoxarifado; senão, o primeiro
+  const product = candidates.find((p) => stocks.some((s) => s.productId === p.id && s.warehouseId === warehouseId)) ?? candidates[0]
+  const availableStocks = stocks.filter((s) => s.productId === product.id && s.warehouseId === warehouseId)
+
   if (availableStocks.length === 0) {
-    return { error: "Este produto não possui estoque disponível neste almoxarifado." }
+    const elsewhere = stocks.filter((s) => s.warehouseId !== warehouseId)
+    const hint = elsewhere.length > 0
+      ? ` Saldo encontrado em: ${[...new Map(elsewhere.map((s) => [s.warehouseId, s.warehouse.name])).values()].join(", ")}.`
+      : ""
+    return { error: `Este produto não possui estoque disponível neste almoxarifado.${hint}` }
   }
 
   const totalAvailable = availableStocks.reduce((sum, s) => sum + Number(s.quantity), 0)

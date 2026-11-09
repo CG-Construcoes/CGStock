@@ -209,34 +209,49 @@ export function getProductStockOffline(
   const products = catalog?.products ?? []
   const lower = trimmed.toLowerCase()
 
-  const exact = products.find(
+  // O catálogo pode ter o mesmo código em produtos distintos (importações
+  // por empresa) — avaliar todos os gêmeos e preferir o que tem saldo aqui.
+  const exactMatches = products.filter(
     (p) => p.code.toLowerCase() === lower || (p.barcode && p.barcode.toLowerCase() === lower)
   )
-  const partial =
-    exact ||
-    products
-      .filter(
-        (p) =>
-          p.code.toLowerCase().includes(lower) ||
-          (p.barcode && p.barcode.toLowerCase().includes(lower)) ||
-          p.name.toLowerCase().includes(lower)
-      )
-      .sort((a, b) => a.code.localeCompare(b.code))[0]
+  const candidates =
+    exactMatches.length > 0
+      ? exactMatches
+      : products
+          .filter(
+            (p) =>
+              p.code.toLowerCase().includes(lower) ||
+              (p.barcode && p.barcode.toLowerCase().includes(lower)) ||
+              p.name.toLowerCase().includes(lower)
+          )
+          .sort((a, b) => a.code.localeCompare(b.code))
+          .slice(0, 10)
 
-  if (!partial) {
+  if (candidates.length === 0) {
     return { error: "Produto não encontrado no catálogo." }
   }
 
   const locationsById = new Map((catalog?.locations ?? []).map((l) => [l.id, l]))
-  const stockItems = (stock?.items ?? []).filter(
+  const warehousesById = new Map((catalog?.warehouses ?? []).map((w) => [w.id, w]))
+  const allStocks = (stock?.items ?? []).filter(
+    (s) => candidates.some((p) => p.id === s.productId) && Number(s.quantity) > 0
+  )
+  const product =
+    candidates.find((p) =>
+      allStocks.some((s) => s.productId === p.id && (!warehouseId || s.warehouseId === warehouseId))
+    ) ?? candidates[0]
+  const stockItems = allStocks.filter(
     (s) =>
-      s.productId === partial.id &&
-      (!warehouseId || s.warehouseId === warehouseId) &&
-      Number(s.quantity) > 0
+      s.productId === product.id &&
+      (!warehouseId || s.warehouseId === warehouseId)
   )
 
   if (stock && stock.items.length > 0 && stockItems.length === 0) {
-    return { error: "Este produto não possui estoque disponível neste almoxarifado." }
+    const elsewhere = allStocks.filter((s) => s.warehouseId !== warehouseId)
+    const hint = elsewhere.length > 0
+      ? ` Saldo encontrado em: ${[...new Set(elsewhere.map((s) => warehousesById.get(s.warehouseId)?.name || s.warehouseId))].join(", ")}.`
+      : ""
+    return { error: `Este produto não possui estoque disponível neste almoxarifado.${hint}` }
   }
 
   const totalAvailable =
@@ -247,10 +262,10 @@ export function getProductStockOffline(
   return {
     success: true,
     product: {
-      id: partial.id,
-      code: partial.code,
-      name: partial.name,
-      unit: partial.unitCode || "UN",
+      id: product.id,
+      code: product.code,
+      name: product.name,
+      unit: product.unitCode || "UN",
     },
     totalAvailable,
     locations: stockItems
