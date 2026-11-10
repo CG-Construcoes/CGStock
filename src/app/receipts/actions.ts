@@ -57,8 +57,8 @@ export async function searchSuppliersAction(params: {
       category: params.category === UNCATEGORIZED ? null : params.category ?? undefined,
       ...(search ? {
         OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { erpCode: { contains: search, mode: 'insensitive' as const } },
+          { name: { contains: search } },
+          { erpCode: { contains: search } },
           { document: { contains: search } },
         ],
       } : {}),

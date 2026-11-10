@@ -14,7 +14,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   
   const whereClause: any = {}
   if (params.action) {
-    whereClause.action = { contains: params.action, mode: 'insensitive' }
+    whereClause.action = { contains: params.action }
   }
   if (params.userId) {
     whereClause.userId = params.userId

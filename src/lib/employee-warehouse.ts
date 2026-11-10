@@ -81,8 +81,8 @@ export async function ensureWarehouseWorksite(warehouse: {
   let ws = await db.worksite.findFirst({
     where: {
       OR: [
-        { code: { equals: warehouse.code, mode: "insensitive" } },
-        { name: { equals: warehouse.name, mode: "insensitive" } },
+        { code: { equals: warehouse.code } },
+        { name: { equals: warehouse.name } },
       ],
     },
     select: { id: true, name: true, status: true },

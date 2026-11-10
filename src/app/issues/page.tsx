@@ -28,7 +28,7 @@ export default async function IssuesPage({
         in: ['PARTIALLY_FULFILLED', 'FULFILLED']
       },
       ...(wFilter ? wFilter : {}),
-      ...(q ? { OR: [{ requestNumber: { contains: q, mode: 'insensitive' } }, { requester: { name: { contains: q, mode: 'insensitive' } } }] } : {})
+      ...(q ? { OR: [{ requestNumber: { contains: q } }, { requester: { name: { contains: q } } }] } : {})
     },
     include: {
       requester: true,

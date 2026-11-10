@@ -24,10 +24,10 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
     ...(q
       ? {
           OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { tradeName: { contains: q, mode: "insensitive" as const } },
-            { document: { contains: q.replace(/\D/g, "") || q, mode: "insensitive" as const } },
-            { erpCode: { contains: q, mode: "insensitive" as const } },
+            { name: { contains: q } },
+            { tradeName: { contains: q } },
+            { document: { contains: q.replace(/\D/g, "") || q } },
+            { erpCode: { contains: q } },
           ],
         }
       : {}),

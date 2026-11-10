@@ -9,7 +9,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const users = await db.user.findMany({
     where: {
       loginEnabled: true,
-      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : {})
+      ...(q ? { OR: [{ name: { contains: q } }, { email: { contains: q } }] } : {})
     },
     include: {
       roles: true,

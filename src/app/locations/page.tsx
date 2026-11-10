@@ -24,10 +24,10 @@ export default async function LocationsPage(props: {
       ...warehouseWhere,
       ...(q ? {
         OR: [
-          { code: { contains: q, mode: 'insensitive' } },
-          { name: { contains: q, mode: 'insensitive' } },
-          { warehouse: { name: { contains: q, mode: 'insensitive' } } },
-          { warehouse: { code: { contains: q, mode: 'insensitive' } } },
+          { code: { contains: q } },
+          { name: { contains: q } },
+          { warehouse: { name: { contains: q } } },
+          { warehouse: { code: { contains: q } } },
         ]
       } : {})
     },

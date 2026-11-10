@@ -66,11 +66,11 @@ export default async function DivergencesHubPage(props: {
   }
   if (q) {
     baseInventoryWhere.OR = [
-      { product: { name: { contains: q, mode: "insensitive" } } },
-      { product: { code: { contains: q, mode: "insensitive" } } },
-      { location: { code: { contains: q, mode: "insensitive" } } },
-      { inventory: { name: { contains: q, mode: "insensitive" } } },
-      { inventory: { code: { contains: q, mode: "insensitive" } } },
+      { product: { name: { contains: q } } },
+      { product: { code: { contains: q } } },
+      { location: { code: { contains: q } } },
+      { inventory: { name: { contains: q } } },
+      { inventory: { code: { contains: q } } },
     ]
   }
 

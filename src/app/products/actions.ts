@@ -180,7 +180,7 @@ export async function quickCreateProductAction(input: {
 
   // Já cadastrado com esse código → só vincula o item
   const byCode = await db.product.findFirst({
-    where: { code: { equals: code, mode: "insensitive" } },
+    where: { code: { equals: code } },
     select: pick,
   })
   if (byCode) return { success: true, alreadyExisted: true, product: toDto(byCode) }

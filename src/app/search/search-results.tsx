@@ -14,8 +14,8 @@ export async function SearchResults({ query }: { query: string }) {
     db.product.findMany({
       where: {
         OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { code: { contains: query, mode: "insensitive" } },
+          { name: { contains: query } },
+          { code: { contains: query } },
         ],
         ...(selectedWarehouseId ? { stocks: { some: { warehouseId: selectedWarehouseId } } } : {})
       },
@@ -26,7 +26,7 @@ export async function SearchResults({ query }: { query: string }) {
     }),
     db.materialRequest.findMany({
       where: {
-        requestNumber: { contains: query, mode: "insensitive" },
+        requestNumber: { contains: query },
         ...wFilter
       },
       take: 10,
@@ -34,8 +34,8 @@ export async function SearchResults({ query }: { query: string }) {
     db.stockMovement.findMany({
       where: {
         OR: [
-          { documentNumber: { contains: query, mode: "insensitive" } },
-          { reason: { contains: query, mode: "insensitive" } },
+          { documentNumber: { contains: query } },
+          { reason: { contains: query } },
         ],
         ...wFilter
       },
@@ -47,8 +47,8 @@ export async function SearchResults({ query }: { query: string }) {
     db.warehouseLocation.findMany({
       where: {
         OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { code: { contains: query, mode: "insensitive" } },
+          { name: { contains: query } },
+          { code: { contains: query } },
         ],
         ...wFilter
       },

@@ -44,10 +44,10 @@ export default async function EmployeesPage({
   if (q) {
     const cleanDigits = q.replace(/\D/g, "")
     whereCondition.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { employeeCode: { contains: q, mode: "insensitive" } },
-      { email: { contains: q, mode: "insensitive" } },
-      { qrToken: { contains: q, mode: "insensitive" } },
+      { name: { contains: q } },
+      { employeeCode: { contains: q } },
+      { email: { contains: q } },
+      { qrToken: { contains: q } },
       ...(cleanDigits.length >= 3 ? [{ document: { contains: cleanDigits } }] : [{ document: { contains: q } }]),
       { phone: { contains: q } },
     ]

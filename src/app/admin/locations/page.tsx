@@ -24,8 +24,8 @@ export default async function LocationsPage(props: {
       ...warehouseWhere,
       ...(q ? {
         OR: [
-          { code: { contains: q, mode: 'insensitive' } },
-          { name: { contains: q, mode: 'insensitive' } },
+          { code: { contains: q } },
+          { name: { contains: q } },
         ]
       } : {})
     },

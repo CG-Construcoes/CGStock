@@ -40,9 +40,9 @@ export default async function MovementsPage(props: {
   const search = searchParams.q as string
   if (search) {
     where.OR = [
-      { documentNumber: { contains: search, mode: 'insensitive' } },
-      { product: { name: { contains: search, mode: 'insensitive' } } },
-      { product: { code: { contains: search, mode: 'insensitive' } } }
+      { documentNumber: { contains: search } },
+      { product: { name: { contains: search } } },
+      { product: { code: { contains: search } } }
     ]
   }
 

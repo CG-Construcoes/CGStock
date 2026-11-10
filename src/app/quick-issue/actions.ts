@@ -45,8 +45,8 @@ export async function getProductStockForQuickIssue(worksiteId: string, warehouse
   // todos os gêmeos e não o primeiro que o banco retornar.
   const trimmedCode = productCode.trim()
   const match = { OR: [
-    { code: { equals: trimmedCode, mode: 'insensitive' as const } },
-    { barcode: { equals: trimmedCode, mode: 'insensitive' as const } },
+    { code: { equals: trimmedCode } },
+    { barcode: { equals: trimmedCode } },
   ]}
   let candidates = await db.product.findMany({ where: match, include: { unit: true }, orderBy: { code: 'asc' } })
 
@@ -54,8 +54,8 @@ export async function getProductStockForQuickIssue(worksiteId: string, warehouse
   if (candidates.length === 0) {
     candidates = await db.product.findMany({
       where: { OR: [
-        { code: { contains: trimmedCode, mode: 'insensitive' } },
-        { barcode: { contains: trimmedCode, mode: 'insensitive' } },
+        { code: { contains: trimmedCode } },
+        { barcode: { contains: trimmedCode } },
       ]},
       include: { unit: true },
       orderBy: { code: 'asc' },

@@ -24,7 +24,7 @@ export default async function RequestsPage({
   const requests = await db.materialRequest.findMany({
     where: {
       ...warehouseWhere,
-      ...(q ? { OR: [{ requestNumber: { contains: q, mode: 'insensitive' } }, { requester: { name: { contains: q, mode: 'insensitive' } } }] } : {})
+      ...(q ? { OR: [{ requestNumber: { contains: q } }, { requester: { name: { contains: q } } }] } : {})
     },
     include: {
       requester: true,

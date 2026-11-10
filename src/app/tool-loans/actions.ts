@@ -223,15 +223,15 @@ export async function lookupToolForLoan(warehouseId: string, rawCode: string) {
   const scopeFilter = scope !== null ? { warehouseId: { in: scope } } : {}
 
   const exactConditions = [
-    { qrToken: { equals: code, mode: "insensitive" as const } },
-    { code: { equals: code, mode: "insensitive" as const } },
-    { serialNumber: { equals: code, mode: "insensitive" as const } },
+    { qrToken: { equals: code } },
+    { code: { equals: code } },
+    { serialNumber: { equals: code } },
     { id: code },
   ]
   const partialConditions = [
-    { code: { contains: code, mode: "insensitive" as const } },
-    { name: { contains: code, mode: "insensitive" as const } },
-    { brand: { contains: code, mode: "insensitive" as const } },
+    { code: { contains: code } },
+    { name: { contains: code } },
+    { brand: { contains: code } },
   ]
 
   // 1º tenta no almoxarifado selecionado; 2º em qualquer almoxarifado acessível pelo operador

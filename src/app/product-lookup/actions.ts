@@ -102,8 +102,8 @@ export async function lookupProductAction(rawCode: string): Promise<ProductLooku
     (await db.product.findFirst({
       where: {
         OR: [
-          { code: { equals: code, mode: "insensitive" } },
-          { barcode: { equals: code, mode: "insensitive" } },
+          { code: { equals: code } },
+          { barcode: { equals: code } },
           { id: code },
         ],
       },
@@ -112,9 +112,9 @@ export async function lookupProductAction(rawCode: string): Promise<ProductLooku
     (await db.product.findFirst({
       where: {
         OR: [
-          { code: { contains: code, mode: "insensitive" } },
-          { barcode: { contains: code, mode: "insensitive" } },
-          { name: { contains: code, mode: "insensitive" } },
+          { code: { contains: code } },
+          { barcode: { contains: code } },
+          { name: { contains: code } },
         ],
       },
       orderBy: { code: "asc" },

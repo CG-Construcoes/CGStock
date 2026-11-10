@@ -27,7 +27,7 @@ export async function importEmployeesAction(rows: EmployeeImportRow[]) {
 
   // O perfil padrão de usuário básico (role normal)
   const defaultRole = await db.role.findFirst({
-    where: { name: { contains: 'user', mode: 'insensitive' } }
+    where: { name: { contains: 'user' } }
   })
 
   for (const [index, row] of rows.entries()) {

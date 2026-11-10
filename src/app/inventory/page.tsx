@@ -22,7 +22,7 @@ export default async function InventoryPage(props: {
   const inventories = await db.inventory.findMany({
     where: {
       ...warehouseWhere,
-      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { code: { contains: q, mode: 'insensitive' } }] } : {})
+      ...(q ? { OR: [{ name: { contains: q } }, { code: { contains: q } }] } : {})
     },
     include: {
       warehouse: true,

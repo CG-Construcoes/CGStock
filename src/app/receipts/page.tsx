@@ -24,7 +24,7 @@ export default async function ReceiptsPage({
   const receipts = await db.stockReceipt.findMany({
     where: {
       ...warehouseWhere,
-      ...(q ? { OR: [{ documentNumber: { contains: q, mode: 'insensitive' } }, { supplier: { name: { contains: q, mode: 'insensitive' } } }] } : {})
+      ...(q ? { OR: [{ documentNumber: { contains: q } }, { supplier: { name: { contains: q } } }] } : {})
     },
     include: {
       supplier: true,

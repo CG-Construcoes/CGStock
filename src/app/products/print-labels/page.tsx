@@ -32,8 +32,8 @@ export default async function PrintLabelsPage({
   } else {
     if (resolved?.q) {
       where.OR = [
-        { name: { contains: resolved.q, mode: "insensitive" } },
-        { code: { contains: resolved.q, mode: "insensitive" } },
+        { name: { contains: resolved.q } },
+        { code: { contains: resolved.q } },
       ]
     }
     if (resolved?.category) {

@@ -38,8 +38,8 @@ export default async function ProductsPage({
   const where: Prisma.ProductWhereInput = {}
   if (search) {
     where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
-      { code: { contains: search, mode: 'insensitive' } }
+      { name: { contains: search } },
+      { code: { contains: search } }
     ]
   }
   if (categoryId) where.categoryId = categoryId
