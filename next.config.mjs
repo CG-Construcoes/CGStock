@@ -38,6 +38,12 @@ const withPWA = withPWAInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   turbopack: {},
+  experimental: {
+    // Builder da Hostinger: reporta dezenas de CPUs mas a RAM é compartilhada
+    // — o default (1 worker/CPU) explode a memória na coleta de page data
+    // (SIGABRT). Limita a poucos workers.
+    cpus: 2,
+  },
   // Bundle autocontido em .next/standalone para deploy Node (Hostinger):
   // sobe só o mínimo necessário, sem node_modules completo.
   output: "standalone",
