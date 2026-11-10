@@ -1,4 +1,3 @@
-import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
@@ -21,14 +20,14 @@ const withPWA = withPWAInit({
     // e Background Sync é feito em /sw-offline-sync.js (limpo no logout).
     runtimeCaching: [
       {
-        urlPattern: ({ request }: { request: Request }) => request.destination === "document",
+        urlPattern: ({ request }) => request.destination === "document",
         handler: "NetworkOnly",
         // options precisa existir para que o plugin anexe o fallback offline
         // (handlerDidError -> /offline.html) a esta regra.
         options: {},
       },
       {
-        urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
+        urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
         handler: "NetworkOnly",
         options: {},
       },
@@ -36,8 +35,12 @@ const withPWA = withPWAInit({
   }
 });
 
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   turbopack: {},
+  // Bundle autocontido em .next/standalone para deploy Node (Hostinger):
+  // sobe só o mínimo necessário, sem node_modules completo.
+  output: "standalone",
   // Acesso pela rede local (celular/PWA): sem isso o Next bloqueia recursos de
   // dev (/_next/hmr etc.) por host estranho e a hidratação nunca acontece.
   allowedDevOrigins: ["172.16.1.48"],
