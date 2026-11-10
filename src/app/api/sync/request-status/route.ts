@@ -77,9 +77,9 @@ export async function POST(req: NextRequest) {
         if (action === 'APPROVE') {
           await tx.materialRequest.update({ where: { id: requestId }, data: { status: 'APPROVED', approvedById: session.userId, approvedAt: new Date() } })
           await tx.$executeRaw`
-            UPDATE "MaterialRequestItem"
-            SET "approvedQuantity" = "requestedQuantity", "updatedAt" = NOW()
-            WHERE "requestId" = ${requestId}
+            UPDATE \`MaterialRequestItem\`
+            SET \`approvedQuantity\` = \`requestedQuantity\`, \`updatedAt\` = NOW(3)
+            WHERE \`requestId\` = ${requestId}
           `
         } else if (action === 'REJECT') {
           await tx.materialRequest.update({ where: { id: requestId }, data: { status: 'REJECTED', notes: reason } })

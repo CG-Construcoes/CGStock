@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { QrCode, ClipboardList, Building2 } from "lucide-react"
 import { Suspense } from "react"
+import { normalizeNums } from "@/lib/raw-num"
 
 async function RequesterDashboard({ user, qrToken, warehouseWhere }: { user: SessionPayload, qrToken: string | null, warehouseWhere?: { warehouseId: { in: string[] } } }) {
   const wFilter = warehouseWhere !== undefined ? warehouseWhere : await warehouseIdFilter(user.userId)
@@ -176,20 +177,20 @@ export default async function DashboardPage(props: {
 
   let chartQuery
   if (scopeIds?.length === 0) {
-    chartQuery = Prisma.sql`SELECT DATE_TRUNC('day', NOW()) AS day, '' AS type, 0::int AS total WHERE FALSE`
+    chartQuery = Prisma.sql`SELECT DATE_FORMAT(NOW(3), '%Y-%m-%d') AS day, '' AS type, 0 AS total WHERE 1=0`
   } else if (scopeIds) {
     chartQuery = Prisma.sql`
-      SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
-      FROM "StockMovement"
-      WHERE "createdAt" >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT') AND "warehouseId" IN (${Prisma.join(scopeIds)})
+      SELECT DATE_FORMAT(\`createdAt\`, '%Y-%m-%d') AS day, type, SUM(quantity) AS total
+      FROM \`StockMovement\`
+      WHERE \`createdAt\` >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT') AND \`warehouseId\` IN (${Prisma.join(scopeIds)})
       GROUP BY 1, 2
       ORDER BY 1
     `
   } else {
     chartQuery = Prisma.sql`
-      SELECT DATE_TRUNC('day', "createdAt") AS day, type, SUM(quantity)::int AS total
-      FROM "StockMovement"
-      WHERE "createdAt" >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT')
+      SELECT DATE_FORMAT(\`createdAt\`, '%Y-%m-%d') AS day, type, SUM(quantity) AS total
+      FROM \`StockMovement\`
+      WHERE \`createdAt\` >= ${thirtyDaysAgo} AND type IN ('ENTRY', 'EXIT')
       GROUP BY 1, 2
       ORDER BY 1
     `
@@ -222,7 +223,7 @@ export default async function DashboardPage(props: {
       orderBy: { createdAt: 'desc' },
       include: { product: true }
     }),
-    db.$queryRaw<ChartRow[]>(chartQuery)
+    db.$queryRaw<ChartRow[]>(chartQuery).then((rows) => rows.map(normalizeNums))
   ])
 
   // Prepara dados pro gráfico (os 7 dias mais recentes com movimentação)

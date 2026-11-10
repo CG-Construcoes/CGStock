@@ -71,7 +71,7 @@ model User {
 model Role {
   id          String           @id @default(uuid())
   name        String           @unique
-  description String?
+  description String? @db.Text
   users       User[]
   permissions RolePermission[]
   createdAt   DateTime         @default(now())
@@ -82,7 +82,7 @@ model Permission {
   id          String           @id @default(uuid())
   key         String           @unique
   name        String
-  description String?
+  description String? @db.Text
   roles       RolePermission[]
 }
 
@@ -98,7 +98,7 @@ model RolePermission {
 model ProductCategory {
   id            String    @id @default(uuid())
   name          String    @unique
-  description   String?
+  description   String? @db.Text
   status        String    @default("ACTIVE")
   informakonKey String?   @unique
   products      Product[]
@@ -110,7 +110,7 @@ model ProductUnit {
   id            String                @id @default(uuid())
   code          String                @unique
   name          String
-  description   String?
+  description   String? @db.Text
   status        String                @default("ACTIVE")
   informakonKey String?               @unique
   products      Product[]
@@ -125,8 +125,8 @@ model Product {
   id                   String                    @id @default(uuid())
   code                 String
   barcode              String?
-  name                 String
-  shortDescription     String?
+  name                 String                @db.Text
+  shortDescription     String? @db.Text
   categoryId           String
   category             ProductCategory           @relation(fields: [categoryId], references: [id])
   unitId               String
@@ -142,7 +142,7 @@ model Product {
   defaultLocationId    String?
   defaultLocation      WarehouseLocation?        @relation(fields: [defaultLocationId], references: [id])
   status               String                    @default("ACTIVE") // ACTIVE, INACTIVE
-  notes                String?
+  notes                String? @db.Text
   informakonKey        String?                   @unique
 
   stocks               Stock[]
@@ -164,7 +164,7 @@ model Warehouse {
   id                   String              @id @default(uuid())
   name                 String
   code                 String              @unique
-  description          String?
+  description          String? @db.Text
   status               String              @default("ACTIVE")
   informakonKey        String?             @unique
   source               String?             // Empresa/ERP dona do almoxarifado: "MGA" (CG) ou "CV" (Conceito)
@@ -197,7 +197,7 @@ model WarehouseLocation {
   warehouse            Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
   code                 String                @unique
   name                 String
-  description          String?
+  description          String? @db.Text
   status               String                @default("ACTIVE")
   
   parentId             String?
@@ -255,8 +255,8 @@ model StockMovement {
   referenceType  String? // RECEIPT, INVENTORY_ADJUSTMENT, TRANSFER, MATERIAL_REQUEST, MATERIAL_RETURN, QUICK_ISSUE
   referenceId    String?
   documentNumber String?
-  reason         String?
-  notes          String?
+  reason         String? @db.Text
+  notes          String? @db.Text
   performedById  String
   performedBy    User              @relation(fields: [performedById], references: [id])
   recipientUserId String?
@@ -280,11 +280,11 @@ model Supplier {
   document  String?
   email     String?
   phone     String?
-  address   String?
+  address   String? @db.Text
   city      String?
   state     String?
   zipCode   String?
-  notes     String?
+  notes     String? @db.Text
   status    String         @default("ACTIVE")
   informakonKey String?    @unique
   source    String?        // Empresa/ERP dona do cadastro: "MGA" (CG) ou "CV" (Conceito)
@@ -328,7 +328,7 @@ model StockReceipt {
   status         String             @default("DRAFT") // DRAFT, COMPLETED, CANCELLED
   subtotal       Decimal?           @db.Decimal(10, 2)
   total          Decimal?           @db.Decimal(10, 2)
-  notes          String?
+  notes          String? @db.Text
   createdById    String
   createdBy      User               @relation(fields: [createdById], references: [id])
   items          StockReceiptItem[]
@@ -347,7 +347,7 @@ model StockReceiptItem {
   quantity   Int
   unitCost   Decimal?          @db.Decimal(16, 6)
   totalCost  Decimal?          @db.Decimal(10, 2)
-  notes      String?
+  notes      String? @db.Text
 }
 
 model MaterialRequest {
@@ -359,7 +359,7 @@ model MaterialRequest {
   warehouse     Warehouse             @relation(fields: [warehouseId], references: [id])
   status        String                @default("DRAFT") // DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, IN_SEPARATION, PARTIALLY_FULFILLED, FULFILLED, CANCELLED
   priority      String                @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
-  notes         String?
+  notes         String? @db.Text
   approvedById  String?
   approvedBy    User?                 @relation("RequestApprover", fields: [approvedById], references: [id])
   requestedAt   DateTime?
@@ -389,7 +389,7 @@ model MaterialRequestItem {
   approvedQuantity  Int             @default(0)
   separatedQuantity Int             @default(0)
   deliveredQuantity Int             @default(0)
-  notes             String?
+  notes             String? @db.Text
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 }
@@ -402,7 +402,7 @@ model Inventory {
   warehouse    Warehouse             @relation(fields: [warehouseId], references: [id])
   status       String                @default("DRAFT") // DRAFT, READY, IN_PROGRESS, COUNTING, CONFERENCE, COMPLETED, CANCELLED
   type         String                @default("PARTIAL") // FULL, PARTIAL, CYCLE_COUNT
-  notes        String?
+  notes        String? @db.Text
   startedAt    DateTime?
   finishedAt   DateTime?
   createdById  String
@@ -479,23 +479,23 @@ model InventoryDivergence {
   countedQuantity Int
   difference      Int
   status          String            @default("PENDING") // PENDING, REVIEWED, APPROVED, REJECTED, ADJUSTED
-  notes           String?
+  notes           String? @db.Text
   
   // Trilha de auditoria da análise
   reviewedById    String?
   reviewedBy      User?             @relation("DivergenceReviewer", fields: [reviewedById], references: [id])
   reviewedAt      DateTime?
-  reviewNotes     String?
+  reviewNotes     String? @db.Text
   
   approvedById    String?
   approvedBy      User?             @relation("DivergenceApprover", fields: [approvedById], references: [id])
   approvedAt      DateTime?
-  approvalNotes   String?
+  approvalNotes   String? @db.Text
   
   rejectedById    String?
   rejectedBy      User?             @relation("DivergenceRejecter", fields: [rejectedById], references: [id])
   rejectedAt      DateTime?
-  rejectionReason String?
+  rejectionReason String? @db.Text
 
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -519,8 +519,8 @@ model MaterialReturn {
   receivedBy    User?                @relation("ReturnReceiver", fields: [receivedById], references: [id])
   
   status        String               @default("DRAFT") // DRAFT, RECEIVED, CANCELLED
-  reason        String?
-  notes         String?
+  reason        String? @db.Text
+  notes         String? @db.Text
   
   items         MaterialReturnItem[]
   
@@ -542,7 +542,7 @@ model MaterialReturnItem {
   unit          ProductUnit       @relation(fields: [unitId], references: [id])
   
   condition     String            @default("GOOD") // GOOD, DAMAGED, UNUSABLE
-  notes         String?
+  notes         String? @db.Text
   
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -584,7 +584,7 @@ model StockTransferItem {
   quantity      Int
   unitId        String
   unit          ProductUnit   @relation(fields: [unitId], references: [id])
-  notes         String?
+  notes         String? @db.Text
   
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -612,7 +612,7 @@ model AuditLog {
   entityId   String
   metadata   Json?
   ip         String?
-  userAgent  String?
+  userAgent  String? @db.Text
   timestamp  DateTime @default(now())
 
   @@index([userId])
@@ -637,7 +637,7 @@ model Notification {
   user      User     @relation("UserNotifications", fields: [userId], references: [id])
   type      String
   title     String
-  message   String
+  message   String @db.Text
   readAt    DateTime?
   createdAt DateTime @default(now())
 
@@ -648,9 +648,9 @@ model Notification {
 model SystemSetting {
   id          String   @id @default(uuid())
   key         String   @unique
-  value       String
+  value       String @db.Text
   type        String   @default("STRING") // STRING, NUMBER, BOOLEAN, JSON
-  description String?
+  description String? @db.Text
   updatedById String
   updatedBy   User     @relation("UserSystemSettings", fields: [updatedById], references: [id])
   updatedAt   DateTime @updatedAt
@@ -664,7 +664,7 @@ model Worksite {
   id            String      @id @default(uuid())
   code          String      @unique
   name          String
-  description   String?
+  description   String? @db.Text
   status        String      @default("ACTIVE") // ACTIVE, INACTIVE
   informakonKey String?     @unique
   
@@ -711,7 +711,7 @@ model QuickIssue {
   warehouse       Warehouse         @relation(fields: [warehouseId], references: [id])
   
   status          String            @default("DRAFT") // DRAFT, COMPLETED, CANCELLED
-  notes           String?
+  notes           String? @db.Text
   
   items           QuickIssueItem[]
   
@@ -728,7 +728,7 @@ model QuickIssueItem {
   locationId  String
   location    WarehouseLocation @relation(fields: [locationId], references: [id])
   quantity    Int
-  notes       String?
+  notes       String? @db.Text
 }
 
 model ToolAsset {
@@ -747,7 +747,7 @@ model ToolAsset {
   unit          String         @default("UN")
   condition     String         @default("GOOD") // GOOD, MAINTENANCE, DAMAGED
   status        String         @default("ACTIVE") // ACTIVE, INACTIVE
-  notes         String?
+  notes         String? @db.Text
 
   loanItems     ToolLoanItem[]
 
@@ -776,7 +776,7 @@ model ToolLoan {
   warehouse   Warehouse      @relation(fields: [warehouseId], references: [id])
 
   status      String         @default("OPEN") // OPEN, PARTIAL, RETURNED, CANCELLED
-  notes       String?
+  notes       String? @db.Text
 
   items       ToolLoanItem[]
 
@@ -803,7 +803,7 @@ model ToolLoanItem {
   quantityLoaned   Int
   quantityReturned Int                @default(0)
   status           String             @default("OPEN") // OPEN, PARTIAL, RETURNED
-  notes            String?
+  notes            String? @db.Text
   returnedAt       DateTime?
   returnedById     String?
   returnedBy       User?              @relation("ToolLoanReturnedBy", fields: [returnedById], references: [id])
@@ -848,14 +848,14 @@ model ImportBatchRow {
   id           String      @id @default(uuid())
   batchId      String
   productCode  String
-  productName  String
+  productName  String      @db.Text
   quantity     Decimal     @db.Decimal(18, 4)
   unitCost     Decimal?    @db.Decimal(18, 4)
   unitCode     String?
   categoryName String?
   minimumStock Decimal?    @db.Decimal(18, 4)
   status       String      @default("PENDING")
-  errorMessage String?
+  errorMessage String? @db.Text
 
   batch        ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
@@ -871,7 +871,7 @@ model SyncCheckpoint {
   lastRunAt     DateTime?
   lastSuccessAt DateTime?
   lastStatus    String    @default("NEVER") // NEVER, OK, ERROR, RUNNING
-  lastError     String?
+  lastError     String? @db.Text
   totalRows     Int       @default(0)
   updatedAt     DateTime  @updatedAt
 }
@@ -884,7 +884,7 @@ model SyncRun {
   finishedAt DateTime?
   upserted   Int       @default(0)
   deleted    Int       @default(0)
-  error      String?
+  error      String? @db.Text
 
   @@index([entity, startedAt])
 }

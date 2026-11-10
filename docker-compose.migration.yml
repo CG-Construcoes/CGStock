@@ -1,0 +1,22 @@
+services:
+  pg-source:
+    image: postgres:17-alpine
+    container_name: cgstock-pg-source
+    environment:
+      POSTGRES_USER: cgstock
+      POSTGRES_PASSWORD: cgstock
+      POSTGRES_DB: cgstock
+    ports:
+      - "5433:5432"
+
+  mariadb-target:
+    image: mariadb:10.11
+    container_name: cgstock-mariadb-target
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: cgstock
+      MARIADB_USER: cgstock
+      MARIADB_PASSWORD: cgstock
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"

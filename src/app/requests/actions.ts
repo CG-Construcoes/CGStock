@@ -77,9 +77,9 @@ export async function approveRequestAction(requestId: string) {
     })
     // Aprova a quantidade total solicitada de todos os itens em uma única query
     await tx.$executeRaw`
-      UPDATE "MaterialRequestItem"
-      SET "approvedQuantity" = "requestedQuantity", "updatedAt" = NOW()
-      WHERE "requestId" = ${requestId}
+      UPDATE \`MaterialRequestItem\`
+      SET \`approvedQuantity\` = \`requestedQuantity\`, \`updatedAt\` = NOW(3)
+      WHERE \`requestId\` = ${requestId}
     `
   })
 

@@ -9,8 +9,8 @@ import { Prisma } from "@prisma/client"
 
 export const BACKUP_FORMAT = "cgstock-backup"
 export const BACKUP_VERSION = 1
-// Chunks menores: INSERTs multi-linha muito largos estouravam a memória do
-// compute do Neon (53200 out of memory) dentro da transação única.
+// Chunks menores: INSERTs multi-linha muito largos estouram a memória do
+// banco dentro de uma transação única (visto no Neon; mantido no MariaDB).
 const INSERT_CHUNK = 250
 
 type DmmfModel = { name: string; fields: { name: string; type: string; relationName?: string; relationFromFields?: string[] }[] }
@@ -61,14 +61,14 @@ export const BACKUP_TABLE_ORDER = { insert: INSERT_ORDER, delete: DELETE_ORDER }
 async function listImplicitTables(runner: typeof db | Prisma.TransactionClient = db) {
   const rows = await runner.$queryRawUnsafe<{ table_name: string }[]>(`
     SELECT table_name FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name ~ '^_[A-Za-z0-9]+To[A-Za-z0-9]+$'`)
+    WHERE table_schema = DATABASE() AND table_name REGEXP '^_[A-Za-z0-9]+To[A-Za-z0-9]+$'`)
   return rows.map((r) => r.table_name)
 }
 
 async function tableColumns(table: string, runner: typeof db | Prisma.TransactionClient = db) {
   const rows = await runner.$queryRawUnsafe<{ column_name: string }[]>(`
     SELECT column_name FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`, table)
+    WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ordinal_position`, table)
   return rows.map((r) => r.column_name)
 }
 
@@ -94,7 +94,7 @@ export async function buildBackupData() {
   }
   const implicitTables: Record<string, unknown[]> = {}
   for (const name of await listImplicitTables()) {
-    implicitTables[name] = await db.$queryRawUnsafe<unknown[]>(`SELECT * FROM "${name}"`)
+    implicitTables[name] = await db.$queryRawUnsafe<unknown[]>(`SELECT * FROM \`${name}\``)
   }
   return {
     format: BACKUP_FORMAT,
@@ -146,15 +146,17 @@ export async function restoreBackupData(
       let done = 0
       let rowsDone = 0
       onProgress?.({ phase: "wiping", done: 0, total: totalSteps, rows: 0 })
-      // TRUNCATE em vez de DELETE: um único comando para todas as tabelas
-      // (CASCADE cobre as implícitas e as FKs entre elas). DELETE linha-a-linha
-      // enfileirava eventos de gatilho de FK até estourar a memória do Neon.
+      // MariaDB: TRUNCATE causa commit implícito e mataria a transação do
+      // restore. Com FK checks desligados, DELETE cobre implícitas e FKs
+      // entre tabelas sem depender de ordem — e continua transacional.
+      await tx.$executeRawUnsafe(`SET FOREIGN_KEY_CHECKS = 0`)
       const allTables = await tx.$queryRawUnsafe<{ t: string }[]>(`
         SELECT table_name t FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+        WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'
           AND table_name <> '_prisma_migrations'`)
-      const quoted = allTables.map((r) => `"${r.t}"`).join(", ")
-      await tx.$executeRawUnsafe(`TRUNCATE ${quoted} RESTART IDENTITY CASCADE`)
+      for (const { t: table } of allTables) {
+        await tx.$executeRawUnsafe(`DELETE FROM \`${table}\``)
+      }
       for (const name of INSERT_ORDER) {
         const rows = (p.tables![name] as Record<string, unknown>[]) ?? []
         summary[name] = rows.length
@@ -172,18 +174,19 @@ export async function restoreBackupData(
         summary[name] = rows.length
         if (rows.length) {
           const cols = await tableColumns(name, tx)
-          const colSql = cols.map((c) => `"${c}"`).join(", ")
+          const colSql = cols.map((c) => `\`${c}\``).join(", ")
           const chunkSize = Math.max(1, Math.floor(3000 / cols.length))
           for (let i = 0; i < rows.length; i += chunkSize) {
             const chunk = rows.slice(i, i + chunkSize)
             const values: unknown[] = []
-            const placeholders = chunk.map((r) => `(${cols.map((c) => `$${values.push(r[c] ?? null)}`).join(", ")})`).join(", ")
-            await tx.$executeRawUnsafe(`INSERT INTO "${name}" (${colSql}) VALUES ${placeholders}`, ...values)
+            const placeholders = chunk.map((r) => `(${cols.map((c) => (values.push(r[c] ?? null), "?")).join(", ")})`).join(", ")
+            await tx.$executeRawUnsafe(`INSERT INTO \`${name}\` (${colSql}) VALUES ${placeholders}`, ...values)
           }
         }
         rowsDone += rows.length
         onProgress?.({ phase: "table", table: name, done: ++done, total: totalSteps, rows: rowsDone })
       }
+      await tx.$executeRawUnsafe(`SET FOREIGN_KEY_CHECKS = 1`)
     },
     { maxWait: 30_000, timeout: 300_000 }
   )

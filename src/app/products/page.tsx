@@ -14,6 +14,7 @@ import { Prisma } from "@prisma/client"
 import { resolveWarehouseContext } from "@/lib/dal"
 
 import { requirePermissionPage, hasPermission } from "@/lib/permissions"
+import { normalizeNums } from "@/lib/raw-num"
 
 export default async function ProductsPage({
   searchParams,
@@ -62,17 +63,17 @@ export default async function ProductsPage({
 
   const conditions: Prisma.Sql[] = []
   if (search) {
-    conditions.push(Prisma.sql`(p.name ILIKE ${`%${search}%`} OR p.code ILIKE ${`%${search}%`})`)
+    conditions.push(Prisma.sql`(p.name LIKE ${`%${search}%`} OR p.code LIKE ${`%${search}%`})`)
   }
   if (categoryId) {
-    conditions.push(Prisma.sql`p."categoryId" = ${categoryId}`)
+    conditions.push(Prisma.sql`p.\`categoryId\` = ${categoryId}`)
   }
   if (status) {
     conditions.push(Prisma.sql`p.status = ${status}`)
   }
   if (effectiveScopeIds !== null && effectiveScopeIds.length > 0) {
     conditions.push(
-      Prisma.sql`EXISTS (SELECT 1 FROM "Stock" sx WHERE sx."productId" = p.id AND sx."warehouseId" IN (${Prisma.join(effectiveScopeIds)}))`
+      Prisma.sql`EXISTS (SELECT 1 FROM \`Stock\` sx WHERE sx.\`productId\` = p.id AND sx.\`warehouseId\` IN (${Prisma.join(effectiveScopeIds)}))`
     )
   }
 
@@ -81,10 +82,10 @@ export default async function ProductsPage({
     : Prisma.empty
 
   const stockJoinSql = effectiveScopeIds === null
-    ? Prisma.sql`LEFT JOIN "Stock" s ON s."productId" = p.id`
+    ? Prisma.sql`LEFT JOIN \`Stock\` s ON s.\`productId\` = p.id`
     : effectiveScopeIds.length > 0
-    ? Prisma.sql`LEFT JOIN "Stock" s ON s."productId" = p.id AND s."warehouseId" IN (${Prisma.join(effectiveScopeIds)})`
-    : Prisma.sql`LEFT JOIN "Stock" s ON FALSE`
+    ? Prisma.sql`LEFT JOIN \`Stock\` s ON s.\`productId\` = p.id AND s.\`warehouseId\` IN (${Prisma.join(effectiveScopeIds)})`
+    : Prisma.sql`LEFT JOIN \`Stock\` s ON 1=0`
 
   type ProductSummaryRow = {
     totalCount: number
@@ -109,13 +110,13 @@ export default async function ProductsPage({
         db.productCategory.findMany({ orderBy: { name: 'asc' } }),
         db.$queryRaw<ProductSummaryRow[]>`
           SELECT
-            COUNT(DISTINCT p.id)::int AS "totalCount",
-            COALESCE(SUM(s.quantity), 0)::float8 AS "totalItemsInStock",
-            COALESCE(SUM(s.quantity * COALESCE(p."averageCost", 0)), 0)::float8 AS "grandTotalValue"
-          FROM "Product" p
+            COUNT(DISTINCT p.id) AS \`totalCount\`,
+            COALESCE(SUM(s.quantity), 0) AS \`totalItemsInStock\`,
+            COALESCE(SUM(s.quantity * COALESCE(p.\`averageCost\`, 0)), 0) AS \`grandTotalValue\`
+          FROM \`Product\` p
           ${stockJoinSql}
           ${whereSql}
-        `
+        `.then((rows) => rows.map(normalizeNums))
       ])
 
   const totalCount = Number(summaryRows[0]?.totalCount || 0)

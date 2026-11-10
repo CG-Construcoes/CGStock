@@ -1,1 +1,0 @@
-ALTER TABLE "User" ADD COLUMN "allWarehouseAccess" BOOLEAN NOT NULL DEFAULT false;

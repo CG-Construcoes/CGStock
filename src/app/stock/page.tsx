@@ -13,6 +13,7 @@ import { formatCurrency, formatNumber, cn } from "@/lib/utils"
 import { StockFilterForm } from "./stock-filter-form"
 import { StockTransitionProvider, StockContentWrapper } from "./stock-transition-context"
 import { PhysicalVolumeCard, type UnitVolumeStat } from "./physical-volume-card"
+import { normalizeNums } from "@/lib/raw-num"
 
 export default async function StockPage({
   searchParams,
@@ -128,50 +129,50 @@ async function StockContent({
   }
 
   const searchCondition = q
-    ? Prisma.sql`WHERE (p.name ILIKE ${`%${q}%`} OR p.code ILIKE ${`%${q}%`})`
+    ? Prisma.sql`WHERE (p.name LIKE ${`%${q}%`} OR p.code LIKE ${`%${q}%`})`
     : Prisma.empty
 
   const stockJoin = effectiveWarehouseIds === null
-    ? Prisma.sql`LEFT JOIN "Stock" s ON s."productId" = p.id`
-    : Prisma.sql`INNER JOIN "Stock" s ON s."productId" = p.id AND s."warehouseId" IN (${Prisma.join(effectiveWarehouseIds)})`
+    ? Prisma.sql`LEFT JOIN \`Stock\` s ON s.\`productId\` = p.id`
+    : Prisma.sql`INNER JOIN \`Stock\` s ON s.\`productId\` = p.id AND s.\`warehouseId\` IN (${Prisma.join(effectiveWarehouseIds)})`
 
   const havingCondition = stockFilter === "in_stock"
     ? Prisma.sql`HAVING COALESCE(SUM(s.quantity), 0) > 0`
     : stockFilter === "alerts"
-    ? Prisma.sql`HAVING COALESCE(SUM(s.quantity), 0) = 0 OR (COALESCE(SUM(s.quantity), 0) > 0 AND p."minimumStock" > 0 AND COALESCE(SUM(s.quantity), 0) <= p."minimumStock")`
+    ? Prisma.sql`HAVING COALESCE(SUM(s.quantity), 0) = 0 OR (COALESCE(SUM(s.quantity), 0) > 0 AND p.\`minimumStock\` > 0 AND COALESCE(SUM(s.quantity), 0) <= p.\`minimumStock\`)`
     : Prisma.empty
 
-  const [unitRows, pageRows] = isEmptyScope
+  const [unitRowsRaw, pageRowsRaw] = isEmptyScope
     ? [[], []] as [UnitBucketRow[], StockPageRow[]]
     : await Promise.all([
         db.$queryRaw<UnitBucketRow[]>`
           WITH prod_totals AS (
             SELECT
               p.id,
-              COALESCE(p."averageCost", 0)::float8 AS cost,
-              p."minimumStock",
+              COALESCE(p.\`averageCost\`, 0) AS cost,
+              p.\`minimumStock\`,
               UPPER(TRIM(COALESCE(u.code, 'UN'))) AS unit_code,
               TRIM(COALESCE(u.name, COALESCE(u.code, 'UN'))) AS unit_name,
-              COALESCE(SUM(s.quantity), 0)::float8 AS qty,
-              COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS res,
-              COALESCE(SUM(s.quantity * COALESCE(p."averageCost", 0)), 0)::float8 AS erp_val
-            FROM "Product" p
-            LEFT JOIN "ProductUnit" u ON u.id = p."unitId"
+              COALESCE(SUM(s.quantity), 0) AS qty,
+              COALESCE(SUM(s.\`reservedQuantity\`), 0) AS res,
+              COALESCE(SUM(s.quantity * COALESCE(p.\`averageCost\`, 0)), 0) AS erp_val
+            FROM \`Product\` p
+            LEFT JOIN \`ProductUnit\` u ON u.id = p.\`unitId\`
             ${stockJoin}
             ${searchCondition}
             GROUP BY p.id, u.code, u.name
           )
           SELECT
-            unit_code AS "unitCode",
-            MAX(unit_name) AS "unitName",
-            COUNT(*)::int AS "totalProducts",
-            COUNT(*) FILTER (WHERE qty > 0)::int AS "skusInStock",
-            COUNT(*) FILTER (WHERE qty = 0)::int AS "zeroStockCount",
-            COUNT(*) FILTER (WHERE qty > 0 AND "minimumStock" > 0 AND qty <= "minimumStock")::int AS "lowStockCount",
-            COALESCE(SUM(qty), 0)::float8 AS "physical",
-            COALESCE(SUM(res), 0)::float8 AS "reserved",
-            COALESCE(SUM(qty * cost), 0)::float8 AS "stockValue",
-            COALESCE(SUM(erp_val), 0)::float8 AS "erpValue"
+            unit_code AS \`unitCode\`,
+            MAX(unit_name) AS \`unitName\`,
+            COUNT(*) AS \`totalProducts\`,
+            SUM(CASE WHEN qty > 0 THEN 1 ELSE 0 END) AS \`skusInStock\`,
+            SUM(CASE WHEN qty = 0 THEN 1 ELSE 0 END) AS \`zeroStockCount\`,
+            SUM(CASE WHEN qty > 0 AND \`minimumStock\` > 0 AND qty <= \`minimumStock\` THEN 1 ELSE 0 END) AS \`lowStockCount\`,
+            COALESCE(SUM(qty), 0) AS \`physical\`,
+            COALESCE(SUM(res), 0) AS \`reserved\`,
+            COALESCE(SUM(qty * cost), 0) AS \`stockValue\`,
+            COALESCE(SUM(erp_val), 0) AS \`erpValue\`
           FROM prod_totals
           GROUP BY unit_code
         `,
@@ -180,21 +181,21 @@ async function StockContent({
             p.id,
             p.code,
             p.name,
-            p."minimumStock",
-            p."maximumStock",
-            COALESCE(p."averageCost", 0)::float8 AS "averageCost",
-            c.name AS "categoryName",
-            u.code AS "unitCode",
-            MAX(w.name) AS "warehouseName",
-            COUNT(DISTINCT s."warehouseId")::int AS "warehouseCount",
-            COALESCE(SUM(s.quantity), 0)::float8 AS "totalQuantity",
-            COALESCE(SUM(s."reservedQuantity"), 0)::float8 AS "totalReserved",
-            COALESCE(SUM(s.quantity * COALESCE(p."averageCost", 0)), 0)::float8 AS "totalValue"
-          FROM "Product" p
-          INNER JOIN "ProductCategory" c ON c.id = p."categoryId"
-          INNER JOIN "ProductUnit" u ON u.id = p."unitId"
+            p.\`minimumStock\`,
+            p.\`maximumStock\`,
+            COALESCE(p.\`averageCost\`, 0) AS \`averageCost\`,
+            c.name AS \`categoryName\`,
+            u.code AS \`unitCode\`,
+            MAX(w.name) AS \`warehouseName\`,
+            COUNT(DISTINCT s.\`warehouseId\`) AS \`warehouseCount\`,
+            COALESCE(SUM(s.quantity), 0) AS \`totalQuantity\`,
+            COALESCE(SUM(s.\`reservedQuantity\`), 0) AS \`totalReserved\`,
+            COALESCE(SUM(s.quantity * COALESCE(p.\`averageCost\`, 0)), 0) AS \`totalValue\`
+          FROM \`Product\` p
+          INNER JOIN \`ProductCategory\` c ON c.id = p.\`categoryId\`
+          INNER JOIN \`ProductUnit\` u ON u.id = p.\`unitId\`
           ${stockJoin}
-          LEFT JOIN "Warehouse" w ON w.id = s."warehouseId"
+          LEFT JOIN \`Warehouse\` w ON w.id = s.\`warehouseId\`
           ${searchCondition}
           GROUP BY p.id, c.name, u.code
           ${havingCondition}
@@ -202,6 +203,8 @@ async function StockContent({
           LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
         `,
       ])
+  const unitRows = unitRowsRaw.map(normalizeNums)
+  const pageRows = pageRowsRaw.map(normalizeNums)
 
   let totalStockValue = 0
   let totalErpValue = 0

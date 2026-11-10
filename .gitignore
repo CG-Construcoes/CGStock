@@ -61,3 +61,8 @@ next-env.d.ts
 /Kiweb/
 /*.pdf
 certificates/
+
+# Dumps de banco (dados reais — nunca commitar)
+*.dump
+*.sql.gz
+backup_*.json*
