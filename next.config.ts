@@ -38,6 +38,9 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   turbopack: {},
+  // Bundle autocontido em .next/standalone para deploy Node (Hostinger):
+  // sobe só o mínimo necessário, sem node_modules completo.
+  output: "standalone",
   // Acesso pela rede local (celular/PWA): sem isso o Next bloqueia recursos de
   // dev (/_next/hmr etc.) por host estranho e a hidratação nunca acontece.
   allowedDevOrigins: ["172.16.1.48"],
