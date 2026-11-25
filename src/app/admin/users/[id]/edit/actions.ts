@@ -73,6 +73,7 @@ export async function editUserAction(prevState: { error?: string } | null, formD
   if (password) {
     updateData.passwordHash = await bcrypt.hash(password, 10)
     updateData.mustChangePassword = formData.get("mustChangePassword") === "true"
+    updateData.temporaryPasswordExpiresAt = null
   }
 
   try {

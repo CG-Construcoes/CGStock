@@ -48,6 +48,7 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
     data: {
       passwordHash: newHash,
       mustChangePassword: false,
+      temporaryPasswordExpiresAt: null,
       sessionVersion: { increment: 1 }
     },
     include: { roles: true }

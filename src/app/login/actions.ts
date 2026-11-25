@@ -78,7 +78,7 @@ export async function loginAction(prevState: unknown, formData: FormData) {
     return { error: "Seu usuário está inativo." }
   }
 
-  if (user.temporaryPasswordExpiresAt && new Date() > user.temporaryPasswordExpiresAt) {
+  if (user.mustChangePassword && user.temporaryPasswordExpiresAt && new Date() > user.temporaryPasswordExpiresAt) {
     await recordAttempt(false)
     await logAudit("LOGIN_FAILED", "User", user.id, { email, reason: "PASSWORD_EXPIRED" }, user.id)
     return { error: "Sua senha temporária expirou. Contate o administrador para redefinir o acesso." }
