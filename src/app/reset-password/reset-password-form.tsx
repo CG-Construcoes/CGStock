@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useEffect } from "react"
+import { useActionState } from "react"
 import { Button } from "@/components/ui/button"
 import { PasswordInput } from "@/components/ui/password-input"
 import { authInputClass, authToggleClass } from "@/app/login/auth-styles"
@@ -10,11 +10,6 @@ import { resetPasswordWithTokenAction } from "./actions"
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [state, formAction, isPending] = useActionState(resetPasswordWithTokenAction, null)
-
-  useEffect(() => {
-    // Navegação completa para o app carregar com a nova sessão
-    if (state?.success) window.location.href = "/dashboard"
-  }, [state])
 
   return (
     <form action={formAction} className="space-y-5">
@@ -36,8 +31,8 @@ export function ResetPasswordForm({ token }: { token: string }) {
         </div>
       )}
 
-      <Button className="w-full h-11 text-sm font-medium bg-[#e95420] hover:bg-[#ff875b] text-[#241f31] transition-colors" disabled={isPending || state?.success}>
-        {isPending || state?.success ? "Salvando e entrando..." : "Salvar e entrar no sistema"}
+      <Button className="w-full h-11 text-sm font-medium bg-[#e95420] hover:bg-[#ff875b] text-[#241f31] transition-colors" disabled={isPending}>
+        {isPending ? "Salvando e entrando..." : "Salvar e entrar no sistema"}
       </Button>
     </form>
   )

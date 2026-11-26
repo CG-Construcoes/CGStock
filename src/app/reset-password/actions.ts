@@ -1,6 +1,7 @@
 "use server"
 
 import bcrypt from "bcryptjs"
+import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import { createSession } from "@/lib/auth"
 import { logAudit } from "@/lib/audit"
@@ -34,5 +35,7 @@ export async function resetPasswordWithTokenAction(_prev: unknown, formData: For
   await logAudit("PASSWORD_RESET_COMPLETED", "User", user.id, { via: "email-link" }, user.id)
   await createSession(updated.id, updated.name, updated.email!, updated.roles.map(r => r.name), false, updated.sessionVersion)
 
-  return { success: true }
+  // Criar a sessão altera cookies e re-renderiza a rota atual. O token já foi
+  // consumido: navegue aqui antes que /reset-password o valide novamente.
+  redirect("/dashboard")
 }
