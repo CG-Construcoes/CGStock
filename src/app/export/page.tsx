@@ -10,6 +10,7 @@ import { exportProductsData, exportStockData, exportMovementsData, getInventorie
 import { setActiveWarehouseAction } from "@/app/auth-actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { InformakonExportCard } from "./informakon-export-card"
 
 type ExportFormat = 'csv' | 'xlsx' | 'pdf'
 
@@ -145,6 +146,7 @@ export default function ExportPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <InformakonExportCard warehouseId={selectedWarehouse} />
         
         {/* PRODUTOS */}
         <Card className="shadow-sm border-border">

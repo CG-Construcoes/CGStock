@@ -4,6 +4,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Select } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Save, Plus, Trash2, Send, Loader2 } from "lucide-react"
@@ -178,13 +179,12 @@ export default function RequestForm({ warehouses, products, userId, sessionExpir
                     <div className="col-span-8 md:col-span-4 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Quantidade Solicitada *</label>
                       <div className="flex gap-2">
-                        <Input 
+                        <DecimalInput
                           name={`item_quantity_${item.id}`}
-                          type="number" step="0.0001" 
-                          min="1" 
-                          required 
-                          value={item.quantity || ''}
-                          onChange={e => updateItem(item.id, "quantity", Number(e.target.value))}
+                          min={0.0001}
+                          required
+                          value={item.quantity}
+                          onValueChange={v => updateItem(item.id, "quantity", v)}
                         />
                         <Input 
                           name={`item_unitId_${item.id}`}

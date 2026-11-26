@@ -7,6 +7,8 @@ import { Package } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
 import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { resolveWarehouseContext } from "@/lib/dal"
+import { ReportExportButtons } from "@/app/reports/components/report-export-buttons"
+import { exportStockPositionData } from "@/app/export/actions"
 import { Suspense } from "react"
 
 export default async function StockReportPage({
@@ -51,15 +53,22 @@ export default async function StockReportPage({
             <p className="text-muted-foreground text-sm mt-1">Visão detalhada do saldo de produtos por localização.</p>
           </div>
         </div>
-        {warehouses.length > 1 && (
-          <Suspense fallback={null}>
-            <WarehouseSelectFilter
-              warehouses={warehouses}
-              selectedWarehouseId={selectedWarehouseId}
-              className="w-full sm:w-64"
-            />
-          </Suspense>
-        )}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {warehouses.length > 1 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={selectedWarehouseId}
+                className="w-full sm:w-64"
+              />
+            </Suspense>
+          )}
+          <ReportExportButtons
+            title="POSIÇÃO DE ESTOQUE"
+            filename="CGSTOCK_Posicao_Estoque"
+            loadData={exportStockPositionData.bind(null, params.warehouseId)}
+          />
+        </div>
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

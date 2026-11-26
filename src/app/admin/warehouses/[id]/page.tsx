@@ -1,16 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { BackButton } from "@/components/ui/back-button"
-import { Save } from "lucide-react"
 import { db } from "@/lib/db"
 import { warehouseScopeIds } from "@/lib/dal"
 import { notFound } from "next/navigation"
-import { updateWarehouseAction } from "../actions"
+import { EditWarehouseForm } from "./edit-warehouse-form"
 import { WarehouseDeleteDialog } from "../warehouse-delete-dialog"
 import { WarehouseLocationsManager } from "../warehouse-locations-manager"
 import { requirePermissionPage, hasPermission } from "@/lib/permissions"
+import { isBusinessCenterCode } from "@/lib/business-center"
 
 export default async function EditWarehousePage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('CONFIG_MANAGE')
@@ -57,63 +54,13 @@ export default async function EditWarehousePage({ params }: { params: Promise<{ 
         <CardHeader className="border-b border-border pb-4">
           <CardTitle className="text-lg">Dados do Almoxarifado</CardTitle>
         </CardHeader>
-        <CardContent className="pt-6">
-          <form action={updateWarehouseAction} className="space-y-4">
-            <input type="hidden" name="id" value={warehouse.id} />
-            
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome do Almoxarifado *</Label>
-              <Input id="name" name="name" defaultValue={warehouse.name} required />
+        <CardContent className="pt-6 space-y-4">
+          {(!isBusinessCenterCode(warehouse.code) || !warehouse.engineerName || !warehouse.engineerEmail) && (
+            <div className="p-3 rounded-md border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-sm">
+              Cadastro incompleto: {!isBusinessCenterCode(warehouse.code) ? "o código precisa estar no formato do Informakon (AAA.BB.CCCC)" : "falta o engenheiro responsável"}. Atualize para salvar.
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="code">Código Identificador *</Label>
-              <Input id="code" name="code" defaultValue={warehouse.code} required />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="source">Empresa (ERP)</Label>
-              <select
-                id="source"
-                name="source"
-                defaultValue={warehouse.source || ""}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="MGA">MGA — CG Construções</option>
-                <option value="CV">CV — Conceito</option>
-                <option value="">Sem vínculo</option>
-              </select>
-              <p className="text-[11px] text-muted-foreground">
-                Define qual base de fornecedores aparece nas entradas deste almoxarifado.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição (Opcional)</Label>
-              <Input id="description" name="description" defaultValue={warehouse.description || ""} />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="status">Status Operacional</Label>
-              <select 
-                id="status" 
-                name="status" 
-                defaultValue={warehouse.status}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="ACTIVE">Ativo</option>
-                <option value="INACTIVE">Inativo</option>
-              </select>
-            </div>
-
-            <div className="pt-4 flex justify-end gap-2 border-t border-border">
-              <BackButton />
-              <Button type="submit" className="flex items-center gap-2">
-                <Save className="h-4 w-4" />
-                Salvar Alterações
-              </Button>
-            </div>
-          </form>
+          )}
+          <EditWarehouseForm warehouse={warehouse} />
         </CardContent>
       </Card>
 

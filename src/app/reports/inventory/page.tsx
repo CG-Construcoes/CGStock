@@ -9,6 +9,8 @@ import { format } from "date-fns"
 import { BackButton } from "@/components/ui/back-button"
 import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { resolveWarehouseContext } from "@/lib/dal"
+import { ReportExportButtons } from "@/app/reports/components/report-export-buttons"
+import { exportInventoriesData } from "@/app/export/actions"
 import { Suspense } from "react"
 
 export default async function InventoryReportPage({
@@ -57,15 +59,22 @@ export default async function InventoryReportPage({
             <p className="text-muted-foreground text-sm mt-1">Acompanhamento e apuração de todos os inventários.</p>
           </div>
         </div>
-        {warehouses.length > 1 && (
-          <Suspense fallback={null}>
-            <WarehouseSelectFilter
-              warehouses={warehouses}
-              selectedWarehouseId={selectedWarehouseId}
-              className="w-full sm:w-64"
-            />
-          </Suspense>
-        )}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {warehouses.length > 1 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={selectedWarehouseId}
+                className="w-full sm:w-64"
+              />
+            </Suspense>
+          )}
+          <ReportExportButtons
+            title="INVENTÁRIOS"
+            filename="CGSTOCK_Inventarios"
+            loadData={exportInventoriesData.bind(null, params.warehouseId)}
+          />
+        </div>
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

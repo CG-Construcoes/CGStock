@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { SupplierSelect, type SupplierSelectOption } from "@/components/ui/supplier-select"
@@ -511,24 +512,24 @@ export default function ReceiptForm({ userId, sessionExpiresAt, suppliers, wareh
                     
                     <div className="col-span-6 md:col-span-2 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Qtd *</label>
-                      <Input 
-                        name="item_quantity" 
-                        type="number" step="0.0001" 
-                        min="1" 
-                        required 
-                        value={item.quantity || ''}
-                        onChange={e => updateItem(item.id, "quantity", Number(e.target.value))}
+                      <DecimalInput
+                        name="item_quantity"
+                        min={0.0001}
+                        required
+                        placeholder="Ex: 11.000"
+                        value={item.quantity}
+                        onValueChange={v => updateItem(item.id, "quantity", v)}
                       />
                     </div>
                     
                     <div className="col-span-6 md:col-span-2 space-y-1">
                       <label className="text-xs font-medium text-muted-foreground">Custo Unitário (R$)</label>
-                      <Input 
-                        name="item_unitCost" 
-                        type="number" step="0.0001" 
-                        min="0"
-                        value={item.unitCost || ''}
-                        onChange={e => updateItem(item.id, "unitCost", Number(e.target.value))}
+                      <DecimalInput
+                        name="item_unitCost"
+                        min={0}
+                        placeholder="Ex: 7,50"
+                        value={item.unitCost}
+                        onValueChange={v => updateItem(item.id, "unitCost", v)}
                       />
                     </div>
 

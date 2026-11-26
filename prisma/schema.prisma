@@ -168,6 +168,8 @@ model Warehouse {
   status               String              @default("ACTIVE")
   informakonKey        String?             @unique
   source               String?             // Empresa/ERP dona do almoxarifado: "MGA" (CG) ou "CV" (Conceito)
+  engineerName         String?             // Engenheiro responsável pela obra (obrigatório no formulário)
+  engineerEmail        String?
   
   worksiteId           String?
   worksite             Worksite?           @relation(fields: [worksiteId], references: [id])
@@ -344,7 +346,7 @@ model StockReceiptItem {
   product    Product           @relation(fields: [productId], references: [id])
   locationId String
   location   WarehouseLocation @relation(fields: [locationId], references: [id])
-  quantity   Int
+  quantity   Float
   unitCost   Decimal?          @db.Decimal(16, 6)
   totalCost  Decimal?          @db.Decimal(10, 2)
   notes      String? @db.Text
@@ -385,10 +387,10 @@ model MaterialRequestItem {
   product           Product         @relation(fields: [productId], references: [id])
   unitId            String
   unit              ProductUnit     @relation(fields: [unitId], references: [id])
-  requestedQuantity Int
-  approvedQuantity  Int             @default(0)
+  requestedQuantity Float
+  approvedQuantity  Float             @default(0)
   separatedQuantity Int             @default(0)
-  deliveredQuantity Int             @default(0)
+  deliveredQuantity Float             @default(0)
   notes             String? @db.Text
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -462,7 +464,7 @@ model InventoryCollectionItem {
   collection   InventoryCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   productId    String
   product      Product             @relation(fields: [productId], references: [id])
-  quantity     Int
+  quantity     Float
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 }
@@ -537,7 +539,7 @@ model MaterialReturnItem {
   locationId    String
   location      WarehouseLocation @relation(fields: [locationId], references: [id])
   
-  quantity      Int
+  quantity      Float
   unitId        String
   unit          ProductUnit       @relation(fields: [unitId], references: [id])
   
@@ -581,7 +583,7 @@ model StockTransferItem {
   transfer      StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
   productId     String
   product       Product       @relation(fields: [productId], references: [id])
-  quantity      Int
+  quantity      Float
   unitId        String
   unit          ProductUnit   @relation(fields: [unitId], references: [id])
   notes         String? @db.Text
@@ -727,7 +729,7 @@ model QuickIssueItem {
   product     Product           @relation(fields: [productId], references: [id])
   locationId  String
   location    WarehouseLocation @relation(fields: [locationId], references: [id])
-  quantity    Int
+  quantity    Float
   notes       String? @db.Text
 }
 
@@ -800,8 +802,8 @@ model ToolLoanItem {
   product          Product?           @relation(fields: [productId], references: [id])
   locationId       String?
   location         WarehouseLocation? @relation(fields: [locationId], references: [id])
-  quantityLoaned   Int
-  quantityReturned Int                @default(0)
+  quantityLoaned   Float
+  quantityReturned Float                @default(0)
   status           String             @default("OPEN") // OPEN, PARTIAL, RETURNED
   notes            String? @db.Text
   returnedAt       DateTime?

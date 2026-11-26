@@ -3,6 +3,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Select } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import {  CheckCircle } from "lucide-react"
@@ -113,10 +114,9 @@ export default function FulfillmentForm({ request, userId, sessionExpiresAt }: a
                         </div>
                         <div className="col-span-6 md:col-span-4 space-y-1">
                           <label className="text-xs font-medium text-muted-foreground">Qtd para Entrega *</label>
-                          <Input 
+                          <DecimalInput
                             name={`delivery_quantity_${item.id}`}
-                            type="number" step="0.0001" 
-                            min="0" 
+                            min={0}
                             max={pending}
                             placeholder={`Máx: ${pending}`}
                           />

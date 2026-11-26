@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useState } from "react"
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -50,9 +51,9 @@ export function UserForm({ roles, warehouses }: { roles: { id: string, name: str
           <PasswordInput
             id="password"
             name="password"
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Mín. 8, com número e caractere especial"
             required
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
             className="bg-muted/50 focus-visible:ring-primary border-border"
           />
         </div>

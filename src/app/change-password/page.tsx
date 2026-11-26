@@ -8,6 +8,7 @@ import { Lock, LogOut } from "lucide-react"
 import { toast } from "sonner"
 import { changePasswordAction } from "./actions"
 import { logoutAction } from "@/app/auth-actions"
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@/lib/password-policy"
 
 export default function ChangePasswordPage() {
   const router = useRouter()
@@ -19,7 +20,7 @@ export default function ChangePasswordPage() {
     }
     if (state?.success) {
       toast.success("Senha alterada com sucesso!")
-      router.push("/") // full navigation para refletir a nova sessão
+      window.location.href = "/dashboard" // full navigation para refletir a nova sessão
     }
   }, [state, router])
 
@@ -40,38 +41,32 @@ export default function ChangePasswordPage() {
           </div>
           <h2 className="text-2xl font-bold tracking-tight">Defina sua nova senha</h2>
           <p className="text-sm text-muted-foreground px-4">
-            Como este é seu primeiro acesso com uma senha temporária, é obrigatório definir uma nova senha para continuar.
+            Você entrou com uma senha temporária. Defina sua nova senha para continuar.
           </p>
         </div>
 
         <form action={formAction} className="space-y-5 relative z-10">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Senha Temporária / Atual</label>
-            <PasswordInput
-              name="currentPassword"
-              placeholder="••••••••"
-              required
-              className="h-12 bg-background/50"
-            />
-          </div>
-          <div className="space-y-2">
             <label className="text-sm font-medium">Nova Senha</label>
             <PasswordInput
               name="newPassword"
-              placeholder="Mínimo 10 caracteres, com letras e números"
+              placeholder="Digite a nova senha"
+              autoComplete="new-password"
               required
               className="h-12 bg-background/50"
-              minLength={10}
+              minLength={PASSWORD_MIN_LENGTH}
             />
+            <p className="text-xs text-muted-foreground">{PASSWORD_HINT}.</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Confirme a Nova Senha</label>
             <PasswordInput
               name="confirmPassword"
               placeholder="Repita a nova senha"
+              autoComplete="new-password"
               required
               className="h-12 bg-background/50"
-              minLength={10}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
 

@@ -93,3 +93,54 @@ export async function exportToPDF(data: Record<string, unknown>[], title: string
 
   doc.save(`${filename}.pdf`)
 }
+
+const INFORMAKON_TEXT_COLUMNS = new Set([
+  "Cód Centro de Negócio", "Cód. Tipo de Movimento", "Tipo Doc.", "Nº Documento", "Cód. Sub-Insumo",
+  "Observação", "Destinatário", "Origem Equip.", "O.S do Equipamento",
+])
+
+/** DD/MM/AAAA → número serial do Excel (sem depender do fuso do navegador). */
+function brDateToExcelSerial(value: string): number | null {
+  const m = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!m) return null
+  return (Date.UTC(+m[3], +m[2] - 1, +m[1]) - Date.UTC(1899, 11, 30)) / 86_400_000
+}
+
+/**
+ * Gera a planilha .xls (Excel 97-2003) no layout exato dos modelos de importação
+ * do Informakon: mesma aba, mesmos cabeçalhos e mesma ordem de colunas.
+ */
+export async function exportInformakonXls(
+  rows: Record<string, string | number | null>[],
+  headers: readonly string[],
+  sheetName: "Entradas" | "Saidas",
+  filename: string
+) {
+  const XLSX = await import('xlsx')
+  const worksheet: import('xlsx').WorkSheet = {}
+
+  headers.forEach((header, c) => {
+    worksheet[XLSX.utils.encode_cell({ r: 0, c })] = { t: 's', v: header }
+  })
+  rows.forEach((row, i) => {
+    headers.forEach((header, c) => {
+      const value = row[header]
+      if (value === null || value === undefined || value === "") return
+      const ref = XLSX.utils.encode_cell({ r: i + 1, c })
+      if (header === "Data da Movimentação") {
+        const serial = brDateToExcelSerial(String(value))
+        worksheet[ref] = serial === null ? { t: 's', v: String(value) } : { t: 'n', v: serial, z: 'dd/mm/yyyy' }
+      } else if (INFORMAKON_TEXT_COLUMNS.has(header) || typeof value === "string") {
+        worksheet[ref] = { t: 's', v: String(value) }
+      } else {
+        worksheet[ref] = { t: 'n', v: value }
+      }
+    })
+  })
+  worksheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: headers.length - 1 } })
+  worksheet['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 12) }))
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+  XLSX.writeFile(workbook, `${filename}.xls`, { bookType: 'biff8' })
+}

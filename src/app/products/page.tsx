@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { productSearchSql, productSearchWhere } from "@/lib/product-search"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import Link from "next/link"
 import { db } from "@/lib/db"
@@ -22,10 +23,12 @@ export default async function ProductsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   await requirePermissionPage('PRODUCT_VIEW')
-  const [hasCreate, hasUpdate, hasDelete] = await Promise.all([
+  const [hasCreate, hasUpdate, hasDelete, canAdjustStock, units] = await Promise.all([
     hasPermission('PRODUCT_CREATE'),
     hasPermission('PRODUCT_UPDATE'),
-    hasPermission('PRODUCT_DELETE')
+    hasPermission('PRODUCT_DELETE'),
+    hasPermission('STOCK_ADJUST'),
+    db.productUnit.findMany({ where: { status: 'ACTIVE' }, select: { id: true, code: true }, orderBy: { code: 'asc' } }),
   ])
   const resolvedSearchParams = await searchParams
   const search = resolvedSearchParams.q as string
@@ -37,12 +40,8 @@ export default async function ProductsPage({
   const selectedWarehouse = warehouses.find(w => w.id === selectedWarehouseId)
 
   const where: Prisma.ProductWhereInput = {}
-  if (search) {
-    where.OR = [
-      { name: { contains: search } },
-      { code: { contains: search } }
-    ]
-  }
+  const searchWhere = productSearchWhere(search)
+  if (searchWhere) Object.assign(where, searchWhere)
   if (categoryId) where.categoryId = categoryId
   if (status) where.status = status
   if (selectedWarehouseId) {
@@ -62,9 +61,8 @@ export default async function ProductsPage({
   const isEmptyScope = effectiveScopeIds !== null && effectiveScopeIds.length === 0
 
   const conditions: Prisma.Sql[] = []
-  if (search) {
-    conditions.push(Prisma.sql`(p.name LIKE ${`%${search}%`} OR p.code LIKE ${`%${search}%`})`)
-  }
+  const searchSql = productSearchSql(search)
+  if (searchSql) conditions.push(searchSql)
   if (categoryId) {
     conditions.push(Prisma.sql`p.\`categoryId\` = ${categoryId}`)
   }
@@ -186,6 +184,9 @@ export default async function ProductsPage({
         })}
         hasUpdate={hasUpdate}
         hasDelete={hasDelete}
+        categories={categories.map(c => ({ id: c.id, name: c.name, active: c.status === 'ACTIVE' }))}
+        units={units}
+        canAdjustStock={canAdjustStock}
         selectedWarehouseId={selectedWarehouseId}
         paginationSlot={
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border px-4 py-3 bg-muted/20 mt-auto">

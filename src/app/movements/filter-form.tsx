@@ -23,7 +23,7 @@ export function MovementsFilterForm({
   const [loadingLabel, setLoadingLabel] = useState<string | null>(null)
   
   const [q, setQ] = useState(defaultValues.q)
-  const [type, setType] = useState(defaultValues.type)
+  const [type, setType] = useState(defaultValues.referenceType ? `ref:${defaultValues.referenceType}` : defaultValues.type)
   const [productId, setProductId] = useState(defaultValues.productId)
   const [warehouseId, setWarehouseId] = useState(defaultValues.warehouseId)
 
@@ -38,8 +38,14 @@ export function MovementsFilterForm({
       if (nextValues.q) params.set("q", nextValues.q)
       else params.delete("q")
 
-      if (nextValues.type && nextValues.type !== "ALL") params.set("type", nextValues.type)
-      else params.delete("type")
+      if (nextValues.type?.startsWith("ref:")) {
+        params.set("referenceType", nextValues.type.slice(4))
+        params.delete("type")
+      } else {
+        params.delete("referenceType")
+        if (nextValues.type && nextValues.type !== "ALL") params.set("type", nextValues.type)
+        else params.delete("type")
+      }
 
       if (nextValues.productId && nextValues.productId !== "ALL") params.set("productId", nextValues.productId)
       else params.delete("productId")
@@ -131,6 +137,8 @@ export function MovementsFilterForm({
             <option value="TRANSFER_IN">Transferência (+)</option>
             <option value="TRANSFER_OUT">Transferência (-)</option>
             <option value="RETURN">Devolução</option>
+            <option value="EDIT">Edição de produto</option>
+            <option value="ref:QUICK_EDIT">Edição rápida (todas)</option>
           </Select>
 
           <Select

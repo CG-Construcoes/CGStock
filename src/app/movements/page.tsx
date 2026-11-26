@@ -159,8 +159,8 @@ export default async function MovementsPage(props: {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-xs text-muted-foreground block">Qtd</span>
-                      <span className={`font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
+                      <span className={`font-bold ${mov.type === "EDIT" ? 'text-muted-foreground' : isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {mov.type === "EDIT" ? "—" : <>{isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span></>}
                       </span>
                     </div>
                     <div>
@@ -233,8 +233,8 @@ export default async function MovementsPage(props: {
                         {typeLabel}
                       </Badge>
                     </TableCell>
-                    <TableCell className={`text-center font-bold ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span>
+                    <TableCell className={`text-center font-bold ${mov.type === "EDIT" ? 'text-muted-foreground' : isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {mov.type === "EDIT" ? "—" : <>{isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} <span className="text-xs font-normal opacity-70">{mov.product.unit.code}</span></>}
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">{mov.location.code}</div>

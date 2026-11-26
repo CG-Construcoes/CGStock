@@ -4,6 +4,7 @@ import { Package, ArrowRightLeft, ClipboardList, MapPin, Search } from "lucide-r
 import { Badge } from "@/components/ui/badge"
 import { resolveWarehouseContext } from "@/lib/dal"
 import { getValidatedSession } from "@/lib/auth"
+import { productSearchWhere } from "@/lib/product-search"
 
 export async function SearchResults({ query }: { query: string }) {
   const session = await getValidatedSession()
@@ -13,16 +14,19 @@ export async function SearchResults({ query }: { query: string }) {
   const [products, requests, movements, locations] = await Promise.all([
     db.product.findMany({
       where: {
-        OR: [
-          { name: { contains: query } },
-          { code: { contains: query } },
-        ],
-        ...(selectedWarehouseId ? { stocks: { some: { warehouseId: selectedWarehouseId } } } : {})
+        ...productSearchWhere(query),
+        ...(selectedWarehouseId ? { stocks: { some: { warehouseId: selectedWarehouseId } } } : wFilter ? { stocks: { some: wFilter } } : {})
       },
       include: {
-        category: true
+        category: true,
+        unit: { select: { code: true } },
+        stocks: {
+          where: { quantity: { gt: 0 }, ...(selectedWarehouseId ? { warehouseId: selectedWarehouseId } : wFilter) },
+          select: { quantity: true, location: { select: { code: true, name: true } }, warehouse: { select: { name: true } } },
+          orderBy: { quantity: 'desc' },
+        },
       },
-      take: 10,
+      take: 20,
     }),
     db.materialRequest.findMany({
       where: {
@@ -84,10 +88,25 @@ export async function SearchResults({ query }: { query: string }) {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {products.map(product => (
-              <Link key={product.id} href={`/products/${product.id}`} className="group p-4 bg-card rounded-md border border-border shadow-sm hover:border-primary/50 hover:shadow-sm  flex justify-between items-center">
-                <div>
+              <Link key={product.id} href={`/stock/${product.id}`} className="group p-4 bg-card rounded-md border border-border shadow-sm hover:border-primary/50 hover:shadow-sm  flex justify-between items-start gap-3">
+                <div className="min-w-0">
                   <p className="font-bold text-foreground group-hover:text-primary ">{product.name}</p>
                   <p className="text-xs text-muted-foreground mt-1 font-mono">{product.code} • {product.category.name}</p>
+                  {product.stocks.length > 0 ? (
+                    <ul className="mt-2 space-y-0.5">
+                      {product.stocks.slice(0, 4).map((stock, i) => (
+                        <li key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0 text-amber-600" />
+                          <span className="font-mono font-semibold text-foreground">{stock.location.code}</span>
+                          <span className="truncate">{stock.warehouse.name}</span>
+                          <span className="ml-auto pl-2 font-semibold text-foreground whitespace-nowrap">{Number(stock.quantity).toLocaleString("pt-BR")} {product.unit.code}</span>
+                        </li>
+                      ))}
+                      {product.stocks.length > 4 && <li className="text-xs text-muted-foreground">+{product.stocks.length - 4} localizações</li>}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted-foreground">Sem saldo em estoque</p>
+                  )}
                 </div>
                 <Badge variant={product.status === 'ACTIVE' ? 'default' : 'secondary'}>
                   {product.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}

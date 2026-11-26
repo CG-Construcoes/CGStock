@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useMemo } from "react"
+import { parseDecimalBR } from "@/lib/decimal-br"
 import { verifyEmployeeQR, getProductStockForQuickIssue, confirmQuickIssue } from "./actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -36,7 +37,7 @@ type CartItem = {
 }
 
 const formatQty = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 })
-const parseQty = (value: string) => Number(value.replace(",", ".")) || 0
+const parseQty = (value: string) => parseDecimalBR(value) || 0
 const omitKey = (obj: Record<string, string>, key: string) => {
   const next = { ...obj }
   delete next[key]

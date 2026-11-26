@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Send, Scan, Plus, Minus, Trash2, Camera, X, Package, RotateCcw, ListFilter } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { localDb, type LocalProduct } from "@/lib/localdb"
@@ -645,14 +646,12 @@ export default function CollectorForm({
                         <span className="text-[9px] uppercase font-semibold text-muted-foreground leading-none mb-0.5">
                           Qtd. Final
                         </span>
-                        <input
-                          type="number"
-                          step="0.0001"
-                          min="0"
+                        <DecimalInput
+                          min={0}
                           name={`qty_${item.productId}`}
                           value={item.quantity}
-                          onChange={(e) => setExactQuantity(item.productId, e.target.value)}
-                          className="w-16 h-7 text-center font-black text-base bg-transparent border-none focus:ring-0 text-foreground p-0"
+                          onValueChange={(v) => setExactQuantity(item.productId, String(v))}
+                          className="w-20 h-7 text-center font-black text-base bg-transparent border-none focus-visible:ring-0 focus-visible:bg-transparent text-foreground p-0"
                         />
                       </div>
 

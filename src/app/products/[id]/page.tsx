@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { ProductChangeHistory } from "@/components/product-change-history"
 import { resolveWarehouseContext } from "@/lib/dal"
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -183,6 +184,8 @@ export default async function ProductDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <ProductChangeHistory productId={product.id} />
     </div>
   )
 }

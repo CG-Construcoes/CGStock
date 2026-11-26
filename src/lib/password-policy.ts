@@ -1,10 +1,19 @@
+export const PASSWORD_MIN_LENGTH = 8
+export const PASSWORD_HINT = "Mínimo 8 caracteres, com pelo menos 1 número e 1 caractere especial"
+
 const COMMON_PASSWORDS = new Set([
-  "1234567890",
-  "password10",
-  "estoka1234",
-  "senha12345",
-  "qwerty1234",
-  "admin12345",
+  "senha@123",
+  "senha@1234",
+  "senha123!",
+  "admin@123",
+  "admin123!",
+  "12345678!",
+  "@12345678",
+  "password1!",
+  "estoka@123",
+  "cgstock@123",
+  "qwerty@123",
+  "mudar@123",
 ])
 
 /**
@@ -12,11 +21,11 @@ const COMMON_PASSWORDS = new Set([
  * ou null se for válida.
  */
 export function validatePasswordStrength(password: string): string | null {
-  if (!password || password.length < 10) {
-    return "A senha deve ter no mínimo 10 caracteres."
+  if (!password || password.length < PASSWORD_MIN_LENGTH) {
+    return `A senha deve ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres.`
   }
-  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-    return "A senha deve conter letras e números."
+  if (!/[0-9]/.test(password) || !/[^A-Za-z0-9\s]/.test(password)) {
+    return "A senha deve conter pelo menos um número e um caractere especial (ex: @ # ! $ %)."
   }
   if (COMMON_PASSWORDS.has(password.toLowerCase())) {
     return "Esta senha é muito comum. Escolha uma senha mais segura."

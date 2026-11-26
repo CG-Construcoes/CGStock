@@ -85,8 +85,8 @@ describe("expiração de senha temporária", () => {
     expect(result).toEqual({ success: true })
   })
 
-  it("troca de senha limpa a expiração temporária", async () => {
-    vi.mocked(getSession).mockResolvedValue({ userId: "u1" } as never)
+  it("troca de senha limpa a expiração temporária sem pedir a senha temporária de novo", async () => {
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", sessionVersion: 1 } as never)
     dbMock.user.findUnique.mockResolvedValue(makeUser({
       mustChangePassword: true,
       temporaryPasswordExpiresAt: new Date(Date.now() + 60_000),
@@ -94,9 +94,8 @@ describe("expiração de senha temporária", () => {
     dbMock.user.update.mockResolvedValue(makeUser({ sessionVersion: 2 }))
 
     const result = await changePasswordAction(null, makeForm({
-      currentPassword: "SenhaAtual123",
-      newPassword: "NovaSenhaForte456",
-      confirmPassword: "NovaSenhaForte456",
+      newPassword: "NovaSenha#456",
+      confirmPassword: "NovaSenha#456",
     }))
 
     expect(result).toEqual({ success: true })
@@ -106,5 +105,25 @@ describe("expiração de senha temporária", () => {
         temporaryPasswordExpiresAt: null,
       }),
     }))
+  })
+
+  it("recusa troca sem senha atual quando o usuário não está obrigado a trocar", async () => {
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", sessionVersion: 1 } as never)
+    dbMock.user.findUnique.mockResolvedValue(makeUser({ mustChangePassword: false }))
+
+    const result = await changePasswordAction(null, makeForm({ newPassword: "NovaSenha#456", confirmPassword: "NovaSenha#456" }))
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(dbMock.user.update).not.toHaveBeenCalled()
+  })
+
+  it("recusa troca com sessão revogada", async () => {
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", sessionVersion: 0 } as never)
+    dbMock.user.findUnique.mockResolvedValue(makeUser({ mustChangePassword: true }))
+
+    const result = await changePasswordAction(null, makeForm({ newPassword: "NovaSenha#456", confirmPassword: "NovaSenha#456" }))
+
+    expect(result).toEqual({ error: expect.any(String) })
+    expect(dbMock.user.update).not.toHaveBeenCalled()
   })
 })

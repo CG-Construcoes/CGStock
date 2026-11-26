@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useState } from "react"
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-policy"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -71,7 +72,7 @@ export function EditUserForm({ user, roles, worksites, warehouses }: { user: Use
             id="password"
             name="password"
             placeholder="Deixe em branco para manter a atual"
-            minLength={6}
+            minLength={PASSWORD_MIN_LENGTH}
             className="bg-muted/50 focus-visible:ring-primary border-border"
           />
         </div>

@@ -3,13 +3,15 @@ import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {  Clock, ArrowRight, User, Package, FileText, Link as LinkIcon } from "lucide-react"
+import {  Clock, ArrowRight, User, Package, FileText, Link as LinkIcon, History } from "lucide-react"
 import Link from "next/link"
 import { BackButton } from "@/components/ui/back-button"
 import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
-import { requirePermissionPage } from "@/lib/permissions"
+import { requirePermissionPage, hasAnyPermission } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
 import { assertWarehouseAccess } from "@/lib/dal"
+import { correctionBlockReason, correctionPermissions, effectiveQuantity, getMovementCorrections, CORRECTION_REFERENCE } from "@/lib/movement-correction"
+import { CorrectionForm } from "./correction-form"
 
 export default async function MovementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('STOCK_VIEW')
@@ -30,6 +32,14 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
 
   const isPositive = isInMovement(mov.type)
   const typeLabel = getMovementTypeLabel(mov.type, mov.referenceType)
+
+  const isCorrection = mov.referenceType === CORRECTION_REFERENCE
+  const [corrections, canCorrectByPermission] = await Promise.all([
+    isCorrection ? Promise.resolve([]) : getMovementCorrections(mov.id),
+    hasAnyPermission(...correctionPermissions(mov.type)),
+  ])
+  const currentQuantity = effectiveQuantity({ type: mov.type, quantity: Number(mov.quantity) }, corrections.map(c => ({ type: c.type, quantity: Number(c.quantity) })))
+  const canCorrect = canCorrectByPermission && !correctionBlockReason(mov.type, mov.referenceType)
 
   // Resolução de link do documento de origem
   let originLink = null
@@ -55,6 +65,9 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
   } else if (mov.referenceType === 'TOOL_LOAN_RETURN') {
     originLink = `/tool-loans`
     originLabel = "Ferramentaria (devolução de ferramenta)"
+  } else if (isCorrection && mov.referenceId) {
+    originLink = `/movements/${mov.referenceId}`
+    originLabel = "Correção de lançamento"
   } else if (mov.referenceType === 'INFORMAKON') {
     originLabel = `Sincronização Informakon (${mov.documentNumber ?? 'documento ERP'})`
   }
@@ -146,6 +159,12 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
               <div className={`text-4xl font-black flex items-center ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
                 {isPositive ? '+' : '-'}{Math.abs(Number(mov.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}
               </div>
+              {corrections.length > 0 && (
+                <p className="text-sm mt-2 text-right">
+                  <span className="text-muted-foreground">Após correções: </span>
+                  <span className="font-bold text-foreground">{currentQuantity.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} {mov.product.unit.code}</span>
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -172,6 +191,38 @@ export default async function MovementDetailPage({ params }: { params: Promise<{
             </div>
           </CardContent>
         </Card>
+
+        {(canCorrect || corrections.length > 0) && (
+          <Card id="corrigir" className="md:col-span-2 shadow-sm">
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase flex items-center gap-2">
+                <History className="h-4 w-4" /> Correções do lançamento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              {corrections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma correção registrada para este lançamento.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {corrections.map(c => (
+                    <li key={c.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div>
+                        <Link href={`/movements/${c.id}`} className="text-sm font-medium hover:underline">{c.reason}</Link>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(c.createdAt).toLocaleString('pt-BR')} • {c.performedBy.name}{c.notes ? ` • Motivo: ${c.notes}` : ''}
+                        </p>
+                      </div>
+                      <span className={`text-sm font-bold whitespace-nowrap ${isInMovement(c.type) ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {isInMovement(c.type) ? '+' : '-'}{Math.abs(Number(c.quantity)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })} no saldo
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canCorrect && <CorrectionForm movementId={mov.id} currentQuantity={currentQuantity} unitCode={mov.product.unit.code} />}
+            </CardContent>
+          </Card>
+        )}
 
         {(mov.reason || mov.notes) && (
           <Card className="md:col-span-2 shadow-sm bg-muted/10">

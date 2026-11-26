@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Shield, Search } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
+import { getAuditActionLabel, getAuditDetailsText } from "@/lib/audit-labels"
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ page?: string, action?: string, userId?: string }> }) {
   await requirePermissionPage('AUDIT_VIEW')
@@ -95,31 +96,50 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                   <TableHead>Usuário</TableHead>
                   <TableHead>Ação</TableHead>
                   <TableHead>Entidade</TableHead>
-                  <TableHead>ID Entidade</TableHead>
+                  <TableHead>Detalhes</TableHead>
                   <TableHead>IP</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                      {log.timestamp.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-medium text-sm">
-                      {log.user?.name || 'Sistema'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-xs font-bold text-gray-700 bg-accent">
-                        {log.action}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{log.entityType}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground truncate max-w-[120px]" title={log.entityId}>
-                      {log.entityId}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{log.ip || '-'}</TableCell>
-                  </TableRow>
-                ))}
+                {logs.map((log) => {
+                  const details = getAuditDetailsText(log.action, log.metadata)
+                  return (
+                    <TableRow key={log.id}>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {log.timestamp.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="font-medium text-sm">
+                        {log.user?.name || 'Sistema'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs font-bold" title={log.action}>
+                          {getAuditActionLabel(log.action)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{log.entityType}</TableCell>
+                      <TableCell className="text-sm max-w-[280px]">
+                        {details.productChanges ? (
+                          <div className="space-y-0.5">
+                            {details.productChanges.map((c, i) => (
+                              <div key={i} className="text-xs">
+                                <span className="font-medium text-foreground">{c.label}:</span>{' '}
+                                <span className="text-muted-foreground line-through">{c.from}</span>{' → '}
+                                <span className="text-foreground">{c.to}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : details.fallback ? (
+                          <span className="font-mono text-[11px] text-muted-foreground truncate block" title={details.fallback}>
+                            {details.fallback}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{log.ip || '-'}</TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

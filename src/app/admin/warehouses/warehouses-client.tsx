@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Search, PackageOpen, Box, Edit, MapPin } from "lucide-react"
+import { Search, PackageOpen, Box, Edit, MapPin, HardHat } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ interface WarehouseItem {
   description: string | null
   status: string
   source: string | null
+  engineerName: string | null
   _count: {
     locations: number
     stocks: number
@@ -112,6 +113,10 @@ export function WarehousesClient({ warehouses }: { warehouses: WarehouseItem[] }
                 )}
                 <p className="text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
                   {warehouse.description || "Sem descrição"}
+                </p>
+                <p className={`text-xs flex items-center gap-1.5 mt-1 ${warehouse.engineerName ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400 font-medium"}`}>
+                  <HardHat className="h-3.5 w-3.5 shrink-0" />
+                  <span className="line-clamp-1">{warehouse.engineerName || "Engenheiro responsável não informado"}</span>
                 </p>
 
                 <div className="w-full flex items-center justify-between border-t border-border pt-4 mt-4 text-xs text-muted-foreground">

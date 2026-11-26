@@ -53,7 +53,11 @@ export default async function proxy(request: NextRequest) {
   const isApi = pathname.startsWith('/api/')
   const isLoginPage = pathname.startsWith('/login')
   const isChangePasswordPage = pathname.startsWith('/change-password')
+  // Redefinição por e-mail: acessível sem sessão (o token do link é a credencial)
+  const isPasswordRecoveryPage = pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password')
   const isServerAction = request.method === 'POST' && request.headers.has('next-action')
+
+  if (isPasswordRecoveryPage) return withSecurityHeaders(request)
 
   if (!session) {
     if (isApi) return unauthorizedApi()

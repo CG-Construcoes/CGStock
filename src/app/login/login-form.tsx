@@ -8,6 +8,8 @@ import { Package } from "lucide-react"
 import { useActionState, useEffect } from "react"
 import { loginAction } from "./actions"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { authInputClass, authToggleClass } from "./auth-styles"
 
 export function LoginForm() {
   const router = useRouter()
@@ -64,7 +66,7 @@ export function LoginForm() {
                     autoComplete="username"
                     placeholder="E-mail corporativo ou CPF"
                     required
-                    className="h-11 bg-[#45364d] border-[#6b4c68] text-white focus-visible:ring-[#ffb597] placeholder:text-zinc-500"
+                    className={authInputClass}
                   />
                 </div>
                 
@@ -73,16 +75,16 @@ export function LoginForm() {
                     <label className="text-sm font-medium text-zinc-300" htmlFor="password">
                       Senha
                     </label>
-                    <a href="#" className="text-xs text-[#ffb597] hover:text-white transition-colors">
+                    <Link href="/forgot-password" className="text-xs text-[#ffb597] hover:text-white transition-colors">
                       Esqueceu a senha?
-                    </a>
+                    </Link>
                   </div>
                   <PasswordInput
                     id="password"
                     name="password"
                     required
-                    className="h-11 bg-[#45364d] border-[#6b4c68] text-white focus-visible:ring-[#ffb597]"
-                    toggleClassName="text-zinc-400 hover:bg-white/10 hover:text-white"
+                    className={authInputClass}
+                    toggleClassName={authToggleClass}
                   />
                 </div>
 

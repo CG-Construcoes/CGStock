@@ -5,8 +5,7 @@ import { revalidatePath } from "next/cache"
 import { Prisma } from "@prisma/client"
 import { requireAdmin } from "@/lib/action-guard"
 import { logAuditStrict } from "@/lib/audit"
-import bcrypt from "bcryptjs"
-import crypto from "crypto"
+import { ADMIN_RESET_TTL_MINUTES, sendPasswordResetEmail } from "@/lib/password-reset"
 
 export async function deleteUserAction(userId: string) {
   let session
@@ -95,30 +94,17 @@ export async function resetPasswordAction(userId: string) {
     return { error: "Sem permissão." }
   }
 
+  const user = await db.user.findUnique({ where: { id: userId } })
+  if (!user) return { error: "Usuário não encontrado." }
+  if (!user.email) return { error: "Este usuário não possui e-mail cadastrado. Cadastre um e-mail antes de resetar a senha." }
+  if (!user.loginEnabled || user.status !== "ACTIVE") return { error: "Este usuário está sem acesso ao sistema ou inativo." }
+
   try {
-    const rawPassword = crypto.randomBytes(6).toString("hex")
-    const passwordHash = await bcrypt.hash(rawPassword, 10)
-    
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    
-    await db.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: userId },
-        data: {
-          passwordHash,
-          mustChangePassword: true,
-          temporaryPasswordExpiresAt: expiresAt,
-          sessionVersion: { increment: 1 }
-        }
-      })
-      await logAuditStrict("USER_PASSWORD_RESET", "User", user.id, {
-        expiresAt
-      }, session.userId, tx)
-    })
-    
-    return { success: true, newPassword: rawPassword }
+    await sendPasswordResetEmail({ ...user, email: user.email }, ADMIN_RESET_TTL_MINUTES)
+    await logAuditStrict("USER_PASSWORD_RESET", "User", user.id, { via: "email-link", sentTo: user.email }, session.userId)
+    return { success: true, email: user.email }
   } catch (error) {
-    console.error("Erro ao resetar senha:", error)
-    return { error: "Ocorreu um erro interno ao tentar resetar a senha." }
+    console.error("Erro ao enviar e-mail de redefinição:", error)
+    return { error: "Não foi possível enviar o e-mail de redefinição. Tente novamente em alguns minutos." }
   }
 }

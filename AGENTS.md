@@ -40,3 +40,25 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Pedido explícito do usuário:** antes de implementar qualquer feature nova, SEMPRE avaliar e confirmar com ele se a feature tem alguma relação/dependência com a `qweb-api`. Se não tiver, seguir 100% dentro do CGStock; se tiver, avisar antes de codar.
 - **Tudo vai direto para produção.** Qualquer alteração de banco (schema, migration, update/insert de dados, seed) deve ser comunicada claramente antes/ao executar.
 - Exemplo já entregue: a separação de fornecedores/almoxarifados por empresa (MGA/CV) e a importação da planilha "CADASTRO FORNECEDOR" são **features exclusivas do CGStock** — upload manual de `.xlsx` na tela admin, sem nenhuma dependência da `qweb-api`.
+
+# E-mail (SendGrid) e senhas
+
+- Envio via API REST v3 do SendGrid com `fetch` (`src/lib/email.ts`), sem SDK. Env: `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`, `APP_URL` (base dos links, ex.: `https://cgstock.cgconstrucoes.com`).
+- Testar a chave sem enviar e-mail: `mail_settings.sandbox_mode.enable=true` (retorna 200).
+- Redefinição de senha (`src/lib/password-reset.ts`): token JWT sem tabela, de uso único (fingerprint de `passwordHash`+`sessionVersion`). 1h no "Esqueceu a senha?", 24h quando o admin dispara. Rotas públicas `/forgot-password` e `/reset-password` (liberadas no `src/proxy.ts`); ao salvar já cria a sessão e vai para `/dashboard`.
+- Troca obrigatória (`/change-password`) NÃO pede a senha temporária — só nova + confirmação (exige `mustChangePassword` e sessão vigente).
+- Política de senha: mín. 8 caracteres, 1 número e 1 caractere especial (sem exigir maiúscula).
+
+# Informakon via planilha (sem qweb-api)
+
+- Código do almoxarifado = Centro de Negócio do Informakon `AAA.BB.CCCC` (`src/lib/business-center.ts`); engenheiro responsável (nome+e-mail) obrigatório no formulário.
+- Exportação `.xls` (BIFF8) no layout exato de `ModeloImportacaoEntradas/Saidas.xls` em `/export` (`src/lib/informakon-export.ts`). Mapeamento: Recebimento C/NF; Ajuste+ I/AE; Devolução/Transf.+/Correção+ O/AE; Saída e Ferramentaria S/RM; Ajuste− I/IN-INVENTARIO; Transf.−/Correção− O/RM. Nº Documento só dígitos; Valor do Item = total da linha (0 se sem custo); datas no fuso de Brasília.
+
+# Correções de lançamentos
+
+- `src/lib/movement-correction.ts`: o original nunca é alterado; a correção cria `StockMovement` ADJUSTMENT_IN/OUT com `referenceType='CORRECTION'` e `referenceId` = original, motivo obrigatório e auditoria `MOVEMENT_CORRECTED`. Ferramentaria (TOOL_LOAN/RETURN) e transferências ficam fora.
+- Permissão `STOCK_VIEW_ALL`: consulta de saldo de todos os almoxarifados (só `/stock` e `/stock/[id]`, via `resolveStockViewContext` em `src/lib/dal.ts`).
+
+# Verificação
+
+- `npx tsc --noEmit`, `npx vitest run`, `npm run build`. Scripts soltos não versionados em `scripts/` (ex.: `db-size.ts`) podem quebrar o type-check do build local.

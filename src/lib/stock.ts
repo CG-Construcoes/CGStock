@@ -19,6 +19,7 @@ export interface CreateStockMovementParams {
   reason?: string | null
   notes?: string | null
   performedById: string
+  recipientUserId?: string | null
 }
 
 export async function createStockMovement(
@@ -63,6 +64,7 @@ export async function createStockMovement(
       reason: params.reason,
       notes: params.notes,
       performedById: params.performedById,
+      ...(params.recipientUserId ? { recipientUserId: params.recipientUserId } : {}),
     }
   })
 

@@ -9,11 +9,10 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
   const session = await getSession()
   if (!session) return { error: "Não autorizado." }
 
-  const currentPassword = formData.get("currentPassword") as string
   const newPassword = formData.get("newPassword") as string
   const confirmPassword = formData.get("confirmPassword") as string
 
-  if (!currentPassword || !newPassword || !confirmPassword) {
+  if (!newPassword || !confirmPassword) {
     return { error: "Por favor, preencha todos os campos." }
   }
 
@@ -35,9 +34,10 @@ export async function changePasswordAction(prevState: unknown, formData: FormDat
     return { error: "Usuário sem credenciais de acesso." }
   }
 
-  const passwordMatch = await bcrypt.compare(currentPassword, user.passwordHash)
-  if (!passwordMatch) {
-    return { error: "Senha atual incorreta." }
+  // O usuário acabou de se autenticar com a senha temporária: não pedimos ela de novo.
+  // A troca sem senha atual só vale para quem está obrigado a trocar e com sessão vigente.
+  if (!user.mustChangePassword || user.status !== "ACTIVE" || (session.sessionVersion !== undefined && session.sessionVersion !== user.sessionVersion)) {
+    return { error: "Sessão inválida para troca de senha. Faça login novamente." }
   }
 
   const newHash = await bcrypt.hash(newPassword, 10)

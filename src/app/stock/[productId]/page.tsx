@@ -11,8 +11,9 @@ import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { getMovementTypeLabel, isInMovement } from "@/lib/movement-labels"
 import { requirePermissionPage } from "@/lib/permissions"
 import { getValidatedSession } from "@/lib/auth"
-import { resolveWarehouseContext } from "@/lib/dal"
+import { resolveStockViewContext } from "@/lib/dal"
 import { Suspense } from "react"
+import { ProductChangeHistory } from "@/components/product-change-history"
 
 export default async function ProductStockPage({
   params,
@@ -24,7 +25,7 @@ export default async function ProductStockPage({
   await requirePermissionPage('STOCK_VIEW')
   const session = await getValidatedSession()
   const resolvedSearch = searchParams ? await searchParams : {}
-  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter } = await resolveWarehouseContext(resolvedSearch.warehouseId, session!.userId)
+  const { warehouses, selectedWarehouseId, warehouseWhere: wFilter, viewAll } = await resolveStockViewContext(resolvedSearch.warehouseId, session!.userId)
   const { productId } = await params
   
   const product = await db.product.findUnique({
@@ -69,6 +70,7 @@ export default async function ProductStockPage({
             <WarehouseSelectFilter
               warehouses={warehouses}
               selectedWarehouseId={selectedWarehouseId}
+              syncGlobalCookie={!viewAll}
               className="w-full sm:w-64"
             />
           </Suspense>
@@ -210,6 +212,10 @@ export default async function ProductStockPage({
             )}
           </CardContent>
         </Card>
+
+        <div className="md:col-span-2">
+          <ProductChangeHistory productId={product.id} />
+        </div>
       </div>
     </div>
   )

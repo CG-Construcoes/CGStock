@@ -81,7 +81,7 @@ export async function loginAction(prevState: unknown, formData: FormData) {
   if (user.mustChangePassword && user.temporaryPasswordExpiresAt && new Date() > user.temporaryPasswordExpiresAt) {
     await recordAttempt(false)
     await logAudit("LOGIN_FAILED", "User", user.id, { email, reason: "PASSWORD_EXPIRED" }, user.id)
-    return { error: "Sua senha temporária expirou. Contate o administrador para redefinir o acesso." }
+    return { error: "Sua senha temporária expirou. Clique em 'Esqueceu a senha?' para receber um novo link por e-mail." }
   }
 
   await recordAttempt(true)

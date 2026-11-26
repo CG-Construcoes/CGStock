@@ -4,6 +4,8 @@ import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { requirePermission } from "@/lib/permissions"
+import { revalidatePath } from "next/cache"
+import { logAudit } from "@/lib/audit"
 
 export async function createCategoryAction(formData: FormData) {
   const session = await getSession()
@@ -90,4 +92,39 @@ export async function updateCategoryAction(formData: FormData) {
   }
   
   redirect("/categories")
+}
+
+export type CategoryInput = { id?: string; name: string; description?: string | null; status?: string }
+
+/** Cria ou edita a categoria direto na listagem (sem trocar de página). */
+export async function saveCategoryAction(input: CategoryInput): Promise<{ error?: string; success?: boolean }> {
+  const session = await getSession()
+  if (!session) return { error: "Sessão expirada. Faça login novamente." }
+  try {
+    await requirePermission(input.id ? 'PRODUCT_UPDATE' : 'PRODUCT_CREATE')
+  } catch {
+    return { error: "Você não tem permissão para esta ação." }
+  }
+
+  const name = input.name?.trim()
+  const description = input.description?.trim() || null
+  const status = input.status === "INACTIVE" ? "INACTIVE" : "ACTIVE"
+  if (!name) return { error: "O nome da categoria é obrigatório." }
+
+  const duplicate = await db.productCategory.findFirst({ where: { name, ...(input.id ? { id: { not: input.id } } : {}) } })
+  if (duplicate) return { error: "Já existe uma categoria com este nome." }
+
+  try {
+    const category = input.id
+      ? await db.productCategory.update({ where: { id: input.id }, data: { name, description, status } })
+      : await db.productCategory.create({ data: { name, description, status } })
+    await logAudit(input.id ? "UPDATE" : "CREATE", "ProductCategory", category.id, { name, description, status }, session.userId)
+  } catch (error) {
+    console.error(error)
+    return { error: "Erro ao salvar a categoria." }
+  }
+
+  revalidatePath("/categories")
+  revalidatePath("/products")
+  return { success: true }
 }

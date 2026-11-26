@@ -6,16 +6,37 @@ import { redirect } from "next/navigation"
 import { requireActionPermission, requireAdmin } from "@/lib/action-guard"
 import { assertWarehouseAccess } from "@/lib/dal"
 import { logAudit, logAuditStrict } from "@/lib/audit"
+import { normalizeBusinessCenterCode, validateWarehouseForm } from "@/lib/business-center"
 
-export async function createWarehouseAction(formData: FormData) {
+function readWarehouseForm(formData: FormData) {
+  const sourceRaw = (formData.get("source") as string)?.trim().toUpperCase()
+  return {
+    name: (formData.get("name") as string)?.trim() || "",
+    code: normalizeBusinessCenterCode(formData.get("code") as string),
+    description: (formData.get("description") as string)?.trim() || null,
+    source: sourceRaw === "MGA" || sourceRaw === "CV" ? sourceRaw : null,
+    engineerName: (formData.get("engineerName") as string)?.trim() || "",
+    engineerEmail: (formData.get("engineerEmail") as string)?.trim().toLowerCase() || "",
+  }
+}
+
+async function codeInUse(code: string, exceptId?: string) {
+  const existing = await db.warehouse.findUnique({ where: { code }, select: { id: true } })
+  return !!existing && existing.id !== exceptId
+}
+
+export type WarehouseFormState = { error: string; values: ReturnType<typeof readWarehouseForm>; at: number } | null
+
+export async function createWarehouseAction(_prev: WarehouseFormState, formData: FormData): Promise<WarehouseFormState> {
   const session = await requireAdmin()
 
-  const name = (formData.get("name") as string)?.trim()
-  const code = (formData.get("code") as string)?.trim().toUpperCase()
-  const description = (formData.get("description") as string)?.trim() || null
+  const data = readWarehouseForm(formData)
   const status = (formData.get("status") as string) || "ACTIVE"
-  const sourceRaw = (formData.get("source") as string)?.trim().toUpperCase()
-  const source = sourceRaw === "MGA" || sourceRaw === "CV" ? sourceRaw : null
+  const validationError = validateWarehouseForm(data)
+  const fail = (error: string) => ({ error, values: data, at: Date.now() })
+  if (validationError) return fail(validationError)
+  if (await codeInUse(data.code)) return fail(`Já existe um almoxarifado com o código ${data.code}.`)
+  const { code } = data
 
   const createInitialLocation = formData.get("createInitialLocation") === "true" || formData.get("createInitialLocation") === "on"
   const initialLocationCode = (formData.get("initialLocationCode") as string)?.trim().toUpperCase()
@@ -23,7 +44,7 @@ export async function createWarehouseAction(formData: FormData) {
 
   await db.$transaction(async (tx) => {
     const wh = await tx.warehouse.create({
-      data: { name, code, description, status, source }
+      data: { ...data, status }
     })
 
     if (createInitialLocation) {
@@ -44,7 +65,7 @@ export async function createWarehouseAction(formData: FormData) {
       })
     }
 
-    await logAuditStrict('CREATE', 'Warehouse', wh.id, { name, code }, session.userId, tx)
+    await logAuditStrict('CREATE', 'Warehouse', wh.id, { name: data.name, code, engineerName: data.engineerName, engineerEmail: data.engineerEmail }, session.userId, tx)
     return wh
   })
 
@@ -54,24 +75,24 @@ export async function createWarehouseAction(formData: FormData) {
   redirect("/admin/warehouses")
 }
 
-export async function updateWarehouseAction(formData: FormData) {
+export async function updateWarehouseAction(_prev: WarehouseFormState, formData: FormData): Promise<WarehouseFormState> {
   const session = await requireActionPermission('CONFIG_MANAGE')
 
   const id = formData.get("id") as string
   await assertWarehouseAccess(id, session.userId)
-  const name = (formData.get("name") as string)?.trim()
-  const code = (formData.get("code") as string)?.trim().toUpperCase()
-  const description = (formData.get("description") as string)?.trim() || null
+  const data = readWarehouseForm(formData)
   const status = formData.get("status") as string
-  const sourceRaw = (formData.get("source") as string)?.trim().toUpperCase()
-  const source = sourceRaw === "MGA" || sourceRaw === "CV" ? sourceRaw : null
+  const validationError = validateWarehouseForm(data)
+  const fail = (error: string) => ({ error, values: data, at: Date.now() })
+  if (validationError) return fail(validationError)
+  if (await codeInUse(data.code, id)) return fail(`Já existe um almoxarifado com o código ${data.code}.`)
 
   await db.warehouse.update({
     where: { id },
-    data: { name, code, description, status, source }
+    data: { ...data, status }
   })
 
-  await logAudit('UPDATE', 'Warehouse', id, { name, code, status, source }, session.userId)
+  await logAudit('UPDATE', 'Warehouse', id, { name: data.name, code: data.code, status, source: data.source, engineerName: data.engineerName, engineerEmail: data.engineerEmail }, session.userId)
 
   revalidatePath("/admin/warehouses")
   revalidatePath("/warehouses")

@@ -106,9 +106,9 @@ export async function createReceiptAction(formData: FormData) {
     
     let subtotal = 0
     const itemsData = productIds.map((productId, index) => {
-      const quantity = parseInt(quantities[index]) || 0
-      const unitCost = parseFloat(unitCosts[index]) || 0
-      const totalCost = quantity * unitCost
+      const quantity = Number(quantities[index]) || 0
+      const unitCost = Number(unitCosts[index]) || 0
+      const totalCost = Math.round(quantity * unitCost * 100) / 100
       subtotal += totalCost
 
       return {

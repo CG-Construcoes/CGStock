@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useActionState, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { BackButton } from "@/components/ui/back-button"
 import { Save, MapPin, Info, Loader2 } from "lucide-react"
 import { createWarehouseAction } from "../actions"
+import { WarehouseFields, FormError } from "../warehouse-fields"
 import { cn } from "@/lib/utils"
 
 export function NewWarehouseForm() {
@@ -16,17 +17,11 @@ export function NewWarehouseForm() {
   const [createInitialLocation, setCreateInitialLocation] = useState(true)
   const [customLocCode, setCustomLocCode] = useState("")
   const [locName, setLocName] = useState("Estoque Geral")
-  const [isPending, startTransition] = useTransition()
+  const [state, formAction, isPending] = useActionState(createWarehouseAction, null)
 
   // Sugere o código da localização baseado no código do almoxarifado
   const suggestedLocCode = code ? `${code.toUpperCase()}-GERAL` : "GERAL"
   const finalLocCode = customLocCode || suggestedLocCode
-
-  const handleSubmit = (formData: FormData) => {
-    startTransition(async () => {
-      await createWarehouseAction(formData)
-    })
-  }
 
   return (
     <div className="relative">
@@ -48,7 +43,7 @@ export function NewWarehouseForm() {
       )}
 
       <form
-        action={handleSubmit}
+        action={formAction}
         className={cn(
           "space-y-6 transition-all duration-200",
           isPending && "opacity-50 pointer-events-none select-none"
@@ -62,62 +57,8 @@ export function NewWarehouseForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome do Almoxarifado *</Label>
-              <Input 
-                id="name" 
-                name="name" 
-                required 
-                disabled={isPending}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ex: Almoxarifado Central" 
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="code">Código do Almoxarifado *</Label>
-              <Input 
-                id="code" 
-                name="code" 
-                required 
-                disabled={isPending}
-                placeholder="Ex: ALM-CEN"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Código de identificação curto e exclusivo para este galpão.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="source">Empresa (ERP)</Label>
-              <select
-                id="source"
-                name="source"
-                disabled={isPending}
-                defaultValue="CV"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="MGA">MGA — CG Construções</option>
-                <option value="CV">CV — Conceito</option>
-                <option value="">Sem vínculo</option>
-              </select>
-              <p className="text-[11px] text-muted-foreground">
-                Define qual base de fornecedores aparece nas entradas deste almoxarifado.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição (Opcional)</Label>
-              <Input 
-                id="description" 
-                name="description" 
-                disabled={isPending}
-                placeholder="Ex: Galpão principal de recebimento e expedição" 
-              />
-            </div>
+            <WarehouseFields key={state?.at} defaults={state?.values} disabled={isPending} onNameChange={setName} onCodeChange={setCode} />
+            <FormError message={state?.error} />
             
             <input type="hidden" name="status" value="ACTIVE" />
           </CardContent>

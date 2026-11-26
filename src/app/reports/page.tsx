@@ -126,6 +126,10 @@ export default async function ReportsHubPage(props: { searchParams: Promise<{ fr
                 <span className="text-xs font-bold text-foreground block">Inventários</span>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block leading-tight">Resultados e divergências.</span>
               </Link>
+              <Link href="/reports/changes" className="block p-2 rounded-sm hover:bg-muted transition-colors border border-transparent hover:border-border/50">
+                <span className="text-xs font-bold text-foreground block">Alterações de Cadastro</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5 block leading-tight">Edições de produtos (antes/depois).</span>
+              </Link>
               <Link href="/reports/consumption" className="block p-2 rounded-sm hover:bg-muted transition-colors border border-transparent hover:border-border/50">
                 <span className="text-xs font-bold text-foreground block">Consumo</span>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block leading-tight">Itens mais requisitados.</span>

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -147,13 +148,11 @@ export function AdjustmentClient({ warehouses, products, userId, sessionExpiresA
               </div>
               <div className="space-y-2">
                 <Label>Quantidade *</Label>
-                <Input 
-                  type="number" 
-                  step="0.0001" 
-                  min="0.0001" 
-                  required 
+                <DecimalInput
+                  min={0.0001}
+                  required
                   value={formData.quantity}
-                  onChange={(e) => setFormData(f => ({ ...f, quantity: Number(e.target.value) }))}
+                  onValueChange={(v) => setFormData(f => ({ ...f, quantity: v }))}
                 />
               </div>
             </div>

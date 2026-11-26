@@ -1,11 +1,12 @@
 import { Suspense } from "react"
-import { Search, Box, Loader2, DollarSign, Boxes, PackageCheck, AlertTriangle, X } from "lucide-react"
+import { Search, Box, Loader2, DollarSign, Boxes, PackageCheck, AlertTriangle, X, MapPin } from "lucide-react"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { Prisma } from "@prisma/client"
-import { requirePermissionPage } from "@/lib/permissions"
+import { requirePermissionPage, hasPermission } from "@/lib/permissions"
+import { QuickNumberCell, QuickSelectCell, QuickStockCell } from "@/components/quick-edit/quick-edit"
 import { getValidatedSession } from "@/lib/auth"
-import { resolveWarehouseContext } from "@/lib/dal"
+import { resolveStockViewContext } from "@/lib/dal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/ui/info-tooltip"
@@ -14,6 +15,7 @@ import { StockFilterForm } from "./stock-filter-form"
 import { StockTransitionProvider, StockContentWrapper } from "./stock-transition-context"
 import { PhysicalVolumeCard, type UnitVolumeStat } from "./physical-volume-card"
 import { normalizeNums } from "@/lib/raw-num"
+import { productSearchSql } from "@/lib/product-search"
 
 export default async function StockPage({
   searchParams,
@@ -32,7 +34,8 @@ export default async function StockPage({
     warehouses,
     selectedWarehouseId,
     effectiveScopeIds: effectiveWarehouseIds,
-  } = await resolveWarehouseContext(params.warehouseId, session!.userId)
+    viewAll,
+  } = await resolveStockViewContext(params.warehouseId, session!.userId)
 
   const selectedWarehouse = warehouses.find((w) => w.id === selectedWarehouseId)
   const warehouseLabel = selectedWarehouse ? selectedWarehouse.name : "Todos os Almoxarifados"
@@ -50,6 +53,7 @@ export default async function StockPage({
             <span className="font-semibold text-foreground">
               {selectedWarehouse ? selectedWarehouse.name : `Todos os almoxarifados (${warehouses.length})`}
             </span>
+            {viewAll && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">Consulta geral</span>}
           </p>
         </div>
       </div>
@@ -120,17 +124,18 @@ async function StockContent({
     maximumStock: number
     averageCost: number
     categoryName: string
+    categoryId: string
     unitCode: string
     warehouseName: string | null
     warehouseCount: number
+    locationCodes: string | null
     totalQuantity: number
     totalReserved: number
     totalValue: number
   }
 
-  const searchCondition = q
-    ? Prisma.sql`WHERE (p.name LIKE ${`%${q}%`} OR p.code LIKE ${`%${q}%`})`
-    : Prisma.empty
+  const searchSql = productSearchSql(q)
+  const searchCondition = searchSql ? Prisma.sql`WHERE ${searchSql}` : Prisma.empty
 
   const stockJoin = effectiveWarehouseIds === null
     ? Prisma.sql`LEFT JOIN \`Stock\` s ON s.\`productId\` = p.id`
@@ -141,6 +146,19 @@ async function StockContent({
     : stockFilter === "alerts"
     ? Prisma.sql`HAVING COALESCE(SUM(s.quantity), 0) = 0 OR (COALESCE(SUM(s.quantity), 0) > 0 AND p.\`minimumStock\` > 0 AND COALESCE(SUM(s.quantity), 0) <= p.\`minimumStock\`)`
     : Prisma.empty
+
+  const [canEditProduct, canAdjustStock, categoryOptions] = await Promise.all([
+    hasPermission("PRODUCT_UPDATE"),
+    hasPermission("STOCK_ADJUST"),
+    db.productCategory.findMany({ where: { status: "ACTIVE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ])
+  const categorySelectOptions = (current: { id: string; name: string }) =>
+    (categoryOptions.some(c => c.id === current.id) ? categoryOptions : [current, ...categoryOptions]).map(c => ({ value: c.id, label: c.name }))
+  const minMaxFields = (product: { minimumStock: number; maximumStock: number }) => [
+    { field: "minimumStock" as const, label: "Mínimo", value: product.minimumStock },
+    { field: "maximumStock" as const, label: "Máximo", value: product.maximumStock },
+  ]
+  const costFields = (cost: number) => [{ field: "averageCost" as const, label: "Custo médio unitário", value: cost, money: true }]
 
   const [unitRowsRaw, pageRowsRaw] = isEmptyScope
     ? [[], []] as [UnitBucketRow[], StockPageRow[]]
@@ -185,9 +203,11 @@ async function StockContent({
             p.\`maximumStock\`,
             COALESCE(p.\`averageCost\`, 0) AS \`averageCost\`,
             c.name AS \`categoryName\`,
+            p.\`categoryId\`,
             u.code AS \`unitCode\`,
             MAX(w.name) AS \`warehouseName\`,
             COUNT(DISTINCT s.\`warehouseId\`) AS \`warehouseCount\`,
+            GROUP_CONCAT(DISTINCT CASE WHEN s.quantity > 0 THEN l.code END ORDER BY l.code SEPARATOR ', ') AS \`locationCodes\`,
             COALESCE(SUM(s.quantity), 0) AS \`totalQuantity\`,
             COALESCE(SUM(s.\`reservedQuantity\`), 0) AS \`totalReserved\`,
             COALESCE(SUM(s.quantity * COALESCE(p.\`averageCost\`, 0)), 0) AS \`totalValue\`
@@ -196,6 +216,7 @@ async function StockContent({
           INNER JOIN \`ProductUnit\` u ON u.id = p.\`unitId\`
           ${stockJoin}
           LEFT JOIN \`Warehouse\` w ON w.id = s.\`warehouseId\`
+          LEFT JOIN \`WarehouseLocation\` l ON l.id = s.\`locationId\`
           ${searchCondition}
           GROUP BY p.id, c.name, u.code
           ${havingCondition}
@@ -317,10 +338,11 @@ async function StockContent({
         name: p.name,
         minimumStock: p.minimumStock,
         maximumStock: p.maximumStock,
-        category: { name: p.categoryName },
+        category: { id: p.categoryId, name: p.categoryName },
         unit: { code: p.unitCode },
         stocks: p.warehouseName ? [{ warehouse: { name: p.warehouseName } }] : [],
         warehouseCount: p.warehouseCount,
+        locations: p.locationCodes ? String(p.locationCodes).split(", ") : [],
       },
       totalQuantity,
       totalReserved,
@@ -588,6 +610,7 @@ async function StockContent({
                       <span className="text-xs font-mono text-muted-foreground mt-0.5">
                         Cód: {data.product.code}
                       </span>
+                      <LocationTags locations={data.product.locations} />
                     </div>
                   </div>
                   {data.status === "NORMAL" && (
@@ -622,7 +645,8 @@ async function StockContent({
                       Físico
                     </span>
                     <span className="font-semibold text-foreground">
-                      {formatNumber(data.totalQuantity)}{" "}
+                      <QuickStockCell productId={data.product.id} unitCode={data.product.unit.code} canEdit={canAdjustStock} align="left"
+                        display={formatNumber(data.totalQuantity)} />{" "}
                       <span className="text-[10px]">{data.product.unit.code}</span>
                     </span>
                   </div>
@@ -650,7 +674,8 @@ async function StockContent({
                       Custo Médio
                     </span>
                     <span className="font-mono text-muted-foreground font-medium">
-                      {formatCurrency(data.unitCost)}
+                      <QuickNumberCell productId={data.product.id} canEdit={canEditProduct} title="Custo médio unitário" align="left"
+                        fields={costFields(data.unitCost)} display={formatCurrency(data.unitCost)} />
                     </span>
                   </div>
                   <div className="text-right">
@@ -665,9 +690,17 @@ async function StockContent({
 
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <div className="flex items-center gap-2">
-                    <div className="px-2 py-0.5 rounded bg-muted/50 border border-border text-[11px] font-medium text-muted-foreground">
-                      {data.product.category.name}
+                    <div className="rounded bg-muted/50 border border-border text-[11px] font-medium text-muted-foreground">
+                      <QuickSelectCell productId={data.product.id} field="categoryId" value={data.product.category.id} canEdit={canEditProduct}
+                        options={categorySelectOptions(data.product.category)} className="h-7 text-[11px]"
+                        display={<span className="px-2 py-0.5 inline-block">{data.product.category.name}</span>} />
                     </div>
+                    <span className="text-[11px] text-muted-foreground">
+                      Mín/Máx:{" "}
+                      <QuickNumberCell productId={data.product.id} canEdit={canEditProduct} title="Estoque mínimo e máximo" align="left"
+                        fields={minMaxFields(data.product)}
+                        display={<>{formatNumber(data.product.minimumStock)}/{data.product.maximumStock > 0 ? formatNumber(data.product.maximumStock) : "∞"}</>} />
+                    </span>
                   </div>
                   <Link href={`/stock/${data.product.id}`}>
                     <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs">
@@ -785,17 +818,19 @@ async function StockContent({
                                 : data.product.stocks[0].warehouse.name}
                             </span>
                           )}
+                          <LocationTags locations={data.product.locations} />
                         </div>
                       </div>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <span className="text-muted-foreground bg-muted/50 px-2 py-0.5 rounded text-xs border border-border">
-                        {data.product.category.name}
-                      </span>
+                      <QuickSelectCell productId={data.product.id} field="categoryId" value={data.product.category.id} canEdit={canEditProduct}
+                        options={categorySelectOptions(data.product.category)} className="h-7 text-xs max-w-[150px]"
+                        display={<span className="text-muted-foreground bg-muted/50 px-2 py-0.5 rounded text-xs border border-border">{data.product.category.name}</span>} />
                     </td>
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       <span className="font-semibold text-foreground text-sm">
-                        {formatNumber(data.totalQuantity)}
+                        <QuickStockCell productId={data.product.id} unitCode={data.product.unit.code} canEdit={canAdjustStock}
+                          display={formatNumber(data.totalQuantity)} />
                       </span>{" "}
                       <span className="text-[10px] text-muted-foreground uppercase">
                         {data.product.unit.code}
@@ -813,7 +848,8 @@ async function StockContent({
                     </td>
                     <td className="px-3 py-3 text-right whitespace-nowrap">
                       <span className="text-xs font-mono text-muted-foreground">
-                        {formatCurrency(data.unitCost)}
+                        <QuickNumberCell productId={data.product.id} canEdit={canEditProduct} title="Custo médio unitário"
+                          fields={costFields(data.unitCost)} display={formatCurrency(data.unitCost)} />
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right whitespace-nowrap">
@@ -822,13 +858,15 @@ async function StockContent({
                       </span>
                     </td>
                     <td className="px-3 py-3 text-center text-xs text-muted-foreground whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1 opacity-80">
-                        <span>{data.product.minimumStock}</span>
-                        <span className="opacity-40">/</span>
-                        <span>
-                          {data.product.maximumStock > 0 ? data.product.maximumStock : "∞"}
-                        </span>
-                      </div>
+                      <QuickNumberCell productId={data.product.id} canEdit={canEditProduct} title="Estoque mínimo e máximo"
+                        fields={minMaxFields(data.product)}
+                        display={
+                          <span className="inline-flex items-center gap-1 opacity-80">
+                            <span>{formatNumber(data.product.minimumStock)}</span>
+                            <span className="opacity-40">/</span>
+                            <span>{data.product.maximumStock > 0 ? formatNumber(data.product.maximumStock) : "∞"}</span>
+                          </span>
+                        } />
                     </td>
                     <td className="px-3 py-3 text-center whitespace-nowrap">
                       {data.status === "NORMAL" && (
@@ -921,5 +959,18 @@ function StockSkeleton() {
         <Loader2 className="h-8 w-8 animate-spin text-primary opacity-60" />
       </div>
     </div>
+  )
+}
+
+function LocationTags({ locations }: { locations: string[] }) {
+  if (!locations.length) return null
+  const shown = locations.slice(0, 3)
+  return (
+    <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground min-w-0" title={`Localização: ${locations.join(", ")}`}>
+      <MapPin className="h-3 w-3 shrink-0 text-primary" />
+      <span className="truncate font-mono">
+        {shown.join(", ")}{locations.length > shown.length ? ` +${locations.length - shown.length}` : ""}
+      </span>
+    </span>
   )
 }

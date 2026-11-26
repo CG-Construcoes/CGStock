@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Save, Plus, PackageX } from "lucide-react"
@@ -150,8 +151,8 @@ export function ReturnForm({ warehouses, products, requests, userId, sessionExpi
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-medium">Qtd</label>
-                <Input type="number" step="1" min="1" required value={item.quantity}
-                  onChange={e => updateItem(item.id, { quantity: Number(e.target.value) })} />
+                <DecimalInput min={0.0001} required value={item.quantity}
+                  onValueChange={v => updateItem(item.id, { quantity: v })} />
               </div>
               <div className="col-span-2 space-y-2">
                 <label className="text-xs font-medium">Condição</label>

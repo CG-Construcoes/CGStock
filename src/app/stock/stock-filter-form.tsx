@@ -72,7 +72,7 @@ export function StockFilterForm({
           name="q"
           defaultValue={q}
           disabled={isPending}
-          placeholder="Buscar por cód. insumo ou produto..."
+          placeholder="Buscar por código, nome (palavras em qualquer ordem) ou localização..."
           className={cn("pl-9 transition-opacity", isPending && "opacity-75")}
         />
       </div>

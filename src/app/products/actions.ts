@@ -27,8 +27,8 @@ export async function createProductAction(formData: FormData) {
   const shortDescription = formData.get("shortDescription") as string || null
   const categoryId = formData.get("categoryId") as string
   const unitId = formData.get("unitId") as string
-  const minimumStock = parseInt(formData.get("minimumStock") as string) || 0
-  const maximumStock = parseInt(formData.get("maximumStock") as string) || 0
+  const minimumStock = Number(formData.get("minimumStock")) || 0
+  const maximumStock = Number(formData.get("maximumStock")) || 0
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
@@ -268,8 +268,8 @@ export async function updateProductAction(formData: FormData) {
   const shortDescription = formData.get("shortDescription") as string || null
   const categoryId = formData.get("categoryId") as string
   const unitId = formData.get("unitId") as string
-  const minimumStock = parseInt(formData.get("minimumStock") as string) || 0
-  const maximumStock = parseInt(formData.get("maximumStock") as string) || 0
+  const minimumStock = Number(formData.get("minimumStock")) || 0
+  const maximumStock = Number(formData.get("maximumStock")) || 0
   const brand = formData.get("brand") as string || null
   const model = formData.get("model") as string || null
   const defaultLocationId = formData.get("defaultLocationId") as string || null
@@ -306,6 +306,11 @@ export async function updateProductAction(formData: FormData) {
   if (existing && existing.id !== id) {
     redirect(`/products/${id}/edit?error=duplicate_code`)
   }
+
+  const before = await db.product.findUnique({
+    where: { id },
+    include: { category: { select: { name: true } }, unit: { select: { code: true } }, defaultLocation: { select: { code: true } } },
+  })
 
   try {
     await db.product.update({
@@ -351,6 +356,32 @@ export async function updateProductAction(formData: FormData) {
         await db.stock.deleteMany({ where: { id: { in: otherStockIds } } })
       }
     }
+    if (before) {
+      const after = await db.product.findUnique({
+        where: { id },
+        include: { category: { select: { name: true } }, unit: { select: { code: true } }, defaultLocation: { select: { code: true } } },
+      })
+      if (after) {
+        const pairs: [string, unknown, unknown][] = [
+          ["Código", before.code, after.code],
+          ["Código de barras", before.barcode, after.barcode],
+          ["Nome", before.name, after.name],
+          ["Descrição curta", before.shortDescription, after.shortDescription],
+          ["Categoria", before.category.name, after.category.name],
+          ["Unidade", before.unit.code, after.unit.code],
+          ["Estoque mínimo", before.minimumStock, after.minimumStock],
+          ["Estoque máximo", before.maximumStock, after.maximumStock],
+          ["Marca", before.brand, after.brand],
+          ["Modelo", before.model, after.model],
+          ["Localização padrão", before.defaultLocation?.code, after.defaultLocation?.code],
+          ["Status", before.status === "ACTIVE" ? "Ativo" : "Inativo", after.status === "ACTIVE" ? "Ativo" : "Inativo"],
+        ]
+        const changes = pairs
+          .filter(([, a, b]) => String(a ?? "") !== String(b ?? ""))
+          .map(([label, a, b]) => ({ label, from: String(a ?? "—") || "—", to: String(b ?? "—") || "—" }))
+        if (changes.length) await logAudit("PRODUCT_UPDATED", "Product", id, { changes }, session.userId)
+      }
+    }
   } catch (error) {
     console.error(error)
     redirect(`/products/${id}/edit?error=update_failed`)
@@ -390,6 +421,7 @@ export async function deleteProduct(id: string) {
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/action-guard"
 import { logAudit } from "@/lib/audit"
+import { PRODUCT_FIELD_LABELS, PRODUCT_QUICK_EDIT_ACTION } from "@/lib/quick-edit"
 
 export async function deleteAllProducts() {
   const session = await requireAdmin()
@@ -406,5 +438,33 @@ export async function deleteAllProducts() {
   } catch (error) {
     console.error("Error deleting all products:", error)
     throw new Error("Falha ao excluir todos os produtos.")
+  }
+}
+
+/** Troca a categoria de um ou vários produtos direto na listagem. */
+export async function updateProductsCategoryAction(productIds: string[], categoryId: string) {
+  const session = await getSession()
+  if (!session) return { error: "Sessão expirada. Faça login novamente." }
+  try {
+    await requirePermission('PRODUCT_UPDATE')
+    const ids = [...new Set(productIds)].slice(0, 500)
+    if (!ids.length) return { error: "Selecione ao menos um produto." }
+    const category = await db.productCategory.findUnique({ where: { id: categoryId }, select: { id: true, name: true } })
+    if (!category) return { error: "Categoria inválida." }
+    for (const id of ids) await assertProductWarehouseAccess(id, session.userId)
+
+    const previous = await db.product.findMany({ where: { id: { in: ids } }, select: { id: true, categoryId: true, category: { select: { name: true } } } })
+    await db.product.updateMany({ where: { id: { in: ids } }, data: { categoryId } })
+    for (const p of previous.filter(p => p.categoryId !== categoryId)) {
+      await logAudit(PRODUCT_QUICK_EDIT_ACTION, "Product", p.id, {
+        field: "categoryId", label: PRODUCT_FIELD_LABELS.categoryId, from: p.category.name, to: category.name, bulk: ids.length > 1,
+      }, session.userId)
+    }
+
+    revalidatePath("/products")
+    revalidatePath("/categories")
+    return { success: true, count: ids.length, categoryName: category.name }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Erro ao alterar a categoria." }
   }
 }

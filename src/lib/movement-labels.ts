@@ -23,6 +23,8 @@ export function getMovementTypeLabel(type: string, referenceType?: string | null
   const manual = isManualAdjustment(referenceType)
   if (referenceType === "TOOL_LOAN") return "Saída — Ferramentaria"
   if (referenceType === "TOOL_LOAN_RETURN") return "Devolução — Ferramentaria"
+  if (referenceType === "QUICK_EDIT") return type === "ADJUSTMENT_IN" ? "Edição rápida (+)" : type === "ADJUSTMENT_OUT" ? "Edição rápida (-)" : "Edição rápida"
+  if (referenceType === "CORRECTION") return type === "ADJUSTMENT_IN" ? "Correção (+)" : "Correção (-)"
   switch (type) {
     case "ENTRY": return "Entrada"
     case "EXIT": return "Saída"
@@ -31,6 +33,7 @@ export function getMovementTypeLabel(type: string, referenceType?: string | null
     case "ADJUSTMENT_OUT": return manual ? "Saída — Ajuste manual" : "Ajuste (-)"
     case "TRANSFER_IN": return "Transf. (+)"
     case "TRANSFER_OUT": return "Transf. (-)"
+    case "EDIT": return "Edição de produto"
     default: return type
   }
 }

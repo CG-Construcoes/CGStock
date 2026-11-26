@@ -6,6 +6,8 @@ import { BarChart3 } from "lucide-react"
 import { BackButton } from "@/components/ui/back-button"
 import { WarehouseSelectFilter } from "@/components/ui/warehouse-select-filter"
 import { resolveWarehouseContext } from "@/lib/dal"
+import { ReportExportButtons } from "@/app/reports/components/report-export-buttons"
+import { exportConsumptionData } from "@/app/export/actions"
 import { Suspense } from "react"
 
 export default async function ConsumptionReportPage(props: {
@@ -58,15 +60,22 @@ export default async function ConsumptionReportPage(props: {
             <p className="text-muted-foreground text-sm mt-1">Produtos mais requisitados e entregues na operação.</p>
           </div>
         </div>
-        {warehouses.length > 1 && (
-          <Suspense fallback={null}>
-            <WarehouseSelectFilter
-              warehouses={warehouses}
-              selectedWarehouseId={selectedWarehouseId}
-              className="w-full sm:w-64"
-            />
-          </Suspense>
-        )}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {warehouses.length > 1 && (
+            <Suspense fallback={null}>
+              <WarehouseSelectFilter
+                warehouses={warehouses}
+                selectedWarehouseId={selectedWarehouseId}
+                className="w-full sm:w-64"
+              />
+            </Suspense>
+          )}
+          <ReportExportButtons
+            title="RANKING DE CONSUMO"
+            filename="CGSTOCK_Consumo"
+            loadData={exportConsumptionData.bind(null, params.warehouseId)}
+          />
+        </div>
       </div>
 
       <div className="bg-card  rounded-md border border-border shadow-sm  overflow-hidden  ">

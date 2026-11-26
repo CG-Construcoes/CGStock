@@ -284,3 +284,34 @@ export const resolveWarehouseContext = cache(async (
     warehouseWhere,
   }
 })
+
+/**
+ * Contexto de almoxarifados para CONSULTA de saldo. Usuários com a permissão
+ * STOCK_VIEW_ALL enxergam o saldo de todos os almoxarifados ativos (somente
+ * leitura); as operações continuam restritas ao escopo de acesso normal.
+ */
+export async function resolveStockViewContext(paramWarehouseId?: string | null, userId?: string) {
+  const user = userId ?? (await requireUser()).session.userId
+  const base = await resolveWarehouseContext(paramWarehouseId, user)
+  const ctx = await getUserSecurityContext(user)
+  const operationalAll = base.effectiveScopeIds === null || ctx?.roleNames.includes("ADMIN") || ctx?.allWarehouseAccess
+  if (operationalAll || !ctx?.permissionKeys.has("STOCK_VIEW_ALL")) return { ...base, viewAll: false }
+
+  const warehouses: AccessibleWarehouse[] = await db.warehouse.findMany({
+    where: { status: "ACTIVE" },
+    select: { id: true, name: true, code: true, source: true },
+    orderBy: { name: "asc" },
+  })
+  const candidate = paramWarehouseId !== undefined && paramWarehouseId !== null
+    ? (paramWarehouseId === "ALL" ? "" : paramWarehouseId)
+    : base.selectedWarehouseId
+  const selectedWarehouseId = candidate && warehouses.some(w => w.id === candidate) ? candidate : ""
+  const effectiveScopeIds = selectedWarehouseId ? [selectedWarehouseId] : warehouses.map(w => w.id)
+  return {
+    warehouses,
+    selectedWarehouseId,
+    effectiveScopeIds,
+    warehouseWhere: { warehouseId: { in: effectiveScopeIds } },
+    viewAll: true,
+  }
+}

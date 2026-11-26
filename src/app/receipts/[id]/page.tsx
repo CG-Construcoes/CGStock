@@ -9,6 +9,8 @@ import { ConfirmReceiptButton } from "./confirm-button"
 import { BackButton } from "@/components/ui/back-button"
 import { formatCurrency } from "@/lib/utils"
 import { requirePermissionPage } from "@/lib/permissions"
+import { CORRECTION_REFERENCE } from "@/lib/movement-correction"
+import Link from "next/link"
 
 export default async function ReceiptDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermissionPage('STOCK_ENTRY')
@@ -38,6 +40,22 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
 
   const isDraft = receipt.status === 'DRAFT'
   const isCompleted = receipt.status === 'COMPLETED'
+
+  // Movimentos gerados pela entrada: permitem corrigir cada item direto daqui
+  const receiptMovements = isCompleted
+    ? await db.stockMovement.findMany({
+        where: { referenceType: 'RECEIPT', referenceId: receipt.id },
+        select: { id: true, productId: true, locationId: true },
+      })
+    : []
+  const corrected = receiptMovements.length
+    ? new Set((await db.stockMovement.findMany({
+        where: { referenceType: CORRECTION_REFERENCE, referenceId: { in: receiptMovements.map(m => m.id) } },
+        select: { referenceId: true },
+      })).map(m => m.referenceId))
+    : new Set<string | null>()
+  const movementFor = (item: { productId: string; locationId: string }) =>
+    receiptMovements.find(m => m.productId === item.productId && m.locationId === item.locationId)
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -193,6 +211,12 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
                     </div>
                   </div>
 
+                  {isCompleted && (
+                    <div className="flex justify-end">
+                      <CorrectionLink movementId={movementFor(item)?.id} corrected={corrected.has(movementFor(item)?.id ?? null)} />
+                    </div>
+                  )}
+
                   {item.unitCost && (
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Custo unitário:</span>
@@ -214,7 +238,8 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
                   <TableHead className="text-right">Qtd</TableHead>
                   <TableHead>Unid.</TableHead>
                   <TableHead className="text-right">Custo Unit.</TableHead>
-                  <TableHead className="text-right pr-6">Custo Total</TableHead>
+                  <TableHead className="text-right">Custo Total</TableHead>
+                  {isCompleted && <TableHead className="text-right pr-6">Correção</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -231,7 +256,12 @@ export default async function ReceiptDetailsPage({ params }: { params: Promise<{
                     <TableCell className="text-right font-medium">{Number(item.quantity)}</TableCell>
                     <TableCell>{item.product.unit.code}</TableCell>
                     <TableCell className="text-right">{item.unitCost ? formatCurrency(item.unitCost) : '-'}</TableCell>
-                    <TableCell className="text-right font-medium pr-6">{item.totalCost ? formatCurrency(item.totalCost) : '-'}</TableCell>
+                    <TableCell className="text-right font-medium">{item.totalCost ? formatCurrency(item.totalCost) : '-'}</TableCell>
+                    {isCompleted && (
+                      <TableCell className="text-right pr-6">
+                        <CorrectionLink movementId={movementFor(item)?.id} corrected={corrected.has(movementFor(item)?.id ?? null)} />
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -281,5 +311,14 @@ function CheckCircleIcon(props: React.SVGProps<SVGSVGElement>) {
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
       <polyline points="22 4 12 14.01 9 11.01" />
     </svg>
+  )
+}
+
+function CorrectionLink({ movementId, corrected }: { movementId?: string; corrected: boolean }) {
+  if (!movementId) return null
+  return (
+    <Link href={`/movements/${movementId}#corrigir`} className="text-xs font-medium text-primary hover:underline whitespace-nowrap">
+      {corrected ? "Corrigido · ver" : "Corrigir"}
+    </Link>
   )
 }

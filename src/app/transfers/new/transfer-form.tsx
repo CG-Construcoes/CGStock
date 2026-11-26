@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DecimalInput } from "@/components/ui/decimal-input"
 import { Select } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Plus, PackageX, ArrowRightLeft } from "lucide-react"
@@ -150,8 +151,8 @@ export function TransferForm({ warehouses, products, userId, sessionExpiresAt, e
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium">Quantidade a mover</label>
-                  <Input type="number" step="1" min="1" required value={item.quantity}
-                    onChange={e => updateItem(item.id, "quantity", Number(e.target.value))} />
+                  <DecimalInput min={0.0001} required value={item.quantity}
+                    onValueChange={v => updateItem(item.id, "quantity", v)} />
                 </div>
               </div>
               {items.length > 1 && (
