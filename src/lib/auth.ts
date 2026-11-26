@@ -29,6 +29,9 @@ export async function decrypt(input: string): Promise<SessionPayload | null> {
     const { payload } = await jwtVerify(input, jwtKey, {
       algorithms: ["HS256"],
     })
+    // Tokens de redefinição usam a mesma chave, mas nunca são sessões.
+    if (payload.purpose || typeof payload.userId !== "string" || !payload.userId ||
+        typeof payload.exp !== "number") return null
     // Backwards compatibility for old sessions that had { role: string }
     if (payload.role && !payload.roles) {
       if (payload.role === 'Administrador Sistema') {
@@ -94,7 +97,8 @@ export const getValidatedSession = cache(async (): Promise<SessionPayload | null
   const ctx = await getUserSecurityContext(session.userId)
 
   if (!ctx || ctx.status !== "ACTIVE") return null
-  if (session.sessionVersion !== undefined && ctx.sessionVersion !== session.sessionVersion) return null
+  if (ctx.sessionVersion !== (session.sessionVersion ?? 0)) return null
 
-  return session
+  // Perfis e troca obrigatória vêm do estado atual, não de um cookie de 7 dias.
+  return { ...session, roles: ctx.roleNames, mustChangePassword: ctx.mustChangePassword }
 })

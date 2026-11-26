@@ -37,6 +37,7 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  poweredByHeader: false,
   turbopack: {},
   experimental: {
     // Builder da Hostinger: reporta dezenas de CPUs mas a RAM é compartilhada

@@ -22,7 +22,7 @@ function buildCsp(nonce: string) {
   return csp.replace(/\s{2,}/g, ' ').trim()
 }
 
-function withSecurityHeaders(request: NextRequest) {
+function withSecurityHeaders(request: NextRequest, response?: NextResponse) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   const csp = buildCsp(nonce)
 
@@ -30,12 +30,13 @@ function withSecurityHeaders(request: NextRequest) {
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('Content-Security-Policy', csp)
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  response ??= NextResponse.next({ request: { headers: requestHeaders } })
   response.headers.set('Content-Security-Policy', csp)
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()')
+  response.headers.set('Cache-Control', 'private, no-store')
   if (process.env.NODE_ENV === 'production') {
     response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
   }
@@ -57,6 +58,19 @@ export default async function proxy(request: NextRequest) {
   const isPasswordRecoveryPage = pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password')
   const isServerAction = request.method === 'POST' && request.headers.has('next-action')
 
+  // Route Handlers não recebem a proteção Origin/Host das Server Actions.
+  // Requisições sem Origin continuam permitidas para clientes não-browser e SW.
+  if (isApi && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    const origin = request.headers.get('origin')
+    const expectedOrigin = process.env.NODE_ENV !== 'development' && process.env.APP_URL
+      ? new URL(process.env.APP_URL).origin
+      : request.nextUrl.origin
+    if ((origin !== null && origin !== expectedOrigin) ||
+        (!origin && ['cross-site', 'same-site'].includes(request.headers.get('sec-fetch-site') ?? ''))) {
+      return withSecurityHeaders(request, NextResponse.json({ error: 'Origem não permitida.' }, { status: 403 }))
+    }
+  }
+
   if (isPasswordRecoveryPage) return withSecurityHeaders(request)
 
   if (!session) {
@@ -69,6 +83,8 @@ export default async function proxy(request: NextRequest) {
 
   try {
     const { payload } = await jwtVerify(session, jwtKey, { algorithms: ["HS256"] })
+    if (payload.purpose || typeof payload.userId !== 'string' || !payload.userId ||
+        typeof payload.exp !== 'number') throw new Error('Sessão inválida')
 
     if (isApi) {
       if (payload.mustChangePassword) {
@@ -77,7 +93,7 @@ export default async function proxy(request: NextRequest) {
           { status: 403 }
         )
       }
-      return NextResponse.next()
+      return withSecurityHeaders(request)
     }
 
     // Não interceptar chamadas POST de Server Actions com redirect de página (evita POST / 200 e erro RSC no cliente)
@@ -119,6 +135,7 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/:path*',
     // Executa em rotas de página e API; ignora assets estáticos e arquivos públicos (sw.js, manifest, ícones...)
     '/((?!_next/static|_next/image|.*\\.[a-zA-Z0-9]+$).*)',
   ],

@@ -5,9 +5,10 @@ const dbMock = vi.hoisted(() => ({
   product: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
   productUnit: { findUnique: vi.fn() },
   productCategory: { findUnique: vi.fn() },
-  warehouseLocation: { findUnique: vi.fn() },
-  stock: { findUnique: vi.fn() },
-  $transaction: vi.fn(async (fn: any) => fn({})),
+  warehouseLocation: { findUnique: vi.fn(), findFirst: vi.fn() },
+  stock: { findUnique: vi.fn(), findFirst: vi.fn() },
+  stockMovement: { create: vi.fn() },
+  $transaction: vi.fn(async (fn: any) => fn(dbMock)),
 }))
 vi.mock("@/lib/db", () => ({ db: dbMock }))
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }))
@@ -34,6 +35,7 @@ describe("edição rápida", () => {
     dbMock.product.findUnique.mockResolvedValue({ defaultLocation: null, stocks: [{ warehouseId: "w1" }] })
     dbMock.product.findUniqueOrThrow.mockResolvedValue(product)
     dbMock.warehouseLocation.findUnique.mockResolvedValue({ id: "l1", code: "GALPAO 04", warehouseId: "w1" })
+    dbMock.stock.findFirst.mockResolvedValue({ location: { id: "l1", warehouseId: "w1" } })
   })
 
   it("altera a unidade e registra antes/depois", async () => {
@@ -41,7 +43,10 @@ describe("edição rápida", () => {
     const res = await updateProductFieldAction("p1", "unitId", "un-2")
     expect(res.success).toContain("UN → M")
     expect(dbMock.product.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { unitId: "un-2" } })
-    expect(logAudit).toHaveBeenCalledWith("PRODUCT_QUICK_EDIT", "Product", "p1", expect.objectContaining({ label: "Unidade", from: "UN", to: "M" }), "u1")
+    expect(logAudit).toHaveBeenCalledWith("PRODUCT_QUICK_EDIT", "Product", "p1", expect.objectContaining({ label: "Unidade", from: "UN", to: "M" }), "u1", dbMock)
+    expect(dbMock.stockMovement.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ type: "EDIT", performedById: "u1", reason: "Unidade: UN → M" }),
+    }))
   })
 
   it("altera o custo médio", async () => {
